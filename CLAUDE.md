@@ -1,3 +1,12 @@
+# neomycin (research fork of Lisa)
+
+> **This repo is `neomycin`** — a research reconstruction of MYCIN/EMYCIN,
+> forked from Lisa 4.2.0 (full history preserved). See `README.md`. **Research
+> only; NOT FOR CLINICAL USE.** Light-touch fork: the `lisa` engine below is
+> used as-is and intentionally *not* renamed. Dempster-Shafer is the default
+> belief system; certainty factors are retained for CF-vs-DS comparison. The
+> Lisa engine documentation below remains accurate for the substrate.
+
 # Lisa — Lisp-based Intelligent Software Agents
 
 Forward-chaining expert system shell in Common Lisp (Rete algorithm, CLOS/MOP, certainty factors). Integrated with Claude via tool-use for natural-language medical diagnosis (MYCIN rulebase).
