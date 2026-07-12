@@ -56,25 +56,26 @@
     (let ((fact-type (gethash "fact_type" body))
           (entity-name (gethash "entity" body))
           (value (gethash "value" body))
-          (entity-class (or (gethash "entity_class" body) "organism"))
           (confidence (gethash "confidence" body)))
       (unless (and fact-type value)
         (return-from assert-fact-handler
           (error-response "fact_type and value are required.")))
       (handler-case
+          ;; Scope the fact to its context in the patient -> culture -> organism
+          ;; lineage; the bridge creates any missing context facts (see
+          ;; session.lisp). ENTITY-NAME, when given, selects the organism for
+          ;; organism-level facts; patient/culture facts are auto-scoped.
           (let* ((class-sym (find-symbol (string-upcase fact-type) :lisa-user))
                  (value-sym (intern (string-upcase value) :lisa-user))
-                 (entity-obj (when entity-name
-                               (find-or-create-entity entity-name entity-class)))
-                 (initargs `(:value ,value-sym
-                             ,@(when entity-obj
-                                 `(:entity ,entity-obj))))
-                 (instance (apply #'make-instance class-sym initargs)))
+                 (of-id (context-id-for fact-type entity-name))
+                 (instance (make-instance class-sym :value value-sym :of of-id)))
             (lisa:assert-instance instance :belief confidence)
             (let ((result (make-hash-table :test #'equal)))
               (setf (gethash "status" result) "asserted")
               (setf (gethash "fact_type" result) fact-type)
               (setf (gethash "value" result) value)
+              (setf (gethash "scoped_to" result)
+                    (string-downcase (symbol-name of-id)))
               (when entity-name
                 (setf (gethash "entity" result) entity-name))
               (when confidence

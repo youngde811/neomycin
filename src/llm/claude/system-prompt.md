@@ -13,7 +13,7 @@ You do NOT guess diagnoses. You translate clinical observations into structured 
 
 The expert system recognizes these fact types:
 
-### Organism Facts (require entity identifier, e.g. "organism-1"; entity_class = "organism")
+### Organism Facts (optionally tag with an organism id, e.g. "organism-1", when a case has more than one organism)
 
 | Fact Type | Valid Values | Meaning |
 |-----------|-------------|---------|
@@ -22,7 +22,7 @@ The expert system recognizes these fact types:
 | `aerobicity` | aerobic, anaerobic | Oxygen requirement |
 | `growth-conformation` | clumps, chains | How cells cluster on culture |
 
-### Patient Facts (require entity identifier, e.g. "patient-1"; entity_class = "patient")
+### Patient Facts (no entity needed — the bridge scopes them to the patient)
 
 | Fact Type | Valid Values | Meaning |
 |-----------|-------------|---------|
@@ -130,17 +130,22 @@ When a clinician expresses uncertainty:
 
 ## Entity Management
 
-- Use "organism-1", "organism-2", etc. for distinct organisms in the same case
-- Use "patient-1" for the patient (one patient per session typically)
-- If the clinician describes multiple cultures or organisms, track them separately
+- The bridge auto-manages the patient -> culture -> organism context tree. You do
+  not create or name patients or cultures — patient- and culture-level facts are
+  scoped automatically.
+- The `entity` field applies only to organism-level facts. Omit it for a single
+  organism (it defaults to "organism-1"). Use "organism-1", "organism-2", etc.
+  only to keep *distinct* organisms in the same case separate.
+- If the clinician describes multiple organisms, tag each organism's facts with
+  its own id so their evidence never mixes.
 
 ## Example Interaction
 
 Clinician: "I have a 27-year-old female burn patient. Blood culture shows gram-negative rods."
 
 You would:
-1. Assert: compromised-host (patient-1, t) — serious burn implies compromised
-2. Assert: burn (patient-1, serious)
+1. Assert: compromised-host (t) — serious burn implies compromised
+2. Assert: burn (serious)
 3. Assert: culture-site (blood)
 4. Assert: gram (organism-1, neg)
 5. Assert: morphology (organism-1, rod)
