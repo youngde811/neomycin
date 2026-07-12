@@ -1,7 +1,7 @@
 [
   {
     "name": "assert_fact",
-    "description": "Assert a clinical fact into Lisa's working memory. Each fact has a type (e.g. gram, morphology) and a value. Facts about organisms or patients require an entity identifier. Use this to build up the clinical picture before running inference.",
+    "description": "Assert a clinical fact into Lisa's working memory. Each fact has a type (e.g. gram, morphology) and a value. The bridge automatically files each fact under the correct context in the patient -> culture -> organism tree; you only name an organism (via 'entity') when a case involves more than one. Use this to build up the clinical picture before running inference.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -29,12 +29,7 @@
         },
         "entity": {
           "type": "string",
-          "description": "Identifier for the entity this fact describes (e.g. 'organism-1', 'patient-1'). Required for organism facts (gram, morphology, aerobicity, growth-conformation) and patient facts (burn, compromised-host, hospital-acquired, recent-travel, infection-site, white-blood-count). Not needed for culture-site or culture-age."
-        },
-        "entity_class": {
-          "type": "string",
-          "description": "The class of the entity: 'organism' or 'patient'. Defaults to 'organism' if omitted. Use 'patient' for burn, compromised-host, hospital-acquired, recent-travel, infection-site, and white-blood-count.",
-          "enum": ["organism", "patient"]
+          "description": "Optional organism identifier (e.g. 'organism-1', 'organism-2'), used ONLY for organism-level facts (gram, morphology, aerobicity, growth-conformation) when a case has more than one organism, to keep each organism's evidence separate. Omit for single-organism cases (defaults to 'organism-1'). Ignored for patient-level facts (burn, compromised-host, hospital-acquired, recent-travel, infection-site, white-blood-count) and culture-level facts (culture-site, culture-age), which the bridge scopes automatically."
         },
         "confidence": {
           "type": "number",

@@ -24,29 +24,88 @@
 
 (in-package :lisa-bridge)
 
-(defvar *session-entities* (make-hash-table :test #'equal)
-  "Maps entity name strings (e.g. \"organism-1\") to CLOS instances.")
+;;; Context-tree session management (approach A: the bridge auto-manages the
+;;; patient -> culture -> organism lineage).
+;;;
+;;; The rulebase scopes every clinical parameter to a context by ID (see
+;;; examples/mycin.lisp). Callers of the bridge should not have to build that
+;;; tree by hand: they assert facts by type and value (plus, for organism-level
+;;; facts, which organism), and the bridge lazily creates the context facts and
+;;; scopes each parameter to the right level. A consultation has one canonical
+;;; patient and one canonical culture; organisms are created on demand and all
+;;; hang off the canonical culture. IDs are LISA-USER symbols so Rete joins them
+;;; by identity, exactly as the hand-written scenarios do.
 
 (defvar *session-lock* (bt:make-lock "lisa-bridge-session")
   "Lock protecting session state.")
 
+(defvar *asserted-contexts* (make-hash-table :test #'equal)
+  "Names of context facts (patient/culture/organism) already asserted this
+   session, so we assert each lineage node exactly once.")
+
+(defparameter +patient-name+ "patient-1"
+  "Canonical id of the single patient in a consultation.")
+(defparameter +culture-name+ "culture-1"
+  "Canonical id of the single culture in a consultation.")
+(defparameter +default-organism-name+ "organism-1"
+  "Organism used when an organism-level fact names no entity.")
+
+(defparameter *param-level*
+  '(("gram" . :organism) ("morphology" . :organism) ("aerobicity" . :organism)
+    ("growth-conformation" . :organism) ("organism-identity" . :organism)
+    ("culture-site" . :culture) ("culture-age" . :culture)
+    ("burn" . :patient) ("compromised-host" . :patient)
+    ("hospital-acquired" . :patient) ("recent-travel" . :patient)
+    ("white-blood-count" . :patient) ("infection-site" . :patient))
+  "Which context level each parameter fact scopes to.")
+
+(defun param-level (fact-type)
+  "Context level (:organism | :culture | :patient) for FACT-TYPE.
+   Defaults to :organism (identification facts are organism-level)."
+  (or (cdr (assoc (string-downcase (string fact-type)) *param-level* :test #'string=))
+      :organism))
+
+(defun lu-sym (name)
+  "Intern NAME (a string) as a symbol in LISA-USER, for use as a context id."
+  (intern (string-upcase (string name)) :lisa-user))
+
+;;; The functions below are NOT internally locked; callers hold *SESSION-LOCK*.
+
+(defun assert-context (class-name id-name &optional parent-slot parent-name)
+  "Assert a context fact of CLASS-NAME with id ID-NAME (and an optional
+   PARENT-SLOT -> PARENT-NAME link) exactly once per session."
+  (unless (gethash id-name *asserted-contexts*)
+    (let* ((class-sym (find-symbol (string-upcase class-name) :lisa-user))
+           (initargs (list* :id (lu-sym id-name)
+                            (when parent-slot
+                              (list parent-slot (lu-sym parent-name))))))
+      (lisa:assert-instance (apply #'make-instance class-sym initargs))
+      (setf (gethash id-name *asserted-contexts*) t))))
+
+(defun ensure-base-lineage ()
+  "Ensure the canonical patient and culture (culture -> patient) exist."
+  (assert-context "patient" +patient-name+)
+  (assert-context "culture" +culture-name+ :patient +patient-name+))
+
+(defun ensure-organism (name)
+  "Ensure organism NAME exists under the canonical culture; return its id symbol."
+  (ensure-base-lineage)
+  (assert-context "organism" name :culture +culture-name+)
+  (lu-sym name))
+
+(defun context-id-for (fact-type entity-name)
+  "Return the context id symbol a FACT-TYPE fact scopes to (its OF value),
+   creating any missing lineage facts. For organism-level facts ENTITY-NAME
+   selects the organism (default organism-1); patient- and culture-level facts
+   use the canonical patient/culture regardless of ENTITY-NAME."
+  (bt:with-lock-held (*session-lock*)
+    (ecase (param-level fact-type)
+      (:organism (ensure-organism (or entity-name +default-organism-name+)))
+      (:culture  (ensure-base-lineage) (lu-sym +culture-name+))
+      (:patient  (ensure-base-lineage) (lu-sym +patient-name+)))))
+
 (defun reset-session ()
   "Clear all session state and reset the Lisa engine."
   (bt:with-lock-held (*session-lock*)
-    (clrhash *session-entities*)
+    (clrhash *asserted-contexts*)
     (lisa:reset)))
-
-(defun find-or-create-entity (entity-name class-name)
-  "Look up an entity by name, creating it if it doesn't exist.
-   CLASS-NAME is a string like \"organism\" or \"patient\"."
-  (bt:with-lock-held (*session-lock*)
-    (or (gethash entity-name *session-entities*)
-        (let* ((class-sym (find-symbol (string-upcase class-name) :lisa-user))
-               (instance (make-instance class-sym)))
-          (setf (gethash entity-name *session-entities*) instance)
-          instance))))
-
-(defun get-entity (entity-name)
-  "Look up an existing entity by name. Returns NIL if not found."
-  (bt:with-lock-held (*session-lock*)
-    (gethash entity-name *session-entities*)))

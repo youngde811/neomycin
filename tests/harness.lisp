@@ -127,6 +127,36 @@
   "Look up the belief for organism NAME (case-insensitive) in CONCLUSIONS."
   (cdr (assoc (string-downcase name) conclusions :test #'string=)))
 
+;;; Lineage-aware collection, for multi-organism scenarios: keeps each identity's
+;;; scoping id (OF) so a test can assert that an identity landed on the correct
+;;; organism and not on a sibling.
+
+(defun collect-identities ()
+  "Return a list of (VALUE-STRING . OF) for every organism-identity fact."
+  (let ((acc '()))
+    (dolist (fact (lisa:get-fact-list (lisa:inference-engine)))
+      (when (eq (lisa:fact-name fact) 'lisa-user::organism-identity)
+        (push (cons (string-downcase
+                     (symbol-name (lisa:get-slot-value fact 'lisa-user::value)))
+                    (lisa:get-slot-value fact 'lisa-user::of))
+              acc)))
+    acc))
+
+(defun run-scenario-identities (fn-designator system)
+  "Like RUN-SCENARIO but returns (VALUE-STRING . OF) pairs."
+  (belief:use-system system)
+  (let ((*standard-output* (make-broadcast-stream)))
+    (funcall fn-designator))
+  (collect-identities))
+
+(defun identity-on-p (identities value of)
+  "True iff organism-identity VALUE (string, case-insensitive) is scoped to OF."
+  (member t identities
+          :test (lambda (x pair)
+                  (declare (ignore x))
+                  (and (string= (string-downcase value) (car pair))
+                       (eq of (cdr pair))))))
+
 ;;; Programmatic fact assertion, for per-rule tests that need a minimal premise
 ;;; set. Uses the same functional path as the bridge (LISA:ASSERT-INSTANCE),
 ;;; so no rulebase-DSL macro is needed here.
@@ -135,26 +165,36 @@
   "The symbol NAME (string or symbol) interned in the LISA-USER package."
   (intern (string-upcase (string name)) "LISA-USER"))
 
-(defun af (class value &optional entity)
-  "Assert a param-mixin fact of CLASS with VALUE (both named in LISA-USER),
-   optionally attached to ENTITY (a CLOS instance)."
-  (let ((c (lu class)) (v (lu value)))
-    (lisa:assert-instance
-     (if entity
-         (make-instance c :value v :entity entity)
-         (make-instance c :value v)))))
+;;; Fixed context ids for the isolated single-organism lineage the per-rule
+;;; tests run in. Contexts are joined by ID (a plain value), matching the
+;;; rulebase's patient -> culture -> organism model.
+(defparameter *ctx-patient*  'the-patient)
+(defparameter *ctx-culture*  'the-culture)
+(defparameter *ctx-organism* 'the-organism)
+
+(defun af (class value &optional (scope *ctx-organism*))
+  "Assert a param-mixin fact of CLASS with VALUE (both interned in LISA-USER),
+   scoped to context id SCOPE via the OF slot. SCOPE defaults to the isolated
+   organism; pass *CTX-CULTURE* / *CTX-PATIENT* for culture- / patient-level
+   parameters."
+  (lisa:assert-instance
+   (make-instance (lu class) :value (lu value) :of scope)))
 
 (defun run-facts (system builder)
-  "Select belief SYSTEM, reset, create an ORGANISM and PATIENT, call BUILDER
-   with them (it asserts facts via AF), run inference, return conclusions.
-   Lets a single rule fire in isolation on a minimal premise set."
+  "Select belief SYSTEM, reset, assert a single patient -> culture -> organism
+   lineage (by id), call BUILDER with the organism and patient ids (it asserts
+   parameters via AF), run inference, return conclusions. Lets a single rule
+   fire in isolation on a minimal premise set."
   (belief:use-system system)
   (let ((*standard-output* (make-broadcast-stream)))
     (lisa:reset)
-    (let ((organism (make-instance (lu "organism")))
-          (patient  (make-instance (lu "patient"))))
-      (funcall builder organism patient)
-      (lisa:run)))
+    (lisa:assert-instance (make-instance (lu "patient") :id *ctx-patient*))
+    (lisa:assert-instance (make-instance (lu "culture")
+                                         :id *ctx-culture* :patient *ctx-patient*))
+    (lisa:assert-instance (make-instance (lu "organism")
+                                         :id *ctx-organism* :culture *ctx-culture*))
+    (funcall builder *ctx-organism* *ctx-patient*)
+    (lisa:run))
   (collect-conclusions))
 
 ;;; ------------------------------------------------------------------

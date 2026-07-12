@@ -105,3 +105,23 @@
     (is (> (belief:ds-belief-bel (belief-of ds "pseudomonas"))
            (belief-of cf "pseudomonas"))
         "DS belief should exceed CF under conflict (pseudomonas)")))
+
+;;; ------------------------------------------------------------------
+;;; Multi-organism lineage scoping (the reason the context tree exists)
+;;; ------------------------------------------------------------------
+
+(deftest multi-organism-identities-stay-scoped ()
+  ;; Two organisms in one culture: o1 (aerobic gram-neg rod) must be ONLY
+  ;; enterobacteriaceae; o2 (gram-pos coccus in clumps) must be ONLY
+  ;; staphylococcus. Neither identity may leak onto the sibling organism --
+  ;; the property the flat rulebase silently violated.
+  (let ((ids (run-scenario-identities 'lisa-user::culture-multi :dempster-shafer))
+        (o1 (lu "o1")) (o2 (lu "o2")))
+    (is (identity-on-p ids "enterobacteriaceae" o1)
+        "o1 should be identified as enterobacteriaceae")
+    (is (identity-on-p ids "staphylococcus" o2)
+        "o2 should be identified as staphylococcus")
+    (is (not (identity-on-p ids "staphylococcus" o1))
+        "staphylococcus must NOT leak onto o1")
+    (is (not (identity-on-p ids "enterobacteriaceae" o2))
+        "enterobacteriaceae must NOT leak onto o2")))
