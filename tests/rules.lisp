@@ -23,7 +23,7 @@
 
 (deftest rule-gram-neg-rod-burn-pseudomonas ()      ; 0.4
   (check-rule (lambda (o p)
-                (af "culture-site" "blood")
+                (af "culture-site" "blood" *ctx-culture*)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
                 (af "burn" "serious" p))
               "pseudomonas" 0.4))
@@ -36,7 +36,7 @@
 
 (deftest rule-anaerobic-gram-neg-rod-blood-bacteroides () ; 0.9
   (check-rule (lambda (o p) (declare (ignore p))
-                (af "culture-site" "blood")
+                (af "culture-site" "blood" *ctx-culture*)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
                 (af "aerobicity" "anaerobic" o))
               "bacteroides" 0.9))
@@ -99,7 +99,7 @@
 
 (deftest rule-gram-pos-cocci-chains-blood-compromised-enterococcus () ; 0.7
   (check-rule (lambda (o p)
-                (af "culture-site" "blood")
+                (af "culture-site" "blood" *ctx-culture*)
                 (af "gram" "pos" o) (af "morphology" "coccus" o)
                 (af "growth-conformation" "chains" o)
                 (af "compromised-host" "t" p))
@@ -107,7 +107,7 @@
 
 (deftest rule-gram-neg-rod-blood-low-wbc-salmonella () ; 0.55
   (check-rule (lambda (o p)
-                (af "culture-site" "blood")
+                (af "culture-site" "blood" *ctx-culture*)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
                 (af "white-blood-count" "low" p))
               "salmonella" 0.55))
@@ -163,7 +163,7 @@
   ;; 0.9 via the anaerobic-blood rule; the contradictory aerobic fact fires the
   ;; ruling-out rule.
   (check-disconfirms (lambda (o p) (declare (ignore p))
-                       (af "culture-site" "blood")
+                       (af "culture-site" "blood" *ctx-culture*)
                        (af "gram" "neg" o) (af "morphology" "rod" o)
                        (af "aerobicity" "anaerobic" o)
                        (af "aerobicity" "aerobic" o))
