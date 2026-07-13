@@ -159,6 +159,7 @@
 
 (pushnew :lisa.asdf *features*)
 (pushnew :log4cl *features*)
+
 (load (merge-pathnames "version.lisp" *install-root*))
 
 (defvar *lisa-root-pathname*
@@ -167,21 +168,32 @@
                  :host (pathname-host *load-truename*)
                  :device (pathname-device *load-truename*)))
 
+(defvar *neomycin-root-pathname*
+  (make-pathname :directory
+                 (pathname-directory *load-truename*)
+                 :host (pathname-host *load-truename*)
+                 :device (pathname-device *load-truename*)))
+
+(defun make-neomycin-path (relative-path)
+  (concatenate 'string (namestring *neomycin-root-pathname*)
+               relative-path))
+
 (defun make-lisa-path (relative-path)
   (concatenate 'string (namestring *lisa-root-pathname*)
                relative-path))
 
-(setf (logical-pathname-translations "lisa")
+(setf (logical-pathname-translations "neomycin")
       `(("src;**;" ,(make-lisa-path "src/**/"))
         ("lib;**;*.*" ,(make-lisa-path "lib/**/"))
         ("config;*.*" ,(make-lisa-path "config/"))
         ("debugger;*.*" ,(make-lisa-path "src/debugger/"))
         ("examples;*.*", (make-lisa-path "examples/"))
         ("auto-notify;*.*", (make-lisa-path "src/implementations/"))
+        ("rulebase;*.*" ,(make-neomycin-path "neomycin/rule-base/"))
         ("contrib;**;" ,(make-lisa-path "contrib/**/"))))
 
 (defun lisa-debugger ()
-  #p"lisa:debugger;lisa-debugger.lisp")
+  #p"neomycin:debugger;lisa-debugger.lisp")
 
 ;;; Sets up the environment so folks can use the non-portable form of REQUIRE
 ;;; with some implementations...

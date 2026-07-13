@@ -1,0 +1,405 @@
+;; This file is part of Lisa, the Lisp-based Intelligent Software Agents platform.
+
+;; MIT License
+
+;; Copyright (c) 2000 David Young
+
+;; Permission is hereby granted, free of charge, to any person obtaining a copy
+;; of this software and associated documentation files (the "Software"), to deal
+;; in the Software without restriction, including without limitation the rights
+;; to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+;; copies of the Software, and to permit persons to whom the Software is
+;; furnished to do so, subject to the following conditions:
+
+;; The above copyright notice and this permission notice shall be included in all
+;; copies or substantial portions of the Software.
+
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+;; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+;; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+;; SOFTWARE.
+
+;; Description: An implementation of MYCIN as illustrated in PAIP, pg. 553, used
+;; to illustrate (and test) uncertain reasoning. This is neomycin's rulebase.
+;;
+;; CONTEXT TREE (neomycin change): unlike a flat rulebase, the MYCIN world is a
+;; hierarchy -- patient -> culture -> organism -- and every clinical parameter
+;; belongs to exactly one context in that tree. We make that structure explicit:
+;;
+;;   * The context classes PATIENT, CULTURE and ORGANISM are asserted as facts
+;;     carrying an ID and a parent link (a culture names its patient; an organism
+;;     names its culture). IDs are plain values (symbols/strings), NOT CLOS
+;;     instance identity, so Rete can join across the hierarchy by ordinary
+;;     variable equality -- and so the LLM bridge, which already identifies
+;;     entities by string name, maps onto the same model.
+;;
+;;   * Every parameter fact (a PARAM-MIXIN subclass) scopes to its context via
+;;     the OF slot: gram/morphology/aerobicity/growth-conformation are ORGANISM
+;;     level, culture-site/culture-age are CULTURE level, and burn/
+;;     compromised-host/hospital-acquired/recent-travel/white-blood-count/
+;;     infection-site are PATIENT level.
+;;
+;;   * Rules join through the lineage (organism -> its culture -> its patient),
+;;     so evidence stays within a single organism's chain. With one organism
+;;     this is behaviourally identical to the old flat rulebase; with N organisms
+;;     it prevents the cross-product leakage the flat version silently produced.
+;;
+;; The rulebase also exercises the pluggable belief-system protocol (see
+;; src/belief-systems/). The same rules run unchanged under MYCIN-style certainty
+;; factors and under a simplified Dempster-Shafer system, where each hypothesis
+;; carries a [Bel, Pl] interval whose width (Pl - Bel) is explicit ignorance.
+;; Rule beliefs declared via (:belief ...) are interpreted by the active belief
+;; system; the CONCLUSION rule reports the combined belief for each surviving
+;; organism-identity hypothesis via BELIEF:BELIEF-FACTOR.
+;;
+;; Demonstration functions CULTURE-1/1A/2/3 drive the PAIP scenarios (pgs. 555,
+;; 556) plus expanded multi-hypothesis differentials.
+
+(in-package :lisa-user)
+
+(clear)
+
+(setf lisa::*allow-duplicate-facts* nil)
+
+;;; ------------------------------------------------------------------
+;;; Context tree: patient -> culture -> organism (asserted as facts).
+;;; Identity is carried by the ID slot (a plain value), and the parent
+;;; link names the parent's ID.
+;;; ------------------------------------------------------------------
+
+(defclass patient ()
+  ((id   :initarg :id   :initform nil :reader id)
+   (name :initarg :name :initform nil :reader name)
+   (sex  :initarg :sex  :initform nil :reader sex)
+   (age  :initarg :age  :initform nil :reader age)))
+
+(defclass culture ()
+  ((id      :initarg :id      :initform nil :reader id)
+   (patient :initarg :patient :initform nil :reader culture-patient)))
+
+(defclass organism ()
+  ((id      :initarg :id      :initform nil :reader id)
+   (culture :initarg :culture :initform nil :reader organism-culture)))
+
+;;; ------------------------------------------------------------------
+;;; Parameters: each scopes to its context via the OF slot (formerly
+;;; ENTITY). VALUE holds the clinical reading.
+;;; ------------------------------------------------------------------
+
+(defclass param-mixin ()
+  ((value :initarg :value :initform nil :reader value)
+   (of    :initarg :of    :initform nil :reader context-of)))
+
+;; Culture-level parameters
+(defclass culture-site (param-mixin) ())
+(defclass culture-age (param-mixin) ())
+
+;; Patient-level parameters
+(defclass burn (param-mixin) ())
+(defclass compromised-host (param-mixin) ())
+(defclass hospital-acquired (param-mixin) ())
+(defclass recent-travel (param-mixin) ())
+(defclass white-blood-count (param-mixin) ())
+(defclass infection-site (param-mixin) ())
+
+;; Organism-level parameters
+(defclass gram (param-mixin) ())
+(defclass morphology (param-mixin) ())
+(defclass aerobicity (param-mixin) ())
+(defclass growth-conformation (param-mixin) ())
+
+;; Conclusion (organism level)
+(defclass organism-identity (param-mixin) ())
+
+;;; ------------------------------------------------------------------
+;;; Confirming rules (1-15). Each joins the organism to its culture and
+;;; patient as needed, then scopes every premise to that lineage.
+;;; ------------------------------------------------------------------
+
+(defrule gram-neg-rod-in-burn-patient-suggests-pseudomonas (:belief 0.4)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (culture-site (value blood) (of ?c))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (burn (value serious) (of ?p))
+  =>
+  (assert (organism-identity (value pseudomonas) (of ?o))))
+
+(defrule gram-pos-cocci-in-clumps-suggests-staphylococcus (:belief 0.7)
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value clumps) (of ?o))
+  =>
+  (assert (organism-identity (value staphylococcus) (of ?o))))
+
+(defrule anaerobic-gram-neg-rod-in-blood-suggests-bacteroides (:belief 0.9)
+  (organism (id ?o) (culture ?c))
+  (culture-site (value blood) (of ?c))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value anaerobic) (of ?o))
+  =>
+  (assert (organism-identity (value bacteroides) (of ?o))))
+
+(defrule gram-neg-rod-in-compromised-host-suggests-pseudomonas (:belief 0.6)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (compromised-host (value t) (of ?p))
+  =>
+  (assert (organism-identity (value pseudomonas) (of ?o))))
+
+(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae (:belief 0.8)
+  (organism (id ?o))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  =>
+  (assert (organism-identity (value enterobacteriaceae) (of ?o))))
+
+(defrule gram-pos-cocci-in-chains-suggests-streptococcus (:belief 0.7)
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value chains) (of ?o))
+  =>
+  (assert (organism-identity (value streptococcus) (of ?o))))
+
+(defrule hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus (:belief 0.8)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value clumps) (of ?o))
+  (hospital-acquired (value t) (of ?p))
+  =>
+  (assert (organism-identity (value staphylococcus-aureus) (of ?o))))
+
+(defrule hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.6)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (hospital-acquired (value t) (of ?p))
+  (compromised-host (value t) (of ?p))
+  =>
+  (assert (organism-identity (value klebsiella) (of ?o))))
+
+(defrule hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas (:belief 0.7)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  (hospital-acquired (value t) (of ?p))
+  =>
+  (assert (organism-identity (value pseudomonas) (of ?o))))
+
+(defrule aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.5)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  (compromised-host (value t) (of ?p))
+  =>
+  (assert (organism-identity (value klebsiella) (of ?o))))
+
+(defrule respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae (:belief 0.75)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value chains) (of ?o))
+  (infection-site (value respiratory) (of ?p))
+  =>
+  (assert (organism-identity (value streptococcus-pneumoniae) (of ?o))))
+
+(defrule gram-neg-rod-with-tropical-travel-suggests-salmonella (:belief 0.65)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (recent-travel (value tropical) (of ?p))
+  =>
+  (assert (organism-identity (value salmonella) (of ?o))))
+
+(defrule gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus (:belief 0.7)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (culture-site (value blood) (of ?c))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value chains) (of ?o))
+  (compromised-host (value t) (of ?p))
+  =>
+  (assert (organism-identity (value enterococcus) (of ?o))))
+
+(defrule gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (culture-site (value blood) (of ?c))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (white-blood-count (value low) (of ?p))
+  =>
+  (assert (organism-identity (value salmonella) (of ?o))))
+
+(defrule anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides (:belief 0.8)
+  (organism (id ?o) (culture ?c))
+  (culture (id ?c) (patient ?p))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value anaerobic) (of ?o))
+  (infection-site (value abdominal) (of ?p))
+  =>
+  (assert (organism-identity (value bacteroides) (of ?o))))
+
+;;; --- Ruling-out (disconfirming) rules ---
+;;;
+;;; These inject *negative* evidence: a contradictory Gram stain or oxygen
+;;; requirement argues AGAINST a live organism-identity hypothesis. They key off
+;;; the hypothesis and its contradicting parameter on the SAME organism (?o) and
+;;; re-assert it with a negative rule belief, which the active belief system
+;;; folds in as disconfirming evidence.
+;;;
+;;; Under Dempster-Shafer a negative :belief becomes mass on not-H, so meeting
+;;; confirmatory evidence produces real conflict (K > 0): Bel falls AND
+;;; plausibility drops below 1.0 -- an ambiguous stain becomes a widened, lowered
+;;; interval. Under certainty factors it simply combines as a negative CF.
+
+(defrule gram-pos-stain-argues-against-gram-neg-organism (:belief -0.7)
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(pseudomonas enterobacteriaceae klebsiella salmonella bacteroides)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+(defrule gram-neg-stain-argues-against-gram-pos-organism (:belief -0.7)
+  (organism (id ?o))
+  (gram (value neg) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(staphylococcus staphylococcus-aureus streptococcus
+                         streptococcus-pneumoniae enterococcus)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+(defrule aerobic-growth-argues-against-anaerobe (:belief -0.8)
+  (organism (id ?o))
+  (aerobicity (value aerobic) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(bacteroides)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;;; --- Conclusion rule ---
+
+(defrule conclusion (:salience -10)
+  (?identity (organism-identity (value ?value)))
+  =>
+  (format t "Identity: ~A (~,3F)~%" ?value (belief:belief-factor ?identity)))
+
+;;; ------------------------------------------------------------------
+;;; Demonstration scenarios. Each asserts a patient -> culture -> organism
+;;; lineage (by ID) and then the clinical parameters scoped to it.
+;;; ------------------------------------------------------------------
+
+(defun culture-1 (&key (runp t))
+  "First PAIP scenario (pg. 555): aerobic gram-neg rod cultured from the blood of a
+   seriously burned, immunocompromised patient. Evidence enters with the active
+   belief system's default (full belief / no ignorance). Multiple rules fire on
+   overlapping evidence, producing competing pseudomonas, enterobacteriaceae and
+   klebsiella hypotheses that the belief system must combine."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (compromised-host (value t) (of p1)))
+  (assert (burn (value serious) (of p1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (culture-age (value 3) (of c1)))
+  (assert (gram (value neg) (of o1)))
+  (assert (morphology (value rod) (of o1)))
+  (assert (aerobicity (value aerobic) (of o1)))
+  (when runp
+    (run)))
+
+(defun culture-1a (&key (runp t))
+  "Hospital-acquired gram-neg infection in an immunocompromised patient.
+   Produces competing hypotheses: pseudomonas, klebsiella, enterobacteriaceae."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (compromised-host (value t) (of p1)))
+  (assert (hospital-acquired (value t) (of p1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (gram (value neg) (of o1)))
+  (assert (morphology (value rod) (of o1)))
+  (assert (aerobicity (value aerobic) (of o1)))
+  (when runp
+    (run)))
+
+(defun culture-3 (&key (runp t))
+  "Gram-pos cocci in chains from a respiratory site in a compromised host.
+   Produces competing hypotheses: streptococcus, streptococcus-pneumoniae, enterococcus."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (compromised-host (value t) (of p1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (infection-site (value respiratory) (of p1)))
+  (assert (gram (value pos) (of o1)))
+  (assert (morphology (value coccus) (of o1)))
+  (assert (growth-conformation (value chains) (of o1)))
+  (when runp
+    (run)))
+
+(defun culture-2 (&key (runp t))
+  "Second PAIP scenario (pg. 556): same burned, immunocompromised patient, but the
+   Gram stain is ambiguous. Two conflicting GRAM facts are asserted with explicit
+   belief values (0.8 for neg, 0.2 for pos), exercising the belief-system protocol
+   on the fact side as well as the rule side. With an anaerobic gram-neg rod in the
+   blood, the bacteroides rule dominates while the gram-pos disconfirming rule pulls
+   plausibility below 1.0 -- a good workout for both combinators."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (compromised-host (value t) (of p1)))
+  (assert (burn (value serious) (of p1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (culture-age (value 3) (of c1)))
+  (assert (gram (value neg) (of o1)) :belief 0.8)
+  (assert (gram (value pos) (of o1)) :belief 0.2)
+  (assert (morphology (value rod) (of o1)))
+  (assert (aerobicity (value anaerobic) (of o1)))
+  (when runp
+    (run)))
+
+(defun culture-multi (&key (runp t))
+  "Two organisms in one culture, to exercise lineage scoping. o1 is an aerobic
+   gram-neg rod (=> enterobacteriaceae only); o2 is a gram-pos coccus in clumps
+   (=> staphylococcus only). Each identity must stay on its own organism -- the
+   flat rulebase would cross-contaminate via unscoped morphology/gram joins."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (organism (id o2) (culture c1)))
+  (assert (gram (value neg) (of o1)))
+  (assert (morphology (value rod) (of o1)))
+  (assert (aerobicity (value aerobic) (of o1)))
+  (assert (gram (value pos) (of o2)))
+  (assert (morphology (value coccus) (of o2)))
+  (assert (growth-conformation (value clumps) (of o2)))
+  (when runp
+    (run)))
