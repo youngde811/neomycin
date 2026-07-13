@@ -168,16 +168,6 @@
                  :host (pathname-host *load-truename*)
                  :device (pathname-device *load-truename*)))
 
-(defvar *neomycin-root-pathname*
-  (make-pathname :directory
-                 (pathname-directory *load-truename*)
-                 :host (pathname-host *load-truename*)
-                 :device (pathname-device *load-truename*)))
-
-(defun make-neomycin-path (relative-path)
-  (concatenate 'string (namestring *neomycin-root-pathname*)
-               relative-path))
-
 (defun make-lisa-path (relative-path)
   (concatenate 'string (namestring *lisa-root-pathname*)
                relative-path))
@@ -189,7 +179,6 @@
         ("debugger;*.*" ,(make-lisa-path "src/debugger/"))
         ("examples;*.*", (make-lisa-path "examples/"))
         ("auto-notify;*.*", (make-lisa-path "src/implementations/"))
-        ("rulebase;*.*" ,(make-neomycin-path "neomycin/rule-base/"))
         ("contrib;**;" ,(make-lisa-path "contrib/**/"))))
 
 (defun lisa-debugger ()

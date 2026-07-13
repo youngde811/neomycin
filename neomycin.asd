@@ -1,3 +1,5 @@
+;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
+
 ;; This file is part of Lisa, the Lisp-based Intelligent Software Agents platform.
 
 ;; MIT License
@@ -22,16 +24,39 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-;; Description: This is a convenience file for bringing up the neomycin system.
+;; Description: neomycin's ASDF system definition file. To use it, you must have asdf loaded.
 
 (in-package :cl-user)
 
-(load "lisa.asd")
-(load "neomycin.asd")
+#-asdf
+(error "The ASDF package is required. Please load it first")
 
-(asdf:load-system :neomycin :force t)
+(asdf:defsystem neomycin
+  :name "neomycin"
+  :version "0.1.0"
+  :author "David E. Young"
+  :maintainer "David E. Young"
+  :licence "MIT"
+  :description "A research reconstruction of Stanford's MYCIN / EMYCIN expert system"
+  :depends-on ("lisa")
+  :components
+  ((:module neomycin
+    :components
+      ((:file "rulebase")))))
 
-(load "lisa-bridge.asd")
-(asdf:load-system :lisa-bridge :force t)
+(eval-when (:load-toplevel :execute)
+  (pushnew :neomycin0.1.0 *features*)
+  (pushnew :neomycin.asdf *features*))
 
-(lisa-bridge:start)
+(defvar *neomycin-root-pathname*
+  (make-pathname :directory
+                 (pathname-directory *load-truename*)
+                 :host (pathname-host *load-truename*)
+                 :device (pathname-device *load-truename*)))
+
+(defun make-neomycin-path (relative-path)
+  (concatenate 'string (namestring *neomycin-root-pathname*)
+               relative-path))
+
+(setf (logical-pathname-translations "neomycin")
+      `(("rulebase;*.*" ,(make-neomycin-path "neomycin/**"))))
