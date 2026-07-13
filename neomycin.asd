@@ -59,4 +59,4 @@
                relative-path))
 
 (setf (logical-pathname-translations "neomycin")
-      `(("rulebase;*.*" ,(make-neomycin-path "neomycin/**"))))
+      `(("rulebase;*.*" ,(make-neomycin-path "neomycin/"))))
