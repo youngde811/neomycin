@@ -38,7 +38,7 @@
   :maintainer "David E. Young"
   :licence "MIT"
   :description "A research reconstruction of Stanford's MYCIN / EMYCIN expert system, using Lisa and LLMs"
-  :depends-on ("lisa")
+  :depends-on ("lisa" "lisa-bridge")
   :components
   ((:module neomycin
     :components

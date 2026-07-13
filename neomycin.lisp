@@ -28,10 +28,8 @@
 
 (load "lisa.asd")
 (load "neomycin.asd")
+(load "lisa-bridge.asd")
 
 (asdf:load-system :neomycin :force t)
-
-(load "lisa-bridge.asd")
-(asdf:load-system :lisa-bridge :force t)
 
 (lisa-bridge:start)
