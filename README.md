@@ -51,14 +51,14 @@ the HTTP bridge, and the Claude driver. The neomycin work — scaling the rule
 corpus, systematizing the patient -> culture -> organism context tree, and
 deciding where the therapy-recommendation phase lives — builds on top of that.
 
-## Provenance & license
+## Provenance and license
 
 Forked from [Lisa](https://github.com/youngde811/Lisa) at v4.2.0, preserving the
 full commit history. Lisa and neomycin are both **MIT-licensed**, (c) David Young.
 The underlying `lisa` engine packages are intentionally left un-renamed:
 neomycin *uses* Lisa rather than absorbing it.
 
-## Build & run
+## Build and run
 
 The build, bridge, and driver instructions are unchanged from the Lisa
 substrate — see [`CLAUDE.md`](CLAUDE.md) and [`docs/runbook.md`](docs/runbook.md)
