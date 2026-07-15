@@ -42,7 +42,13 @@
   :components
   ((:module neomycin
     :components
-      ((:file "rulebase")))))
+      ((:file "rulebase")
+       (:module "therapy"
+        :depends-on ("rulebase")
+        :components
+          ((:file "package")
+           (:file "protocol" :depends-on ("package"))
+           (:file "stub-solver" :depends-on ("protocol"))))))))
 
 (eval-when (:load-toplevel :execute)
   (pushnew :neomycin0.1.0 *features*)
