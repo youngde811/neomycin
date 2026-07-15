@@ -50,11 +50,16 @@ that follows, in three concrete ways:
    emerging resistance and new agents is exactly what the versioned, human-vetted
    KB (principles #2 and #3) is for.
 
-Scope honesty: neomycin is **not** a clinical tool and will not become one. But the
-design questions AMR forces — local resistance data, stewardship-as-minimality, a
-knowledge base that can stay current — are the live ones for infectious-disease
-tooling today. Reconstructing MYCIN in that light is not a period piece; it is a
-way to work current problems with a well-understood substrate.
+Scope honesty: neomycin is **not** a point-of-care clinical tool used on patients,
+and will not become one. It aims instead to be a **research instrument** — a
+sandbox in which physicians, researchers, and engineers can experiment with the
+MYCIN rulebase, an LLM, solvers, dosing, and contraindications as a way to study
+therapy reasoning under AMR. That distinction — a tool used *by* researchers to
+experiment vs. a tool used *on* patients to decide — is the bright line we hold.
+The design questions AMR forces — local resistance data, stewardship-as-
+minimality, a knowledge base that can stay current — are the live ones for
+infectious-disease tooling today; reconstructing MYCIN in that light is not a
+period piece but a way to work current problems on a well-understood substrate.
 
 ## 1. Context and the gap
 
@@ -106,12 +111,17 @@ Everything below is *data*, loadable and replaceable.
 
 ### 3.1 Entities
 
-- **Drug** — an antimicrobial agent: name, class, default dosing model, route.
-- **Sensitivity** — `(organism, drug) → susceptibility`. Under DS this is itself a
-  belief/interval (an organism is *probably* sensitive), not a boolean; this is
-  where the belief algebra extends naturally into therapy.
+- **Drug** — an antimicrobial agent: name, class, route, and a dosing model
+  (simulated / best-guess for now; source-cited and marked non-clinical).
+- **Sensitivity** — `(organism, drug) → susceptibility`, a **belief-valued**
+  quantity read through the active belief system (an organism is *probably*
+  sensitive) — never a boolean. *Decided:* belief-valued from the start, so the
+  algebra flows end to end (evidence → identification → therapy).
 - **Contraindication** — a constraint keyed on patient state (allergy, renal
-  function, pregnancy, age) that excludes or down-weights a drug.
+  function, pregnancy, age) that excludes or down-weights a drug. The initial set
+  will be *plausible but not clinically authoritative*.
+- **Interaction** — a pairwise `(drug, drug)` relation that forbids or penalises
+  co-prescribing; consumed by the solver as a combination constraint (§4.3).
 - **Antibiogram** — a site-local overlay adjusting susceptibilities to reflect
   local resistance patterns. Optional; overrides the base sensitivity table.
 
@@ -130,9 +140,21 @@ Everything below is *data*, loadable and replaceable.
 (defcontraindication ceftazidime :when (allergy cephalosporin))
 ```
 
-Representing the KB as `def*` forms (or plain tables) keeps it (a) reviewable as a
+*Decided:* the KB is authored as **`def*` forms**, not tables or a binary store.
+The deciding axis is principle #3 — our update model is *LLM drafts a diff → human
+vets it → it lands as a tracked commit* — which only works if the KB is
+**reviewable in a diff**. `def*` text forms are; a sqlite/ndbm blob is opaque to
+`git diff` and code review, breaking the exact property that makes human vetting
+affordable. The "front-end tool to manipulate" a DB would need is precisely what
+the LLM already is for text forms — and text forms *stay* reviewable, which a
+DB-through-a-tool does not.
+
+The `def*` macros populate a **KB abstraction** (an in-memory structure behind an
+accessor API) that the solver queries, so the authoring surface and the storage
+are decoupled: if we ever need a different backing store for scale, we swap the
+loader, not the solver and not the format. This keeps the KB (a) reviewable as a
 diff, (b) unit-testable in isolation, and (c) replaceable by a vetted update or a
-local antibiogram without touching the solver. This is principle #2 made concrete.
+local antibiogram without touching the solver — principles #2 and #3 made concrete.
 
 ## 4. Decision #2 — The selection algorithm (external Lisp solver, approach B)
 
@@ -150,46 +172,66 @@ returns a regimen. It mirrors MYCIN's two sub-phases.
 
 Select the organisms significant enough to warrant coverage:
 
-- **DS:** cover every organism whose **plausibility ≥ θ_cover** (a hypothesis that
-  cannot be plausibly ruled out must be covered). Use **belief** as the preference
-  weight when choosing among drugs.
-- **CF:** cover every organism whose **CF ≥ θ_cover**.
+- **DS:** cover every organism whose **plausibility ≥ `*coverage-threshold*`** (a
+  hypothesis that cannot be plausibly ruled out must be covered). Use **belief** as
+  the preference weight when choosing among drugs.
+- **CF:** cover every organism whose **CF ≥ `*coverage-threshold*`**.
 
-θ_cover is a tunable parameter, not a magic constant; it is where the belief
-algebra directly shapes therapy. Belief-system-agnostic: the solver asks the
-active system for each organism's factor and compares against the threshold.
+`*coverage-threshold*` is a **stewardship policy dial**, not a clinical constant:
+conservative (low) covers more, aggressive stewardship (high) covers narrower. It
+is belief-system-agnostic — the solver asks the active system for each organism's
+factor and compares — and per-session tunable (§4.5). We ship a defensible default
+and expose it; we do not dress it as literature-sourced.
 
 ### 4.3 Phase B — minimal regimen (weighted set cover)
 
 Choose a small set of drugs covering all items-to-treat:
 
 1. **Candidate filter** — drop any drug excluded by a firing contraindication.
-2. **Coverage** — a drug *covers* an organism if its susceptibility clears a
-   threshold θ_cover-drug.
+2. **Coverage** — a drug *covers* an organism if its susceptibility clears
+   `*susceptibility-threshold*`.
 3. **Greedy weighted set cover** — repeatedly pick the drug covering the most
    still-uncovered organisms, breaking ties by summed susceptibility × organism
    belief; stop when all items are covered. Prefer fewer drugs (MYCIN targeted
    ≤ 2–3). Greedy set cover is the natural, explainable algorithm here; exactness
    is not worth the opacity for a handful of organisms.
-4. **Dosing** — attach a dose per selected drug from its dosing model, adjusted by
-   patient parameters (weight, renal function). Schematic for now.
+4. **Interaction check** — as each drug is added, reject (or penalise) it if it
+   forms a forbidden pair with a drug already chosen (§3.1 Interaction). This makes
+   the cover *combination-aware*, not just per-drug — the one place the algorithm
+   grows beyond textbook set cover.
+5. **Dosing** — attach a dose per selected drug from its dosing model, adjusted by
+   patient parameters (weight, renal function). Simulated for now.
 
 ### 4.4 Output — an auditable recommendation object
 
 ```
 { regimen: [ { drug, dose, covers: [organisms], susceptibility } ],
   items_to_treat: [ { organism, belief } ],
-  excluded: [ { drug, reason: contraindication } ] }
+  excluded: [ { drug, reason: contraindication | interaction } ] }
 ```
 
 Every field is a fact the LLM can narrate and a reviewer can audit. Nothing is
 inferred by the model.
 
+### 4.5 The solver is pluggable (a protocol)
+
+*Decided:* the solver lives in a new `neomycin-therapy` package and is reached
+through a **protocol**, modelled directly on the existing belief-system protocol
+(`belief:use-system` and the generic surface in `src/belief-systems/protocol.lisp`).
+Define a small generic-function surface — e.g. `solve-regimen (conclusions kb
+patient)` returning a recommendation object (§4.4) — plus a registry and a
+`use-solver` selector. Greedy weighted set cover is the first implementation; an
+exact/ILP solver, or an LLM-assisted proposer that still returns an auditable
+object, can be registered and swapped later **without touching the bridge, the KB,
+or the identification engine**. The same design that already lets CF and DS
+coexist, applied to therapy — and the reason the thresholds are per-session
+tunable rides naturally on top of it.
+
 ## 5. Decision #3 — belief gating (summary)
 
-Belief enters therapy in two places, both above: **θ_cover** decides *which*
-organisms must be treated (plausibility under DS — you must cover what you cannot
-rule out), and **belief-weighted tie-breaking** decides *which* drug when several
+Belief enters therapy in two places, both above: **`*coverage-threshold*`** decides
+*which* organisms must be treated (plausibility under DS — you must cover what you
+cannot rule out), and **belief-weighted tie-breaking** decides *which* drug when several
 cover the same set. This is the natural extension of the identification belief
 algebra into treatment, and a place DS's ignorance interval says something CF
 cannot (a wide `[Bel, Pl]` argues for broader coverage).
@@ -221,29 +263,45 @@ cannot (a wide `[Bel, Pl]` argues for broader coverage).
 - **Solver golden tests** — over the existing `culture-*` scenarios: given their
   known organism sets and beliefs, assert the selected regimen (deterministic, so
   golden-able) under both CF and DS. Reuse the dependency-free harness.
-- **Belief-gating tests** — θ_cover boundary behaviour; a low-plausibility
-  organism dropped from items-to-treat; a wide DS interval broadening coverage.
+- **Belief-gating tests** — `*coverage-threshold*` boundary behaviour; a low-
+  plausibility organism dropped from items-to-treat; a wide DS interval broadening
+  coverage.
 - **Contraindication tests** — an allergy excludes the otherwise-preferred drug
   and forces an alternative.
+- **Interaction tests** — a forbidden pair blocks a co-prescription and forces a
+  different covering set.
 - **Multi-organism test** — two organisms needing different drugs yield a
   covering set; two sharing a drug yield one drug (minimality).
+- **Protocol test** — a second (stub) solver registered via `use-solver` is
+  selected and returns a well-formed recommendation object.
 
 ## 9. Scope and non-goals
 
-- **In:** organism → regimen selection, contraindications, belief gating, an
-  auditable recommendation object, the bridge endpoint + tool, golden tests.
-- **Out (for now):** realistic pharmacology data (schematic only), full dosing
-  pharmacokinetics, drug–drug interactions, the live KB-update workflow, EHR/FHIR
+- **In:** organism → regimen selection; belief-valued sensitivities;
+  contraindications; **drug–drug interactions**; belief gating; **simulated /
+  best-guess dosing**; a pluggable solver protocol; an auditable recommendation
+  object; the bridge endpoint + tool; golden tests. Pharmacology data is best-guess
+  from citable internet sources, **source-cited and marked non-clinical** — enough
+  to exercise the algorithm honestly.
+- **Out (for now):** full dosing pharmacokinetics; the live LLM KB-update workflow
+  (the KB *shape* supports it, but we don't build the loop yet); EHR/FHIR
   integration.
-- **Never:** clinical use; autonomous KB modification; LLM-chosen drugs.
+- **Never:** point-of-care clinical decision-making on real patients; autonomous
+  KB modification; LLM-chosen drugs.
 
-## 10. Open questions
+## 10. Resolved decisions
 
-1. `def*` macros vs. plain tables vs. an external data file for the KB — which is
-   most diff- and test-friendly?
-2. Default θ_cover / θ_cover-drug values, and whether they are per-session tunable
-   like the belief system is.
-3. Do sensitivities themselves combine through the belief system (an organism is
-   *probably* sensitive), or start boolean and add belief later?
-4. Does the solver live in a new `neomycin` package/system, or alongside the
-   bridge?
+*(Were open questions; settled 2026-07-15.)*
+
+1. **KB form:** `def*` forms — decided on diff-reviewability (principle #3), not
+   tables and not a binary store. The macros populate a KB abstraction so the
+   backing storage stays swappable (§3.2).
+2. **Thresholds:** `*coverage-threshold*` and `*susceptibility-threshold*` (renamed
+   from θ_cover / θ_cover-drug for clarity). Per-session tunable, like the belief
+   system; shipped with defensible defaults. Named honestly as stewardship policy
+   dials, not literature constants (§4.2).
+3. **Sensitivities:** belief-valued from the start — done right the first time, so
+   the belief algebra runs end to end (§3.1).
+4. **Solver location:** a new `neomycin-therapy` package behind a pluggable solver
+   protocol modelled on the belief-system protocol; implementations swap without
+   touching other code (§4.5).
