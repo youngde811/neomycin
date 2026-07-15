@@ -2,9 +2,10 @@
 
 ---
 
-Scope honesty: neomycin is not intended as a clinical diagnostic tool that would live in the wild. But, in the back of
-my mind I wonder if neomycin could become a useful research tool used by physicians and medical researchers to enhance
-our war against AMR...
+Scope honesty: neomycin is absolutely not intended as a clinical diagnostic tool that would live in the wild. But, in
+the back of my mind I wonder if neomycin could become a useful research tool used by physicians and medical researchers
+to enhance our war against AMR. Experiment with the "mycin" rulebase in conjunction with an LLM, "drug dosing", "drug
+contraindications", "solvers", etc.
 
 Anything I don't explicity mention in this document I agree with. If we need to discuss anything, let's do it.
 
@@ -28,8 +29,8 @@ Agree with other items in this section.
 We should discuss the use of `def*` forms vs. plain tables. I kind of lean towards `def*` forms, as tables can be
 non-intuitive to edit. The flip side is additions to the system require some Lisp knowledge (but that might be ok).
 
-OR: the "external table" could be a sqlite database; key/value store (ndbm or Common Lisp package). We can chat about
-this one.
+OR: the "external table" could be a sqlite database; key/value store (ndbm or Common Lisp package). But those add
+complexity, and would requre a front-end tool to manipulate. We can chat about this one.
 
 ### 4.1 Inputs
 
