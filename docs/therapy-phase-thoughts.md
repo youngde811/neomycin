@@ -6,6 +6,8 @@ Scope honesty: neomycin is not intended as a clinical diagnostic tool that would
 my mind I wonder if neomycin could become a useful research tool used by physicians and medical researchers to enhance
 our war against AMR...
 
+Anything I don't explicity mention in this document I agree with. If we need to discuss anything, let's do it.
+
 ## 2. Design principles
 
 Principles 1, 2, 3: agreed.
@@ -24,7 +26,10 @@ Agree with other items in this section.
 ### 3.2 Shape
 
 We should discuss the use of `def*` forms vs. plain tables. I kind of lean towards `def*` forms, as tables can be
-non-intuitive to edit. The flip side is additions to the system require some Lisp knowledge.
+non-intuitive to edit. The flip side is additions to the system require some Lisp knowledge (but that might be ok).
+
+OR: the "external table" could be a sqlite database; key/value store (ndbm or Common Lisp package). We can chat about
+this one.
 
 ### 4.1 Inputs
 
@@ -32,7 +37,7 @@ Agreed on all points.
 
 ### 4.3 Phase B — minimal regimen (weighted set cover)
 
-Agreed. But we'll need a dosing recommendation, even if it's simulated.
+Agreed. But we'll need a dosing recommendation "database", even if it's simulated.
 
 ### 4.4 Output — an auditable recommendation object
 
