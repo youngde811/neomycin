@@ -11,6 +11,51 @@ Status: **design draft** (`feature/therapy-phase`). No implementation yet.
 
 ---
 
+## Motivation — why bacterial therapy, and why now
+
+A recurring framing (e.g. the 2020 Forbes retrospective on MYCIN) is that AI's
+attention in infectious disease has moved "from bacteria to viruses." That is a
+false either/or. Bacteria did not become less dangerous — many of our *drugs*
+did. **Antimicrobial resistance (AMR)** makes automated reasoning about bacterial
+therapy *more* pressing than in MYCIN's era, not a solved problem to leave behind.
+
+Three facts drive this:
+
+- **AMR is a top-tier, rising global health threat** — the WHO ranks it among the
+  leading global public-health threats — fuelled by exactly the over-broad,
+  over-long antibiotic use that disciplined *selection* is meant to prevent.
+  (Specific epidemiological figures — attributable mortality, forward projections
+  — should be sourced and vetted per this document's own data discipline, not
+  asserted from memory.)
+- **The pathogen landscape keeps changing** — new organisms, re-surfacing old
+  ones, shifting resistance — faster than any hand-maintained knowledge base can
+  track. That *is* the staleness failure that retired MYCIN.
+- **Bacterial and viral threats must be monitored in parallel.** Concentrating the
+  field's attention on one while the other quietly worsens is how resistance
+  outruns the tooling.
+
+Crucially, AMR is not motivation bolted on — it *shapes and validates* the design
+that follows, in three concrete ways:
+
+1. **Local resistance is a first-class entity, not an afterthought.** Resistance is
+   local and time-varying: a *Pseudomonas* susceptibility in one ICU is not the
+   one down the corridor. The site-local **antibiogram** overlay (§3.1) exists to
+   fold current, place-specific resistance into selection — the very thing 1978
+   MYCIN could not do.
+2. **Minimality is stewardship.** The solver's objective — cover the significant
+   organisms with the *fewest, narrowest* effective drugs (§4.3) — is not merely
+   MYCIN fidelity; it is the modern **antimicrobial-stewardship** principle for
+   slowing resistance. The optimisation target and the clinical goal coincide.
+3. **A knowledge base that stays current is the whole point.** Keeping pace with
+   emerging resistance and new agents is exactly what the versioned, human-vetted
+   KB (principles #2 and #3) is for.
+
+Scope honesty: neomycin is **not** a clinical tool and will not become one. But the
+design questions AMR forces — local resistance data, stewardship-as-minimality, a
+knowledge base that can stay current — are the live ones for infectious-disease
+tooling today. Reconstructing MYCIN in that light is not a period piece; it is a
+way to work current problems with a well-understood substrate.
+
 ## 1. Context and the gap
 
 neomycin's identification phase is complete: forward-chaining rules over the
