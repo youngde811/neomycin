@@ -71,12 +71,10 @@
    Deterministic: fewest drugs, ties broken by summed susceptibility x belief then
    drug name. No interaction handling in this increment."))
 
-(defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
-  "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
-   patient-state tokens. Returns a RECOMMENDATION."
+(defun solve-regimen-phase-a (solver conclusions kb patient)
+  "Solve regimen Phase A: items to treat (belief gate)"
   (flet ((belief-of (org)
            (scalar-of (cdr (assoc org conclusions)))))
-    ;; Phase A -- items to treat (belief gate)
     (let* ((items (remove-if-not
                    #'(lambda (pair)
                        (>= (scalar-of (cdr pair)) *coverage-threshold*))
@@ -92,7 +90,59 @@
                                       (patient-contraindicates-p kb d patient))
                                   all-drugs))
            (uncovered universe)
-           (regimen '()))
+           (regimen '())
+           (values items excluded candidates uncovered regimen)))))
+
+(defun solve-regimen-phase-b (solver items excluded candidates uncovered regimen)
+  "Solve Regimen Phase B: greedy weighted set cover"
+  (loop
+    (when (null uncovered)
+      (return))
+    (let ((best nil) (best-cov '()) (best-n -1) (best-w -1))
+      (dolist (d candidates)
+        (let* ((cov (drug-covers kb d uncovered))
+               (n (length cov)))
+          (when (plusp n)
+            (let ((w (coverage-weight kb d cov belief-of)))
+              ;; Total order: more covered, then higher weight. Candidates are
+              ;; already name-sorted and we only replace on a STRICT win, so a
+              ;; full (n,w) tie keeps the earliest name -> deterministic.
+              (when (or (> n best-n)
+                        (and (= n best-n) (> w best-w)))
+                (setf best d best-cov cov best-n n best-w w))))))
+      (when (null best)
+        (return)) ; nothing covers any remaining item
+      (push (make-regimen-item
+             :drug best
+             :dose (kb-dose kb best)
+             :covers best-cov
+             :susceptibility (mapcar #'(lambda (o)
+                                         (cons o (scalar-of (kb-susceptibility kb best o))))
+                                     best-cov))
+            regimen)
+      (setf uncovered (set-difference uncovered best-cov))
+      (setf candidates (remove best candidates))))
+  (make-recommendation
+   :regimen (nreverse regimen)
+   :items-to-treat (mapcar #'(lambda (p)
+                               (make-treat-item :organism (car p) :belief (cdr p)))
+                           items)
+   :excluded excluded
+   ;; name-sort the leftovers for a deterministic report
+   :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)))
+
+(defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
+  "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
+   patient-state tokens. Returns a RECOMMENDATION."
+  (multiple-value-bind (items excluded candidates uncovered regimen)
+      (solve-regimen-phase-a solver conclusions kb patient)
+    (solve-regiment-phase-b solver items excluded candidates uncovered regimen)))
+
+#+nil
+(defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
+  "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
+   patient-state tokens. Returns a RECOMMENDATION."
+  (multiple-value-bind (items excluded candidates uncovered regimen)
       ;; Phase B -- greedy weighted set cover
       (loop
         (when (null uncovered)
@@ -128,7 +178,7 @@
                                items)
        :excluded excluded
        ;; name-sort the leftovers for a deterministic report
-       :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)))))
+       :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name))))
 
 ;; Register on load so (use-solver :greedy) works out of the box.
 (register-solver :greedy (make-instance 'greedy-solver :name "greedy"))
