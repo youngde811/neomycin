@@ -93,7 +93,7 @@
            (regimen '())
            (values items excluded candidates uncovered regimen)))))
 
-(defun solve-regimen-phase-b (solver items excluded candidates uncovered regimen)
+(defun solve-regimen-phase-b (items excluded candidates uncovered regimen)
   "Solve Regimen Phase B: greedy weighted set cover"
   (loop
     (when (null uncovered)
@@ -136,7 +136,7 @@
    patient-state tokens. Returns a RECOMMENDATION."
   (multiple-value-bind (items excluded candidates uncovered regimen)
       (solve-regimen-phase-a solver conclusions kb patient)
-    (solve-regiment-phase-b solver items excluded candidates uncovered regimen)))
+    (solve-regimen-phase-b items excluded candidates uncovered regimen)))
 
 #+nil
 (defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
