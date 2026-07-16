@@ -185,7 +185,26 @@ and expose it; we do not dress it as literature-sourced.
 
 ### 4.3 Phase B — minimal regimen (weighted set cover)
 
-Choose a small set of drugs covering all items-to-treat:
+**Set-cover formulation.** This step *is* set cover. The **universe** is the
+items-to-treat `U` (§4.2); each non-contraindicated drug `d` contributes the
+**set** `S_d` of organisms it covers (susceptibility ≥ `*susceptibility-threshold*`);
+the **goal** is the fewest drugs whose union is `U` (minimality = MYCIN's ≤ 2–3-drug
+preference = stewardship). Inputs: the gated conclusions (→ `U`), the KB
+(sensitivities → the `S_d`, contraindications → the candidate filter, interactions
+→ a constraint, dosing → output), and patient state.
+
+**Complexity — the problem is NP-hard, the algorithm is not.** Minimum set cover
+is NP-hard to solve *exactly*; the **greedy** algorithm instead runs in polynomial
+time and *approximates* it, returning a cover at most `H(n) ≈ ln n + 1` times
+optimal (n = |U|), with no poly-time algorithm beating `~ln n` unless NP is easier
+than believed (Feige 1998). At our scale this gap is moot: a consultation has ~1–4
+organisms, so even an exact minimum cover is trivially cheap. We start with greedy
+not to dodge intractability but for **explainability** — each pick carries a
+one-line justification the LLM narrates verbatim, and the step-by-step trace *is*
+the audit. An exact solver is a drop-in second implementation behind the same
+protocol (§4.5), and would double as a correctness oracle for greedy.
+
+Choose the drugs by greedy weighted set cover:
 
 1. **Candidate filter** — drop any drug excluded by a firing contraindication.
 2. **Coverage** — a drug *covers* an organism if its susceptibility clears
