@@ -42,9 +42,17 @@
    ;; --- recommendation object (the auditable result; design doc 4.4) ---
    #:recommendation #:make-recommendation #:recommendation-p
    #:recommendation-regimen #:recommendation-items-to-treat #:recommendation-excluded
+   #:recommendation-uncovered
    #:regimen-item #:make-regimen-item #:regimen-item-drug #:regimen-item-dose
    #:regimen-item-covers #:regimen-item-susceptibility
    #:treat-item #:make-treat-item #:treat-item-organism #:treat-item-belief
    #:exclusion #:make-exclusion #:exclusion-drug #:exclusion-reason
+   ;; --- knowledge base abstraction (design doc 3.2) ---
+   #:therapy-kb #:make-therapy-kb #:therapy-kb-p
+   #:add-drug #:add-sensitivity #:add-contraindication
+   #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers
+   #:kb-dose #:kb-drug-class
+   ;; --- solvers ---
+   #:greedy-solver
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---
    #:*coverage-threshold* #:*susceptibility-threshold*))

@@ -226,7 +226,9 @@ Choose the drugs by greedy weighted set cover:
 ```
 { regimen: [ { drug, dose, covers: [organisms], susceptibility } ],
   items_to_treat: [ { organism, belief } ],
-  excluded: [ { drug, reason: contraindication | interaction } ] }
+  excluded: [ { drug, reason: contraindication | interaction } ],
+  uncovered: [ organisms ] }   ; items no candidate drug could cover -- an honest
+                               ; failure surfaced, never a silent partial cover
 ```
 
 Every field is a fact the LLM can narrate and a reviewer can audit. Nothing is

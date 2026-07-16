@@ -48,7 +48,24 @@
         :components
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
-           (:file "stub-solver" :depends-on ("protocol"))))))))
+           (:file "kb" :depends-on ("package"))
+           (:file "stub-solver" :depends-on ("protocol"))
+           (:file "greedy-solver" :depends-on ("protocol" "kb"))))))))
+
+;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
+;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
+;;; (asdf:load-system "neomycin/test") followed by (lisa-test:run-all).
+(asdf:defsystem "neomycin/test"
+  :description "Fixture-based tests for neomycin's therapy solver (no external deps)."
+  :depends-on ("neomycin" "lisa/test")
+  :components
+  ((:module neomycin
+    :components
+      ((:module "test"
+        :components ((:file "therapy-tests"))))))
+  :perform (asdf:test-op (o c)
+             (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
+               (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
   (pushnew :neomycin0.1.0 *features*)

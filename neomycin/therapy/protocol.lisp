@@ -58,7 +58,9 @@
   "The full therapy recommendation returned by a solver."
   (regimen '())          ; list of regimen-item
   (items-to-treat '())   ; list of treat-item
-  (excluded '()))        ; list of exclusion
+  (excluded '())         ; list of exclusion
+  (uncovered '()))       ; organisms in U that no candidate drug could cover
+                         ; (an honest failure surfaced, not a silent partial cover)
 
 ;;; ============================================================
 ;;; Policy dials (design doc 4.2)

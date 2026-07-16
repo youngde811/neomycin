@@ -1,0 +1,148 @@
+;; This file is part of neomycin, a research reconstruction of MYCIN/EMYCIN.
+;; MIT License. Copyright (c) 2000 David Young.
+
+;; Description: Fixture-based tests for the therapy solver (design doc 8). Each
+;; test builds a small synthetic KB with the builder API and exercises the greedy
+;; solver in isolation -- no real pharmacology data, no engine, no bridge -- so
+;; the algorithm is verified against inputs we control exactly. Reuses the
+;; dependency-free LISA-TEST harness (DEFTEST / IS). All pharmacology is schematic.
+
+(in-package "LISA-TEST")
+
+;;; Convenience: neomycin-therapy is nicknamed THERAPY.
+(defun regimen-drugs (rec)
+  (mapcar #'therapy:regimen-item-drug (therapy:recommendation-regimen rec)))
+
+(defun treated (rec)
+  (mapcar #'therapy:treat-item-organism (therapy:recommendation-items-to-treat rec)))
+
+;;; ------------------------------------------------------------------
+;;; Core greedy set cover (CF / plain-number susceptibilities & beliefs)
+;;; ------------------------------------------------------------------
+
+(deftest therapy-single-drug-covers-all ()
+  ;; One broad agent covers every organism -> minimal 1-drug regimen.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'broad :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'broad 0.9)
+    (therapy:add-sensitivity kb 'enterobacteriaceae 'broad 0.8)
+    (therapy:add-sensitivity kb 'klebsiella 'broad 0.7)
+    (therapy:use-solver :greedy)
+    (let ((rec (therapy:recommend
+                '((pseudomonas . 0.76) (enterobacteriaceae . 0.80) (klebsiella . 0.50))
+                kb '())))
+      (is (equal '(broad) (regimen-drugs rec)) "single broad drug chosen")
+      (is (= 3 (length (treated rec))) "all three organisms are items to treat")
+      (is (null (therapy:recommendation-uncovered rec)) "nothing left uncovered"))))
+
+(deftest therapy-disjoint-coverage-two-drugs ()
+  ;; No single drug covers both a gram-neg and a gram-pos -> 2-drug regimen.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'cef :dose "1g")
+    (therapy:add-drug kb 'vanco :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'cef 0.9)
+    (therapy:add-sensitivity kb 'staphylococcus 'vanco 0.95)
+    (therapy:use-solver :greedy)
+    (let* ((rec (therapy:recommend '((pseudomonas . 0.7) (staphylococcus . 0.7)) kb '()))
+           (drugs (regimen-drugs rec)))
+      (is (= 2 (length drugs)) "two-drug regimen")
+      (is (and (member 'cef drugs) (member 'vanco drugs)) "both agents chosen")
+      (is (null (therapy:recommendation-uncovered rec)) "full coverage"))))
+
+(deftest therapy-belief-gate-drops-subthreshold ()
+  ;; An organism below *coverage-threshold* is not an item to treat.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'broad :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'broad 0.9)
+    (therapy:add-sensitivity kb 'klebsiella 'broad 0.9)
+    (therapy:use-solver :greedy)
+    (let* ((rec (therapy:recommend '((pseudomonas . 0.7) (klebsiella . 0.1)) kb '()))
+           (items (treated rec)))
+      (is (member 'pseudomonas items) "above-threshold organism treated")
+      (is (not (member 'klebsiella items)) "sub-threshold organism dropped from U")
+      (is (equal '(broad) (regimen-drugs rec)) "one drug for the one item"))))
+
+(deftest therapy-contraindication-forces-alternative ()
+  ;; The most-sensitive drug is contraindicated -> the alternative is chosen and
+  ;; the excluded drug is recorded with its reason.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'cef :dose "1g")
+    (therapy:add-drug kb 'alt :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'cef 0.95)
+    (therapy:add-sensitivity kb 'pseudomonas 'alt 0.6)
+    (therapy:add-contraindication kb 'cef :allergy-cephalosporin)
+    (therapy:use-solver :greedy)
+    (let* ((rec (therapy:recommend '((pseudomonas . 0.7)) kb '(:allergy-cephalosporin)))
+           (drugs (regimen-drugs rec))
+           (excl (mapcar #'therapy:exclusion-drug (therapy:recommendation-excluded rec))))
+      (is (equal '(alt) drugs) "alternative chosen")
+      (is (not (member 'cef drugs)) "contraindicated drug not used")
+      (is (member 'cef excl) "contraindicated drug recorded as excluded"))))
+
+(deftest therapy-uncoverable-reported ()
+  ;; An organism no drug covers is surfaced in UNCOVERED, not silently dropped;
+  ;; the coverable organism is still treated.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'cef :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'cef 0.9)
+    (therapy:use-solver :greedy)
+    (let* ((rec (therapy:recommend '((pseudomonas . 0.7) (exotic . 0.7)) kb '()))
+           (unc (therapy:recommendation-uncovered rec)))
+      (is (member 'exotic unc) "uncoverable organism reported")
+      (is (not (member 'pseudomonas unc)) "coverable organism not in uncovered")
+      (is (member 'cef (regimen-drugs rec)) "the coverable organism is still treated"))))
+
+(deftest therapy-below-susceptibility-threshold-does-not-cover ()
+  ;; A drug whose susceptibility is under *susceptibility-threshold* does not cover.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'weak :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'weak 0.3) ; < 0.5 default
+    (therapy:use-solver :greedy)
+    (let ((rec (therapy:recommend '((pseudomonas . 0.7)) kb '())))
+      (is (null (regimen-drugs rec)) "no drug clears the susceptibility threshold")
+      (is (member 'pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered"))))
+
+(deftest therapy-deterministic-and-name-tiebreak ()
+  ;; Equal coverage and weight -> tie broken by drug name (ascending); and the
+  ;; result is identical across runs.
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'zzz :dose "1g")
+    (therapy:add-drug kb 'aaa :dose "1g")
+    (therapy:add-sensitivity kb 'pseudomonas 'zzz 0.9)
+    (therapy:add-sensitivity kb 'pseudomonas 'aaa 0.9)
+    (therapy:use-solver :greedy)
+    (let ((r1 (therapy:recommend '((pseudomonas . 0.7)) kb '()))
+          (r2 (therapy:recommend '((pseudomonas . 0.7)) kb '())))
+      (is (equal (regimen-drugs r1) (regimen-drugs r2)) "same inputs -> identical regimen")
+      (is (equal '(aaa) (regimen-drugs r1)) "tie broken by name ascending (aaa before zzz)"))))
+
+;;; ------------------------------------------------------------------
+;;; Belief-valued path: susceptibilities/beliefs as Dempster-Shafer intervals
+;;; reduce through the active belief system (design doc decision #3).
+;;; ------------------------------------------------------------------
+
+(deftest therapy-ds-interval-susceptibility ()
+  (belief:use-system :dempster-shafer)
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'broad :dose "1g")
+    ;; Strongly sensitive: bel 0.9. Reduces (via belief->number) to 0.9 >= 0.5.
+    (therapy:add-sensitivity kb 'pseudomonas 'broad (belief:make-ds-belief 0.9 1.0))
+    (therapy:use-solver :greedy)
+    (let ((rec (therapy:recommend
+                (list (cons 'pseudomonas (belief:make-ds-belief 0.7 1.0)))
+                kb '())))
+      (is (equal '(broad) (regimen-drugs rec)) "DS-interval susceptibility covers")
+      (is (null (therapy:recommendation-uncovered rec)) "nothing uncovered under DS"))))
+
+(deftest therapy-ds-weak-interval-does-not-cover ()
+  (belief:use-system :dempster-shafer)
+  (let ((kb (therapy:make-therapy-kb)))
+    (therapy:add-drug kb 'broad :dose "1g")
+    ;; Weakly sensitive: bel 0.3 -> reduces to 0.3 < 0.5, no coverage.
+    (therapy:add-sensitivity kb 'pseudomonas 'broad (belief:make-ds-belief 0.3 1.0))
+    (therapy:use-solver :greedy)
+    (let ((rec (therapy:recommend
+                (list (cons 'pseudomonas (belief:make-ds-belief 0.7 1.0)))
+                kb '())))
+      (is (null (regimen-drugs rec)) "low-belief interval does not cover")
+      (is (member 'pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered"))))
