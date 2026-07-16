@@ -74,8 +74,8 @@
 (defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
   "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
    patient-state tokens. Returns a RECOMMENDATION."
-  (flet ((belief-of #'(lambda (org)
-                        (scalar-of (cdr (assoc org conclusions))))))
+  (flet ((belief-of (org)
+           (scalar-of (cdr (assoc org conclusions)))))
     ;; Phase A -- items to treat (belief gate)
     (let* ((items (remove-if-not
                    #'(lambda (pair)
