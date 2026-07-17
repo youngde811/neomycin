@@ -27,7 +27,7 @@
 
 (deftest therapy-single-drug-covers-all ()
   ;; One broad agent covers every organism -> minimal 1-drug regimen.
-  (let ((kb (therapy:make-therapy-kb)))
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
     (therapy:add-drug kb :broad :dose "1g")
     (therapy:add-sensitivity kb :pseudomonas :broad 0.9)
     (therapy:add-sensitivity kb :enterobacteriaceae :broad 0.8)
