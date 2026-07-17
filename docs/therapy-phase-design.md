@@ -326,3 +326,19 @@ cannot (a wide `[Bel, Pl]` argues for broader coverage).
 4. **Solver location:** a new `neomycin-therapy` package behind a pluggable solver
    protocol modelled on the belief-system protocol; implementations swap without
    touching other code (§4.5).
+5. **Vocabulary — keywords end to end** *(settled 2026-07-16).* Organism, drug,
+   class, route, and contraindication-trigger identifiers are **keywords**, not
+   plain symbols (a deviation from the illustrative symbol syntax shown in §3.2).
+   Rationale: the organism vocabulary crosses the engine → conclusions → bridge
+   (JSON) → therapy boundary and must be one shared object in every package;
+   keywords are the package-independent, JSON-friendly answer with no
+   import/export bookkeeping as the rule corpus scales. Chosen over a dedicated
+   exported-symbol ontology package (more moving parts, no behavioural gain for
+   inert tags) and over a boundary conversion seam. Consequently the **engine was
+   migrated** to keyword `organism-identity` values (`(value :pseudomonas)`) and
+   keyword ruling-out guards; the change is behaviour-preserving (the golden
+   suite keys conclusions by `string-downcase`d `symbol-name`, identical for
+   symbol and keyword, and stayed green). *Finding*-value vocabulary
+   (`pos`/`neg`/`aerobic`, asserted via the bridge) was left as `:lisa-user`
+   symbols — it never crosses into therapy. An authoritative organism registry
+   (keyword → metadata) remains available as a later data-as-registry option.

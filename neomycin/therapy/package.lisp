@@ -51,7 +51,10 @@
    #:therapy-kb #:make-therapy-kb #:therapy-kb-p
    #:add-drug #:add-sensitivity #:add-contraindication
    #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers
-   #:kb-dose #:kb-drug-class
+   #:kb-dose #:kb-drug-class #:kb-drug-route
+   ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
+   #:*therapy-kb*
+   #:defdrug #:defsensitivity #:defcontraindication
    ;; --- solvers ---
    #:greedy-solver
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---

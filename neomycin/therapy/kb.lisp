@@ -63,9 +63,11 @@
   (setf (gethash (cons organism drug) (therapy-kb-sensitivities kb)) susceptibility))
 
 (defun add-contraindication (kb drug &rest triggers)
-  "Add patient-state TRIGGERS that contraindicate DRUG (e.g. :allergy-cephalosporin)."
+  "Add patient-state TRIGGERS that contraindicate DRUG (e.g. :allergy-cephalosporin).
+   Idempotent: re-adding a trigger already present is a no-op, so reloading a KB
+   data file (the human-vetted update loop) does not accumulate duplicates."
   (setf (gethash drug (therapy-kb-contraindications kb))
-        (append (gethash drug (therapy-kb-contraindications kb)) triggers))
+        (union (gethash drug (therapy-kb-contraindications kb)) triggers))
   drug)
 
 ;;; ------------------------------------------------------------------
@@ -91,3 +93,7 @@
 (defun kb-drug-class (kb drug)
   "The class of DRUG (e.g. cephalosporin-3)."
   (getf (gethash drug (therapy-kb-drugs kb)) :class))
+
+(defun kb-drug-route (kb drug)
+  "The route of DRUG (e.g. iv)."
+  (getf (gethash drug (therapy-kb-drugs kb)) :route))

@@ -49,6 +49,8 @@
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
            (:file "kb" :depends-on ("package"))
+           (:file "authoring" :depends-on ("kb"))
+           (:file "knowledge-base" :depends-on ("authoring"))
            (:file "stub-solver" :depends-on ("protocol"))
            (:file "greedy-solver" :depends-on ("protocol" "kb"))))))))
 
