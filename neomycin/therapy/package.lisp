@@ -54,7 +54,7 @@
    #:kb-dose #:kb-drug-class #:kb-drug-route
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
-   #:defdrug #:defsensitivity #:defcontraindication
+   #:defdrug #:defsensitivity #:defcontraindication #:with-therapy-kb #:therapy-kb #:with-greedy-solver
    ;; --- solvers ---
    #:greedy-solver
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---

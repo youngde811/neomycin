@@ -65,3 +65,10 @@
    :renal-impaired)); the solver excludes DRUG when any token is present in the
    patient's state. Idempotent, so reloading the data file does not duplicate."
   `(apply #'add-contraindication *therapy-kb* ,drug ',when))
+
+(defmacro with-therapy-kb (kb &body body)
+  `(let ((therapy:*therapy-kb* ,kb))
+     (progn ,@body)))
+
+(defun therapy-kb ()
+  *therapy-kb*)
