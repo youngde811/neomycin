@@ -52,7 +52,10 @@
            (:file "authoring" :depends-on ("kb"))
            (:file "knowledge-base" :depends-on ("authoring"))
            (:file "stub-solver" :depends-on ("protocol"))
-           (:file "greedy-solver" :depends-on ("protocol" "kb"))))))))
+           (:file "greedy-solver" :depends-on ("protocol" "kb"))
+           ;; HTTP surface for the therapy phase (design doc step (c)); depends on
+           ;; the solver protocol + the canonical KB it recommends over.
+           (:file "bridge" :depends-on ("greedy-solver" "knowledge-base"))))))))
 
 ;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
 ;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
@@ -64,7 +67,9 @@
   ((:module neomycin
     :components
       ((:module "test"
-        :components ((:file "therapy-tests"))))))
+        :components ((:file "setup")
+                     (:file "therapy-tests")
+                     (:file "therapy-bridge-tests"))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
                (error "neomycin test suite reported failures"))))

@@ -31,4 +31,10 @@
    #:start
    #:stop
    #:reset-session
-   #:*bridge-port*))
+   #:*bridge-port*
+   ;; JSON/HTTP helpers, exported so extensions (e.g. neomycin's therapy
+   ;; endpoint) can add their own handlers with the same conventions.
+   #:json-response
+   #:error-response
+   #:read-json-body
+   #:belief->json-value))

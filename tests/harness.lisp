@@ -92,11 +92,20 @@
 
 (defvar *rulebase-loaded* nil)
 
+(defvar *rulebase-source*
+  (asdf:system-relative-pathname "lisa" "examples/mycin.lisp")
+  "Pathname of the MYCIN rulebase ENSURE-RULEBASE loads. Defaults to Lisa-proper's
+   example so a standalone lisa/test run is self-contained. neomycin/test overrides
+   this to its own canonical neomycin/rulebase.lisp (see neomycin/test/setup.lisp),
+   so the suite validates the rulebase neomycin actually ships.")
+
 (defun ensure-rulebase ()
-  "Load the MYCIN example rulebase once (defines classes, rules, culture-* fns)."
+  "Load the MYCIN rulebase named by *RULEBASE-SOURCE* once (classes, rules,
+   culture-* fns). A no-op once loaded -- e.g. when a dependent system (neomycin)
+   has already loaded its rulebase via ASDF and marked *RULEBASE-LOADED*."
   (unless *rulebase-loaded*
     (let ((*standard-output* (make-broadcast-stream)))
-      (load (asdf:system-relative-pathname "lisa" "examples/mycin.lisp")))
+      (load *rulebase-source*))
     (setf *rulebase-loaded* t)))
 
 (defun collect-conclusions ()
