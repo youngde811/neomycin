@@ -67,11 +67,9 @@
   `(apply #'add-contraindication *therapy-kb* ,drug ',when))
 
 (defmacro with-therapy-kb ((kb form) &body body)
-  (let ((kbase (gensym)))
-    `(let* ((,kbase ,form)
-            (therapy:*therapy-kb* ,kbase)
-            (,kb ,kbase))
-       (progn ,@body))))
+  `(let* ((,kb ,form)
+          (therapy:*therapy-kb* ,kb))
+     (progn ,@body)))
 
 (defun therapy-kb ()
   *therapy-kb*)

@@ -143,7 +143,7 @@
 ;; Register on load so (use-solver :greedy) works out of the box.
 (register-solver :greedy (make-instance 'greedy-solver :name "greedy"))
 
-(defmacro with-greedy-solver (() &body body)
+(defmacro with-greedy-solver (&body body)
   `(progn
      (therapy:use-solver :greedy)
      ,@body))
