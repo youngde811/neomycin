@@ -1,4 +1,4 @@
-;; This file is part of Lisa, the Lisp-based Intelligent Software Agents platform.
+;; This file is part of neomycin, a research reconstruction of MYCIN/EMYCIN.
 
 ;; MIT License
 
@@ -22,19 +22,20 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-(in-package :cl-user)
+;; Description: A trivial reference solver that returns an empty recommendation.
+;; Its only jobs are to prove the protocol wiring loads and dispatches, and to be
+;; the "second solver" the protocol test selects (design doc 8). The real greedy
+;; weighted set-cover solver (design doc 4.3) is a separate, later file.
 
-(defpackage :lisa-bridge
-  (:use :common-lisp)
-  (:local-nicknames (#:bt #:bordeaux-threads))
-  (:export
-   #:start
-   #:stop
-   #:reset-session
-   #:*bridge-port*
-   ;; JSON/HTTP helpers, exported so extensions (e.g. neomycin's therapy
-   ;; endpoint) can add their own handlers with the same conventions.
-   #:json-response
-   #:error-response
-   #:read-json-body
-   #:belief->json-value))
+(in-package :neomycin-therapy)
+
+(defclass stub-solver (solver) ()
+  (:documentation "Placeholder solver: returns an empty recommendation. Proves
+   the protocol dispatches; does no selection."))
+
+(defmethod solve-regimen ((solver stub-solver) conclusions kb patient)
+  (declare (ignore conclusions kb patient))
+  (make-recommendation))
+
+;; Register on load so (use-solver :stub) works out of the box.
+(register-solver :stub (make-instance 'stub-solver :name "stub"))

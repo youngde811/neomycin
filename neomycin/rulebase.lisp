@@ -127,7 +127,7 @@
   (morphology (value rod) (of ?o))
   (burn (value serious) (of ?p))
   =>
-  (assert (organism-identity (value pseudomonas) (of ?o))))
+  (assert (organism-identity (value :pseudomonas) (of ?o))))
 
 (defrule gram-pos-cocci-in-clumps-suggests-staphylococcus (:belief 0.7)
   (organism (id ?o))
@@ -135,7 +135,7 @@
   (morphology (value coccus) (of ?o))
   (growth-conformation (value clumps) (of ?o))
   =>
-  (assert (organism-identity (value staphylococcus) (of ?o))))
+  (assert (organism-identity (value :staphylococcus) (of ?o))))
 
 (defrule anaerobic-gram-neg-rod-in-blood-suggests-bacteroides (:belief 0.9)
   (organism (id ?o) (culture ?c))
@@ -144,7 +144,7 @@
   (morphology (value rod) (of ?o))
   (aerobicity (value anaerobic) (of ?o))
   =>
-  (assert (organism-identity (value bacteroides) (of ?o))))
+  (assert (organism-identity (value :bacteroides) (of ?o))))
 
 (defrule gram-neg-rod-in-compromised-host-suggests-pseudomonas (:belief 0.6)
   (organism (id ?o) (culture ?c))
@@ -153,7 +153,7 @@
   (morphology (value rod) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (organism-identity (value pseudomonas) (of ?o))))
+  (assert (organism-identity (value :pseudomonas) (of ?o))))
 
 (defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae (:belief 0.8)
   (organism (id ?o))
@@ -161,7 +161,7 @@
   (morphology (value rod) (of ?o))
   (aerobicity (value aerobic) (of ?o))
   =>
-  (assert (organism-identity (value enterobacteriaceae) (of ?o))))
+  (assert (organism-identity (value :enterobacteriaceae) (of ?o))))
 
 (defrule gram-pos-cocci-in-chains-suggests-streptococcus (:belief 0.7)
   (organism (id ?o))
@@ -169,7 +169,7 @@
   (morphology (value coccus) (of ?o))
   (growth-conformation (value chains) (of ?o))
   =>
-  (assert (organism-identity (value streptococcus) (of ?o))))
+  (assert (organism-identity (value :streptococcus) (of ?o))))
 
 (defrule hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus (:belief 0.8)
   (organism (id ?o) (culture ?c))
@@ -179,7 +179,7 @@
   (growth-conformation (value clumps) (of ?o))
   (hospital-acquired (value t) (of ?p))
   =>
-  (assert (organism-identity (value staphylococcus-aureus) (of ?o))))
+  (assert (organism-identity (value :staphylococcus-aureus) (of ?o))))
 
 (defrule hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.6)
   (organism (id ?o) (culture ?c))
@@ -189,7 +189,7 @@
   (hospital-acquired (value t) (of ?p))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (organism-identity (value klebsiella) (of ?o))))
+  (assert (organism-identity (value :klebsiella) (of ?o))))
 
 (defrule hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas (:belief 0.7)
   (organism (id ?o) (culture ?c))
@@ -199,7 +199,7 @@
   (aerobicity (value aerobic) (of ?o))
   (hospital-acquired (value t) (of ?p))
   =>
-  (assert (organism-identity (value pseudomonas) (of ?o))))
+  (assert (organism-identity (value :pseudomonas) (of ?o))))
 
 (defrule aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.5)
   (organism (id ?o) (culture ?c))
@@ -209,7 +209,7 @@
   (aerobicity (value aerobic) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (organism-identity (value klebsiella) (of ?o))))
+  (assert (organism-identity (value :klebsiella) (of ?o))))
 
 (defrule respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae (:belief 0.75)
   (organism (id ?o) (culture ?c))
@@ -219,7 +219,7 @@
   (growth-conformation (value chains) (of ?o))
   (infection-site (value respiratory) (of ?p))
   =>
-  (assert (organism-identity (value streptococcus-pneumoniae) (of ?o))))
+  (assert (organism-identity (value :streptococcus-pneumoniae) (of ?o))))
 
 (defrule gram-neg-rod-with-tropical-travel-suggests-salmonella (:belief 0.65)
   (organism (id ?o) (culture ?c))
@@ -228,7 +228,7 @@
   (morphology (value rod) (of ?o))
   (recent-travel (value tropical) (of ?p))
   =>
-  (assert (organism-identity (value salmonella) (of ?o))))
+  (assert (organism-identity (value :salmonella) (of ?o))))
 
 (defrule gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus (:belief 0.7)
   (organism (id ?o) (culture ?c))
@@ -239,7 +239,7 @@
   (growth-conformation (value chains) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (organism-identity (value enterococcus) (of ?o))))
+  (assert (organism-identity (value :enterococcus) (of ?o))))
 
 (defrule gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
   (organism (id ?o) (culture ?c))
@@ -249,7 +249,7 @@
   (morphology (value rod) (of ?o))
   (white-blood-count (value low) (of ?p))
   =>
-  (assert (organism-identity (value salmonella) (of ?o))))
+  (assert (organism-identity (value :salmonella) (of ?o))))
 
 (defrule anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides (:belief 0.8)
   (organism (id ?o) (culture ?c))
@@ -259,7 +259,7 @@
   (aerobicity (value anaerobic) (of ?o))
   (infection-site (value abdominal) (of ?p))
   =>
-  (assert (organism-identity (value bacteroides) (of ?o))))
+  (assert (organism-identity (value :bacteroides) (of ?o))))
 
 ;;; --- Ruling-out (disconfirming) rules ---
 ;;;
@@ -278,7 +278,7 @@
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(pseudomonas enterobacteriaceae klebsiella salmonella bacteroides)))
+  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella :bacteroides)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
@@ -286,8 +286,8 @@
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(staphylococcus staphylococcus-aureus streptococcus
-                         streptococcus-pneumoniae enterococcus)))
+  (test (member ?value '(:staphylococcus :staphylococcus-aureus :streptococcus
+                         :streptococcus-pneumoniae :enterococcus)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
@@ -295,7 +295,7 @@
   (organism (id ?o))
   (aerobicity (value aerobic) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(bacteroides)))
+  (test (member ?value '(:bacteroides)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 

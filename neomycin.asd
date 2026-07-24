@@ -42,7 +42,37 @@
   :components
   ((:module neomycin
     :components
-      ((:file "rulebase")))))
+      ((:file "rulebase")
+       (:module "therapy"
+        :depends-on ("rulebase")
+        :components
+          ((:file "package")
+           (:file "protocol" :depends-on ("package"))
+           (:file "kb" :depends-on ("package"))
+           (:file "authoring" :depends-on ("kb"))
+           (:file "knowledge-base" :depends-on ("authoring"))
+           (:file "stub-solver" :depends-on ("protocol"))
+           (:file "greedy-solver" :depends-on ("protocol" "kb"))
+           ;; HTTP surface for the therapy phase (design doc step (c)); depends on
+           ;; the solver protocol + the canonical KB it recommends over.
+           (:file "bridge" :depends-on ("greedy-solver" "knowledge-base"))))))))
+
+;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
+;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
+;;; (asdf:load-system "neomycin/test") followed by (lisa-test:run-all).
+(asdf:defsystem "neomycin/test"
+  :description "Fixture-based tests for neomycin's therapy solver (no external deps)."
+  :depends-on ("neomycin" "lisa/test")
+  :components
+  ((:module neomycin
+    :components
+      ((:module "test"
+        :components ((:file "setup")
+                     (:file "therapy-tests")
+                     (:file "therapy-bridge-tests"))))))
+  :perform (asdf:test-op (o c)
+             (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
+               (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
   (pushnew :neomycin0.1.0 *features*)

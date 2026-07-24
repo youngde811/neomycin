@@ -91,5 +91,38 @@
       },
       "required": []
     }
+  },
+  {
+    "name": "recommend_therapy",
+    "description": "Ask the deterministic therapy solver for an antimicrobial regimen covering the organisms currently identified in working memory. Call this ONLY after inference has produced organism conclusions (run get_conclusions first). The solver — not you — chooses the drugs: it runs a greedy weighted set cover that picks the fewest drugs covering every organism whose identification belief clears the coverage threshold, applies patient contraindications, and reports anything it cannot cover. You NEVER pick, add, or substitute a drug; your job is only to relay the patient's contraindications and narrate the regimen the solver returns, citing coverage, doses, and exclusions. NOT FOR CLINICAL USE — the pharmacology knowledge base is schematic and illustrative.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient": {
+          "type": "array",
+          "description": "Patient-state tokens that trigger drug contraindications. Include every one the clinician has stated (e.g. a penicillin allergy → 'allergy-penicillin'; pregnancy → 'pregnancy'). Omit or pass an empty array when there are no contraindications. Only listed tokens are honored; anything else is ignored by the solver.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "allergy-penicillin",
+              "allergy-cephalosporin",
+              "allergy-carbapenem",
+              "pregnancy",
+              "pregnancy-first-trimester",
+              "age-pediatric",
+              "renal-impaired",
+              "maoi-therapy",
+              "alcohol-use"
+            ]
+          }
+        },
+        "solver": {
+          "type": "string",
+          "description": "Which solver to use. Defaults to 'greedy' (the weighted set-cover solver). Omit unless the clinician explicitly asks for a different solver.",
+          "enum": ["greedy"]
+        }
+      },
+      "required": []
+    }
   }
 ]
