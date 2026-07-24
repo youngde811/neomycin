@@ -45,11 +45,22 @@ express that; keeping both is what makes the comparison worth publishing.
 
 ## Status
 
-Early. The forked Lisa substrate carries an 18-rule MYCIN identification subset
-(`examples/mycin.lisp`), the pluggable belief protocol (DS default, CF retained),
-the HTTP bridge, and the Claude driver. The neomycin work — scaling the rule
-corpus, systematizing the patient -> culture -> organism context tree, and
-deciding where the therapy-recommendation phase lives — builds on top of that.
+Early, but both halves of a consultation now run end to end. On the
+**identification** side: an 18-rule MYCIN subset (neomycin's own
+`neomycin/rulebase.lisp`), the pluggable belief protocol (DS default, CF
+retained), the HTTP bridge, and the Claude driver.
+
+The **therapy-recommendation phase** now exists too, and it reuses the same
+strategy/knowledge split. A deterministic greedy weighted **set-cover solver**
+(`neomycin/therapy/`) picks the fewest drugs covering every above-threshold
+organism from a schematic antimicrobial knowledge base, honoring patient
+contraindications; the LLM requests a regimen through the `recommend_therapy`
+tool and **narrates** it, but never chooses a drug. The engine reasons; the model
+translates and explains — on the treatment side exactly as on the diagnostic one.
+See [`docs/therapy-demo.md`](docs/therapy-demo.md) for an end-to-end walkthrough.
+
+Still ahead: scaling the rule corpus, an antibiogram overlay, drug–drug
+interaction constraints, and an exact-solver oracle for the greedy one.
 
 ## Provenance and license
 
@@ -60,7 +71,9 @@ neomycin *uses* Lisa rather than absorbing it.
 
 ## Build and run
 
-The build, bridge, and driver instructions are unchanged from the Lisa
-substrate — see [`CLAUDE.md`](CLAUDE.md) and [`docs/runbook.md`](docs/runbook.md)
-for the current, verified steps. Dempster-Shafer is the default belief system;
-no environment variable is required.
+Bring up the engine, bridge, and driver with
+[`docs/getting-started.md`](docs/getting-started.md); then take the guided
+identification tour in [`docs/runbook.md`](docs/runbook.md) and the therapy tour
+in [`docs/therapy-demo.md`](docs/therapy-demo.md). [`CLAUDE.md`](CLAUDE.md) holds
+the substrate-level build notes. Dempster-Shafer is the default belief system; no
+environment variable is required.
