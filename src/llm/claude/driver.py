@@ -226,6 +226,7 @@ TOOL_TO_ENDPOINT = {
     "get_rule_trace": ("GET", "/rule-trace"),
     "get_partial_matches": ("GET", "/partial-matches"),
     "reset_session": ("POST", "/reset"),
+    "recommend_therapy": ("POST", "/recommend-therapy"),
 }
 
 
@@ -429,8 +430,9 @@ class Transcript:
 
     # -- verbosity policy -------------------------------------------------
 
-    _ALWAYS_SHOW_CALLS = {"assert_fact", "reset_session"}
-    _ALWAYS_SHOW_RESULTS = {"get_conclusions", "get_rule_trace", "get_partial_matches"}
+    _ALWAYS_SHOW_CALLS = {"assert_fact", "reset_session", "recommend_therapy"}
+    _ALWAYS_SHOW_RESULTS = {"get_conclusions", "get_rule_trace", "get_partial_matches",
+                            "recommend_therapy"}
 
     def _is_interesting_call(self, name: str) -> bool:
         return name in self._ALWAYS_SHOW_CALLS

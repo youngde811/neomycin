@@ -58,7 +58,7 @@ headline research artifact.
 | **Therapy phase — solver** | ✅ greedy weighted set-cover, pluggable protocol |
 | **Therapy phase — knowledge base** | ✅ `def*` authoring macros + canonical KB (11 drugs) |
 | **Therapy phase — `/recommend-therapy` endpoint** | ✅ glue + serializer + handler |
-| **Therapy phase — LLM `recommend_therapy` tool** | ⏳ next increment |
+| **Therapy phase — LLM `recommend_therapy` tool** | ✅ tool schema + driver dispatch + system-prompt guidance ([demo](therapy-demo.md)) |
 | Antibiogram overlay · drug interactions · exact-solver oracle | ⏳ deferred |
 
 The therapy work lives on the `feature/therapy-phase` branch.
@@ -226,10 +226,10 @@ per-session **stewardship policy dials**, not clinical constants — conservativ
 
 ## Where we're headed
 
-- **LLM `recommend_therapy` tool** — the next increment: a tool schema + driver
-  dispatch + system-prompt guidance so Claude can request a regimen and **narrate**
-  it. The bright line holds: the deterministic solver chooses; the LLM never picks
-  a drug.
+- **LLM `recommend_therapy` tool** — ✅ **done.** Claude can now request a regimen
+  and **narrate** it; the bright line holds — the deterministic solver chooses, the
+  LLM never picks a drug. See [`therapy-demo.md`](therapy-demo.md) for a guided,
+  end-to-end interactive walkthrough.
 - **Antibiogram overlay** — fold site-local resistance into susceptibilities.
 - **Drug–drug interactions** — a pairwise constraint in the set cover.
 - **Exact solver** — an optional second solver behind the same protocol, as a
