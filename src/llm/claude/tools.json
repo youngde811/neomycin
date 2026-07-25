@@ -120,6 +120,11 @@
           "type": "string",
           "description": "Which solver to use. Defaults to 'greedy' (the weighted set-cover solver). Omit unless the clinician explicitly asks for a different solver.",
           "enum": ["greedy"]
+        },
+        "gate": {
+          "type": "string",
+          "description": "Coverage-gate policy for belief-valued (interval) susceptibilities — a stewardship dial. 'belief' (default) is conservative: an agent covers only if the LOWER bound of its susceptibility interval clears the threshold. 'plausibility' is optimistic: it covers unless there is evidence against (uses the upper bound). 'midpoint' splits the difference. Omit for the conservative default; pass a different value only if the clinician wants to explore how the regimen changes under optimistic vs conservative stewardship. The response echoes the gate used.",
+          "enum": ["belief", "plausibility", "midpoint"]
         }
       },
       "required": []

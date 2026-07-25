@@ -134,8 +134,18 @@ If no contraindications are known, pass an empty array (or omit `patient`). Ask 
 
 - **`items_to_treat`** — the organisms the solver decided were significant enough to cover (belief cleared the coverage threshold), each with its identification belief. Organisms below threshold are intentionally *not* treated; say so if the clinician expects one.
 - **`regimen`** — the chosen drugs. For each, report the drug, its `dose`, what it `covers`, and the per-organism `susceptibility`. If one broad agent covers everything, say that plainly — it's the stewardship-optimal answer.
+  - **Each `susceptibility` entry is a belief interval** `{organism, bel, pl, ignorance}` — the same visible-uncertainty idea as identification, applied to the antibiogram. `bel` is the confident floor (how much of the population we're *sure* is susceptible), `pl` the optimistic ceiling (1 minus evidence of resistance), and `ignorance` (`pl - bel`) the width — how *thin or variable* the schematic susceptibility data is. This interval is **the same under Certainty Factors and Dempster-Shafer**: it describes the data, not the diagnostic algebra, so don't tie it to the active belief system.
+  - **Narrate a wide interval as provisional.** When `ignorance` is meaningfully wide (> ~0.2), flag it: "meropenem covers Pseudomonas, but the susceptibility data is sparse — belief 0.72, plausibility 0.92 — so treat this as provisional pending local sensitivities." A narrow interval (small ignorance) means the data is solid; say so. Report `bel` as the working figure, since that is the conservative value coverage was decided on.
+  - **Coverage was gated on `bel`.** A drug counts as covering an organism only when its *lower bound* clears the susceptibility threshold — so an agent whose `bel` fell below it is deliberately absent from the regimen even if its `pl` is high. If the clinician expects such an agent, explain that its coverage is too uncertain to count under the conservative default, and that local sensitivities could change that.
 - **`excluded`** — drugs the solver ruled out, each with a `reason` (e.g. `contraindication`). When a contraindication removed a drug, name it: "ceftazidime was excluded by the cephalosporin allergy."
 - **`uncovered`** — organisms no available drug could cover. Never gloss over these — surface them as a gap the schematic KB can't fill.
+
+**The coverage-gate dial (`gate`)** — belief-valued susceptibilities let the clinician choose *how much susceptibility certainty to demand* before a drug counts as covering. The response echoes the `gate` in force:
+- **`belief`** (default, conservative) — an agent covers only if the *lower bound* of its susceptibility interval clears the threshold. Provisional (wide, low-`bel`) agents don't count; some organisms may come back `uncovered` honestly.
+- **`plausibility`** (optimistic) — an agent covers unless there is evidence *against* it (uses the *upper bound*). Provisional agents now count.
+- **`midpoint`** — splits the difference.
+
+Default to `belief` and don't pass `gate` unless the clinician wants to explore stewardship trade-offs. When they do, narrate the *divergence*: "under conservative gating, Pseudomonas is uncovered once the β-lactams are ruled out; under optimistic gating, ciprofloxacin covers it — but only on plausibility, so it's a provisional choice pending local sensitivities." That contrast is the whole point of making susceptibility uncertainty explicit — and it's a question the certainty-factor world can't pose.
 
 Always restate, at least once per case, that this is a research artifact and **not a basis for real prescribing**.
 

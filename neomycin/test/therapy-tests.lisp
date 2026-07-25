@@ -153,6 +153,129 @@
         (is (member :pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered")))))
 
 ;;; ------------------------------------------------------------------
+;;; Decision (C): susceptibility reduction is DECOUPLED from the active
+;;; identification belief system (susceptibility-belief-design.md 4). A
+;;; ds-belief susceptibility must reduce natively -- to its lower bound -- under
+;;; BOTH algebras. Under CF this errored before the decoupling, because CF's
+;;; BELIEF->NUMBER has no method for a ds-belief struct.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-cf-interval-susceptibility-covers ()
+  ;; The crux of decision (C): identification runs under certainty factors, yet a
+  ;; DS-interval susceptibility still reduces (to its bel) and covers -- no error.
+  (belief:use-system :certainty-factors)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :broad :dose "1g")
+      ;; bel 0.9 -> reduces natively to 0.9 >= 0.5, independent of the CF algebra.
+      (therapy:add-sensitivity kb :pseudomonas :broad (belief:make-ds-belief 0.9 1.0))
+      ;; Identification belief is a plain CF scalar, as it would be under CF.
+      (let ((rec (therapy:recommend '((:pseudomonas . 0.7)) kb '())))
+        (is (equal '(:broad) (regimen-drugs rec))
+            "DS-interval susceptibility covers under CF (decision C: no belief->number error)")
+        (is (null (therapy:recommendation-uncovered rec)) "nothing uncovered under CF")))))
+
+(deftest therapy-cf-weak-interval-does-not-cover ()
+  ;; Same decoupling, negative direction: under CF the interval reduces to its bel
+  ;; (0.3), which is < 0.5, so it does not cover -- proving the native reduction
+  ;; takes the lower bound rather than, say, plausibility.
+  (belief:use-system :certainty-factors)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :broad :dose "1g")
+      (therapy:add-sensitivity kb :pseudomonas :broad (belief:make-ds-belief 0.3 1.0))
+      (let ((rec (therapy:recommend '((:pseudomonas . 0.7)) kb '())))
+        (is (null (regimen-drugs rec)) "low-bel interval does not cover under CF")
+        (is (member :pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered")))))
+
+;;; ------------------------------------------------------------------
+;;; S3: the coverage-gate dial (*susceptibility-gate*). The SAME case and KB yield
+;;; different coverage under the conservative (:belief) vs optimistic
+;;; (:plausibility) gate -- the research artifact. Legible only because the
+;;; susceptibility interval is explicit.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-gate-flips-coverage ()
+  (belief:use-system :dempster-shafer)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :only :dose "1g")
+      ;; Straddles the 0.5 threshold: bel 0.4 < 0.5 <= pl 0.8, midpoint 0.6.
+      (therapy:add-sensitivity kb :pseudomonas :only (belief:make-ds-belief 0.4 0.8))
+      (flet ((covered-p (gate)
+               (let ((therapy:*susceptibility-gate* gate))
+                 (null (therapy:recommendation-uncovered
+                        (therapy:recommend '((:pseudomonas . 0.8)) kb '()))))))
+        (is (not (covered-p :belief)) "conservative :belief gate (bel 0.4 < 0.5): not covered")
+        (is (covered-p :plausibility) "optimistic :plausibility gate (pl 0.8 >= 0.5): covered")
+        (is (covered-p :midpoint) "midpoint gate (0.6 >= 0.5): covered")))))
+
+(deftest therapy-gate-default-is-conservative ()
+  ;; The dial defaults to :belief, so the engine's out-of-the-box behavior is the
+  ;; conservative gate -- no surprise change for callers that never touch it.
+  (is (eq :belief therapy:*susceptibility-gate*) "default gate is :belief"))
+
+(deftest therapy-canonical-gate-recovers-provisional ()
+  ;; On the CANONICAL KB: contraindicate every SOLID anti-pseudomonal, leaving only
+  ;; PROVISIONAL agents (cipro/gentamicin, bel < 0.5). The conservative gate leaves
+  ;; pseudomonas honestly UNCOVERED; the optimistic gate lets a provisional agent
+  ;; cover it. Same case, different regimen -- the stewardship dial in action.
+  (belief:use-system :dempster-shafer)
+  (therapy:with-greedy-solver
+    (let ((patient '(:allergy-cephalosporin :allergy-carbapenem :allergy-penicillin)))
+      (flet ((pseudomonas-covered-p (gate)
+               (let ((therapy:*susceptibility-gate* gate))
+                 (not (member :pseudomonas
+                              (therapy:recommendation-uncovered
+                               (therapy:recommend '((:pseudomonas . 0.8))
+                                                  (therapy:therapy-kb) patient)))))))
+        (is (not (pseudomonas-covered-p :belief))
+            "conservative gate: only provisional anti-pseudomonals remain -> uncovered")
+        (is (pseudomonas-covered-p :plausibility)
+            "optimistic gate: a provisional agent (pl >= 0.5) now covers pseudomonas")))))
+
+;;; ------------------------------------------------------------------
+;;; S2: the susceptibility interval is surfaced through to JSON as
+;;; {bel, pl, ignorance}, rendered NATIVELY so the shape is identical under CF and
+;;; DS (decision C). This is the payload that lets Claude narrate a wide interval
+;;; as provisional.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-susceptibility-serializes-as-interval ()
+  (dolist (sys '(:certainty-factors :dempster-shafer))
+    (belief:use-system sys)
+    (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+      (therapy:with-greedy-solver
+        (therapy:add-drug kb :broad :dose "1g")
+        (therapy:add-sensitivity kb :pseudomonas :broad (belief:make-ds-belief 0.7 0.9))
+        (let* ((rec (therapy:recommend '((:pseudomonas . 0.8)) kb '()))
+               (json (therapy:recommendation->json rec))
+               (regimen (gethash "regimen" json))
+               (entry (aref (gethash "susceptibility" (aref regimen 0)) 0)))
+          (is (string= "pseudomonas" (gethash "organism" entry))
+              (format nil "organism serialized under ~S" sys))
+          (is (approx= 0.7 (gethash "bel" entry)) (format nil "bel surfaced under ~S" sys))
+          (is (approx= 0.9 (gethash "pl" entry)) (format nil "pl surfaced under ~S" sys))
+          (is (approx= 0.2 (gethash "ignorance" entry))
+              (format nil "ignorance surfaced under ~S" sys)))))))
+
+(deftest therapy-scalar-susceptibility-serializes-as-degenerate-interval ()
+  ;; A bare scalar susceptibility serializes as a zero-ignorance interval, so
+  ;; consumers see a uniform {bel, pl, ignorance} shape regardless of authoring.
+  (belief:use-system :dempster-shafer)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :broad :dose "1g")
+      (therapy:add-sensitivity kb :pseudomonas :broad 0.85) ; plain scalar
+      (let* ((rec (therapy:recommend '((:pseudomonas . 0.8)) kb '()))
+             (entry (aref (gethash "susceptibility"
+                                   (aref (gethash "regimen" (therapy:recommendation->json rec)) 0))
+                          0)))
+        (is (approx= 0.85 (gethash "bel" entry)) "scalar becomes bel")
+        (is (approx= 0.85 (gethash "pl" entry)) "scalar becomes pl")
+        (is (approx= 0.0 (gethash "ignorance" entry)) "scalar has zero ignorance")))))
+
+;;; ------------------------------------------------------------------
 ;;; def* authoring surface (design doc 3.2): the macros are thin wrappers over
 ;;; the builder API and populate *THERAPY-KB*. Bind it to a throwaway KB so these
 ;;; never touch the canonical one.
@@ -195,13 +318,33 @@
 (deftest therapy-canonical-kb-loaded ()
   (is (member :ceftazidime (therapy:kb-drug-ids (therapy:therapy-kb)))
       "canonical KB has ceftazidime")
-  (is (= 0.85 (therapy:kb-susceptibility (therapy:therapy-kb) :ceftazidime :pseudomonas))
-      "authored pseudomonas/ceftazidime susceptibility")
+  ;; Susceptibilities are now DS intervals (susceptibility-belief-design.md S1),
+  ;; not bare scalars: ceftazidime/pseudomonas is authored as [0.70, 0.90].
+  (let ((s (therapy:kb-susceptibility (therapy:therapy-kb) :ceftazidime :pseudomonas)))
+    (is (belief:ds-belief-p s) "authored susceptibility is a DS interval")
+    (is (= 0.70 (belief:ds-belief-bel s)) "ceftazidime/pseudomonas belief (lower bound)")
+    (is (= 0.90 (belief:ds-belief-pl s)) "ceftazidime/pseudomonas plausibility (upper bound)"))
   (is (eq :iv (therapy:kb-drug-route (therapy:therapy-kb) :ceftazidime)) "route present")
   (is (stringp (therapy:kb-dose (therapy:therapy-kb) :ceftazidime)) "dose present")
   (is (member :allergy-cephalosporin
               (therapy:kb-contraindication-triggers (therapy:therapy-kb) :ceftazidime))
       "cephalosporin allergy contraindicates ceftazidime"))
+
+(deftest therapy-canonical-susceptibilities-are-intervals ()
+  ;; S1: the canonical KB carries DS intervals, not scalars, and the width tiers
+  ;; are disciplined -- a SOLID entry's bel clears the coverage gate; a
+  ;; [PROVISIONAL] entry's bel falls below it (so it does not cover under the
+  ;; conservative default), yet still has genuine ignorance (pl > bel).
+  (let ((solid (therapy:kb-susceptibility (therapy:therapy-kb) :meropenem :pseudomonas))
+        (provisional (therapy:kb-susceptibility (therapy:therapy-kb) :ciprofloxacin :pseudomonas)))
+    (is (belief:ds-belief-p solid) "canonical susceptibility is a DS interval")
+    (is (belief:ds-belief-p provisional) "provisional susceptibility is a DS interval too")
+    (is (>= (belief:ds-belief-bel solid) therapy:*susceptibility-threshold*)
+        "solid meropenem/pseudomonas covers (bel >= gate)")
+    (is (< (belief:ds-belief-bel provisional) therapy:*susceptibility-threshold*)
+        "provisional cipro/pseudomonas does not cover under the conservative gate")
+    (is (> (belief:ds-belief-pl provisional) (belief:ds-belief-bel provisional))
+        "the provisional interval carries genuine ignorance (pl > bel)")))
 
 (deftest therapy-canonical-gram-negative-minimal ()
   ;; Two gram-negatives both covered by broad agents -> one drug suffices (minimality).

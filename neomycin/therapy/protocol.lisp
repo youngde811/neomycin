@@ -76,6 +76,24 @@
 (defvar *susceptibility-threshold* 0.5
   "Minimum susceptibility for a drug to count as covering an organism.")
 
+(defvar *susceptibility-gate* :belief
+  "Which point of a belief-valued susceptibility interval the coverage gate reads
+   (susceptibility-belief-design.md 5) -- a STEWARDSHIP dial, not a clinical
+   constant. Only affects belief-valued (DS-interval) susceptibilities; a bare
+   scalar reduces to itself under every setting.
+
+     :belief       -- conservative (DEFAULT): gate on `bel` (lower bound). Count a
+                      drug as covering only when we are confident it is susceptible;
+                      wide ignorance makes coverage HARDER.
+     :plausibility -- optimistic: gate on `pl` (upper bound). Count it as covering
+                      unless there is evidence against; wide ignorance makes
+                      coverage EASIER.
+     :midpoint     -- gate on (bel + pl) / 2, a middle ground.
+
+   The same case and KB can yield different regimens under different gates, and the
+   divergence is legible precisely because the interval is explicit -- a question
+   the certainty-factor world cannot even pose.")
+
 ;;; ============================================================
 ;;; Solver base class + protocol generic function
 ;;; ============================================================

@@ -83,6 +83,8 @@ bin/
 | `/run-inference` | POST | Fire rules (captures rule trace) |
 | `/conclusions` | GET | Get organism-identity results + belief factors |
 | `/rule-trace` | GET | Get which rules fired last run |
+| `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
+| `/recommend-therapy` | POST | Therapy regimen over the canonical KB: `{patient?, solver?, gate?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities |
 | `/reset` | POST | Clear working memory and entity registry |
 
 ## Testing the Bridge
@@ -201,11 +203,3 @@ Architecture plan: `docs/lisa-llm-architecture.md`
 - Common Lisp conventions: kebab-case, `defvar` for specials with earmuffs
 - ASDF for system definition, Quicklisp for dependency management
 - Bridge uses jzon for JSON (not cl-json) — `com.inuoe.jzon:parse` / `com.inuoe.jzon:stringify`
-
-## Editing README.md
-
-README.md is large (~290 lines) with extensive markdown code blocks (triple backticks, tables, inline code). This makes it difficult to edit with standard tools:
-
-- The `Write` tool truncates when the content contains many backtick-heavy code blocks
-- Shell heredocs (`cat << 'EOF'`) also break on the embedded backticks and special characters
-- **What works**: Write the first portion with `Write`, then append the rest via a Python script (`open(path, 'a')`) which handles quoting correctly. Alternatively, use `Edit` for small targeted changes within the file — just keep each edit under ~60 lines to avoid uniqueness issues.
