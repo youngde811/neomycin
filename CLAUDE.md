@@ -2,10 +2,17 @@
 
 > **This repo is `neomycin`** — a research reconstruction of MYCIN/EMYCIN,
 > forked from Lisa 4.2.0 (full history preserved). See `README.md`. **Research
-> only; NOT FOR CLINICAL USE.** Light-touch fork: the `lisa` engine below is
-> used as-is and intentionally *not* renamed. Dempster-Shafer is the default
-> belief system; certainty factors are retained for CF-vs-DS comparison. The
-> Lisa engine documentation below remains accurate for the substrate.
+> only; NOT FOR CLINICAL USE.** This is a *substantive* fork: the `lisa` engine
+> is intentionally *not* renamed and is kept close to upstream where that costs
+> nothing, but **engine-level modifications to better serve neomycin are fair
+> game when they genuinely move the chains** — e.g. deepening Dempster-Shafer
+> support beneath the corpus layer, or hosting classification/recognition. Treat
+> these as engine-axis work (real reach, real cost): reach for them when they
+> meaningfully advance the project, not for cosmetic gains — and don't treat "a
+> Rete engine used as-is" as a constraint that forecloses them. Dempster-Shafer
+> is the default belief system; certainty factors are retained for CF-vs-DS
+> comparison. The Lisa engine documentation below describes the substrate as it
+> currently stands.
 
 # Lisa — Lisp-based Intelligent Software Agents
 

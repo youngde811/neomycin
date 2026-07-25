@@ -88,6 +88,44 @@ as a spike with its own DS goldens before scaling it.
 > This is where §1's "engine capability" axis re-enters: chaining is corpus work
 > that buys engine coverage. Flat breadth never does.
 
+### 3.1 Alternative representation — this is *classification* (parked)
+
+Step back from the rule encoding and (B) is, in KR terms, **instance recognition**:
+an individual with observed features (`gram neg`, `rod`, facultative…) is recognized
+as a member of the most-specific concept it satisfies (Enterobacteriaceae →
+*E. coli*). That is the home turf of a **description-logic classifier** — the KL-ONE
+lineage, and specifically **LOOM** (USC/ISI, Robert MacGregor; a Common-Lisp DL
+*classifier* + instance *recognizer* fused with a production/rule layer). In a DL you
+*declare* concepts by necessary-and-sufficient conditions and let the classifier
+place both the concepts and the instance; §3(B) instead hand-codes that placement one
+`defrule` at a time. Doing it in Rete is reinventing a small, manual classifier out
+of production rules.
+
+**The design question, if ever pursued.** Classical DLs are **crisp and monotonic** —
+subsumption is boolean; LOOM/CLASSIC/KL-ONE have no belief layer. Neomycin's whole
+thesis is the opposite. So the interesting split — and it lands exactly on §1's two
+axes — is:
+
+- **DL/classifier for the structure**: the organism taxonomy and *which* concepts an
+  instance can fall under (the knowledge-breadth axis, declared not enumerated).
+- **The belief system for the uncertainty**: `[bel, pl]` on the *recognition*, not on
+  the subsumption. The taxonomy names the candidates; DS says how much we believe the
+  instance is each. This un-welds "what are the possible identities" from "how
+  confident am I" — which every current `defrule` conflates.
+
+**Fidelity (§4).** A classifier would be a *modernization* — explicitly
+neomycin-extrapolation, not historical MYCIN, which predates KL-ONE. The adjacent
+*historical* thread is Clancey's NEOMYCIN and its explicit disease taxonomy —
+next-door to a classifier, and the reason the naming rhyme keeps paying off.
+
+**The substrate is not a hard constraint.** Lisa being a Rete production engine is
+where we *start*, not a wall. This is a genuine fork, not a light re-skin: the
+inference engine itself is fair game to extend **beneath the corpus layer** — to
+serve DS reasoning more directly and, if ever, to host classification/recognition.
+The honest frame is engine-axis work (§1) with real weight and real cost — *not*
+"can't, it's Rete." Parking here is about **sequence** (overlay first), not about
+foreclosing the idea.
+
 ---
 
 ## 4. Provenance policy — reconstruction, not invention
