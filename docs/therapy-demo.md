@@ -341,3 +341,35 @@ mismatch. That script is the ground truth the numbers in this document were
 captured from. For the solver, KB, and bridge-glue unit tests, run the
 `neomycin/test` suite (see
 [`getting-started.md`](getting-started.md#running-the-tests)).
+
+---
+
+## Playing clinician: what to watch for
+
+A live, interactive session — varying the questions, volunteering context, and
+retracting it again — is where *narration quality* shows itself. The JSON can be
+correct while the spoken account drifts, and that gap is exactly what a scripted
+test can't catch. When you exercise the therapy layer by hand, these are the
+freshly-built surfaces most worth scrutinising:
+
+1. **Susceptibility-interval narration (wide vs narrow).** Watch whether Claude
+   actually *uses* the `{bel, pl, ignorance}` interval it's handed, rather than
+   collapsing it back to a single number. The tell is a **provisional** agent
+   (wide ignorance, low `bel`) being flagged as *"pending local sensitivities"* —
+   e.g. meropenem's Pseudomonas figure (`bel 0.72, pl 0.92`) narrated as solid,
+   versus a straddling agent narrated as a hedge. If the narration treats a wide
+   interval and a tight one identically, the visible-uncertainty story isn't
+   landing out loud even though it's correct in the payload.
+
+2. **The coverage-gate flip (`belief` vs `plausibility`).** Run the *same* case
+   under both gates and listen for whether the **divergence** narrates as clearly
+   as it reads in the JSON. The cleanest flip is the heavily-allergic Pseudomonas
+   case (cephalosporin + carbapenem + penicillin allergies) from Demo 4, where only
+   ciprofloxacin and gentamicin remain: `belief` should honestly report Pseudomonas
+   **uncovered**, and `plausibility` should recover a provisional agent *on its
+   upper bound* — with Claude naming that trade-off, not silently switching answers.
+
+**Capture surprises.** If the narration diverges from what the numbers say, or a
+gate/interval behaves in a way you didn't expect, jot it down (transcripts land in
+`./sessions/`). That mismatch is usually where the next real design question hides
+— it's how the last round surfaced what mattered.
