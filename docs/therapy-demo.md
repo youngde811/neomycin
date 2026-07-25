@@ -19,13 +19,15 @@ the LLM.
 1. [What this increment delivered](#what-this-increment-delivered)
 2. [The bright line](#the-bright-line)
 3. [Bring-up](#bring-up)
-4. [Three demonstrations](#three-demonstrations)
+4. [Four demonstrations](#four-demonstrations)
    - [1. One broad agent covers a gram-negative differential](#1-one-broad-agent-covers-a-gram-negative-differential)
    - [2. A contraindication reshapes the regimen](#2-a-contraindication-reshapes-the-regimen)
    - [3. A different organism, a different drug class](#3-a-different-organism-a-different-drug-class)
+   - [4. The stewardship dial: conservative vs optimistic gating](#4-the-stewardship-dial-conservative-vs-optimistic-gating)
 5. [Contraindication vocabulary](#contraindication-vocabulary)
 6. [Reading the recommendation payload](#reading-the-recommendation-payload)
 7. [Verifying without the LLM](#verifying-without-the-llm)
+8. [Playing clinician: what to watch for](#playing-clinician-what-to-watch-for)
 
 ---
 
@@ -93,7 +95,7 @@ calls.
 
 ---
 
-## Three demonstrations
+## Four demonstrations
 
 Each demo has **paste-ready clinician lines** (italicized) — type them one at a
 time. Expected regimens below are captured from the live solver under
