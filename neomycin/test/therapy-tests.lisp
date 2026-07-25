@@ -231,13 +231,33 @@
 (deftest therapy-canonical-kb-loaded ()
   (is (member :ceftazidime (therapy:kb-drug-ids (therapy:therapy-kb)))
       "canonical KB has ceftazidime")
-  (is (= 0.85 (therapy:kb-susceptibility (therapy:therapy-kb) :ceftazidime :pseudomonas))
-      "authored pseudomonas/ceftazidime susceptibility")
+  ;; Susceptibilities are now DS intervals (susceptibility-belief-design.md S1),
+  ;; not bare scalars: ceftazidime/pseudomonas is authored as [0.70, 0.90].
+  (let ((s (therapy:kb-susceptibility (therapy:therapy-kb) :ceftazidime :pseudomonas)))
+    (is (belief:ds-belief-p s) "authored susceptibility is a DS interval")
+    (is (= 0.70 (belief:ds-belief-bel s)) "ceftazidime/pseudomonas belief (lower bound)")
+    (is (= 0.90 (belief:ds-belief-pl s)) "ceftazidime/pseudomonas plausibility (upper bound)"))
   (is (eq :iv (therapy:kb-drug-route (therapy:therapy-kb) :ceftazidime)) "route present")
   (is (stringp (therapy:kb-dose (therapy:therapy-kb) :ceftazidime)) "dose present")
   (is (member :allergy-cephalosporin
               (therapy:kb-contraindication-triggers (therapy:therapy-kb) :ceftazidime))
       "cephalosporin allergy contraindicates ceftazidime"))
+
+(deftest therapy-canonical-susceptibilities-are-intervals ()
+  ;; S1: the canonical KB carries DS intervals, not scalars, and the width tiers
+  ;; are disciplined -- a SOLID entry's bel clears the coverage gate; a
+  ;; [PROVISIONAL] entry's bel falls below it (so it does not cover under the
+  ;; conservative default), yet still has genuine ignorance (pl > bel).
+  (let ((solid (therapy:kb-susceptibility (therapy:therapy-kb) :meropenem :pseudomonas))
+        (provisional (therapy:kb-susceptibility (therapy:therapy-kb) :ciprofloxacin :pseudomonas)))
+    (is (belief:ds-belief-p solid) "canonical susceptibility is a DS interval")
+    (is (belief:ds-belief-p provisional) "provisional susceptibility is a DS interval too")
+    (is (>= (belief:ds-belief-bel solid) therapy:*susceptibility-threshold*)
+        "solid meropenem/pseudomonas covers (bel >= gate)")
+    (is (< (belief:ds-belief-bel provisional) therapy:*susceptibility-threshold*)
+        "provisional cipro/pseudomonas does not cover under the conservative gate")
+    (is (> (belief:ds-belief-pl provisional) (belief:ds-belief-bel provisional))
+        "the provisional interval carries genuine ignorance (pl > bel)")))
 
 (deftest therapy-canonical-gram-negative-minimal ()
   ;; Two gram-negatives both covered by broad agents -> one drug suffices (minimality).
