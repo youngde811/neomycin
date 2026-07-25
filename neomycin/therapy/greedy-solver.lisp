@@ -38,13 +38,45 @@
 (in-package :neomycin-therapy)
 
 (defun scalar-of (val)
-  "Reduce a belief-valued quantity to a scalar for thresholding and weighting.
-   NIL -> 0.0; a real number is itself (a CF belief, or a raw susceptibility);
-   anything else is reduced through the active belief system (e.g. a DS interval
-   -> its lower bound, via BELIEF:BELIEF->NUMBER)."
+  "Reduce an IDENTIFICATION belief to a scalar for the coverage gate and weighting.
+   NIL -> 0.0; a real number is itself (a CF belief); a structured belief (e.g. a
+   DS interval) is reduced through the ACTIVE belief system via BELIEF:BELIEF->NUMBER
+   -- correct here precisely because identification belief IS scored by that algebra.
+
+   For SUSCEPTIBILITY, whose uncertainty is orthogonal to the diagnostic algebra,
+   use SUSCEPTIBILITY->SCALAR instead -- routing a susceptibility through this
+   function errors under CF (see that function's docstring)."
   (cond ((null val) 0.0)
         ((realp val) val)
         (t (belief:belief->number belief:*belief-system* val))))
+
+(defun susceptibility->scalar (susceptibility)
+  "Reduce a (possibly belief-valued) SUSCEPTIBILITY to a scalar for coverage
+   thresholding and weighting.
+
+   Unlike SCALAR-OF, this does NOT route through BELIEF:*BELIEF-SYSTEM*. A drug's
+   susceptibility against an organism is a fact about the antibiogram data, not
+   about the diagnostic algebra that scored identification -- so its reduction must
+   be the same no matter which algebra (CF or DS) is active. Routing it through the
+   active system would ERROR under CF, whose BELIEF->NUMBER has no method for a
+   ds-belief struct; that break is exactly why this reduction is decoupled
+   (susceptibility-belief-design.md 4, decision C).
+
+     NIL         -> 0.0  (no susceptibility recorded -- does not cover)
+     a real      -> itself (a raw scalar, or an equivalent CF-scored susceptibility)
+     a ds-belief -> its belief/lower bound: gate on what we are SURE of (the
+                    conservative default, preserving prior behavior). S3 will make
+                    this point a policy dial -- :belief / :plausibility / :midpoint
+                    via *susceptibility-gate* -- but the reduction stays decoupled
+                    from the identification algebra regardless.
+
+   Any other value is a KB authoring error and is signalled as one."
+  (cond ((null susceptibility) 0.0)
+        ((realp susceptibility) susceptibility)
+        ((belief:ds-belief-p susceptibility)
+         (belief:ds-belief-bel susceptibility))
+        (t (error "Unreducible susceptibility ~S: expected NIL, a real, or a ~
+                   BELIEF:DS-BELIEF interval." susceptibility))))
 
 (defun patient-contraindicates-p (kb drug patient)
   "True iff any of PATIENT's state tokens triggers a contraindication for DRUG.
@@ -56,14 +88,14 @@
    *susceptibility-threshold*."
   (remove-if-not
    #'(lambda (org)
-       (>= (scalar-of (kb-susceptibility kb drug org)) *susceptibility-threshold*))
+       (>= (susceptibility->scalar (kb-susceptibility kb drug org)) *susceptibility-threshold*))
    organisms))
 
 (defun coverage-weight (kb drug covered belief-of)
   "Tie-break score for DRUG: sum over COVERED organisms of susceptibility x the
    organism's identification belief. BELIEF-OF maps an organism to its reduced belief."
   (loop for org in covered
-        sum (* (scalar-of (kb-susceptibility kb drug org))
+        sum (* (susceptibility->scalar (kb-susceptibility kb drug org))
                (funcall belief-of org))))
 
 (defclass greedy-solver (solver) ()
@@ -118,7 +150,7 @@
                :dose (kb-dose kb best)
                :covers best-cov
                :susceptibility (mapcar #'(lambda (o)
-                                           (cons o (scalar-of (kb-susceptibility kb best o))))
+                                           (cons o (susceptibility->scalar (kb-susceptibility kb best o))))
                                        best-cov))
               regimen)
         (setf uncovered (set-difference uncovered best-cov))

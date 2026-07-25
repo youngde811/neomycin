@@ -153,6 +153,42 @@
         (is (member :pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered")))))
 
 ;;; ------------------------------------------------------------------
+;;; Decision (C): susceptibility reduction is DECOUPLED from the active
+;;; identification belief system (susceptibility-belief-design.md 4). A
+;;; ds-belief susceptibility must reduce natively -- to its lower bound -- under
+;;; BOTH algebras. Under CF this errored before the decoupling, because CF's
+;;; BELIEF->NUMBER has no method for a ds-belief struct.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-cf-interval-susceptibility-covers ()
+  ;; The crux of decision (C): identification runs under certainty factors, yet a
+  ;; DS-interval susceptibility still reduces (to its bel) and covers -- no error.
+  (belief:use-system :certainty-factors)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :broad :dose "1g")
+      ;; bel 0.9 -> reduces natively to 0.9 >= 0.5, independent of the CF algebra.
+      (therapy:add-sensitivity kb :pseudomonas :broad (belief:make-ds-belief 0.9 1.0))
+      ;; Identification belief is a plain CF scalar, as it would be under CF.
+      (let ((rec (therapy:recommend '((:pseudomonas . 0.7)) kb '())))
+        (is (equal '(:broad) (regimen-drugs rec))
+            "DS-interval susceptibility covers under CF (decision C: no belief->number error)")
+        (is (null (therapy:recommendation-uncovered rec)) "nothing uncovered under CF")))))
+
+(deftest therapy-cf-weak-interval-does-not-cover ()
+  ;; Same decoupling, negative direction: under CF the interval reduces to its bel
+  ;; (0.3), which is < 0.5, so it does not cover -- proving the native reduction
+  ;; takes the lower bound rather than, say, plausibility.
+  (belief:use-system :certainty-factors)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :broad :dose "1g")
+      (therapy:add-sensitivity kb :pseudomonas :broad (belief:make-ds-belief 0.3 1.0))
+      (let ((rec (therapy:recommend '((:pseudomonas . 0.7)) kb '())))
+        (is (null (regimen-drugs rec)) "low-bel interval does not cover under CF")
+        (is (member :pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered")))))
+
+;;; ------------------------------------------------------------------
 ;;; def* authoring surface (design doc 3.2): the macros are thin wrappers over
 ;;; the builder API and populate *THERAPY-KB*. Bind it to a throwaway KB so these
 ;;; never touch the canonical one.
