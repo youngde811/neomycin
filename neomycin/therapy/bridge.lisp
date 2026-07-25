@@ -58,6 +58,39 @@
   "Downcased string name of a keyword id, for JSON (NIL -> NIL)."
   (and keyword (string-downcase (symbol-name keyword))))
 
+(defun susceptibility-bounds (susceptibility)
+  "Return (values bel pl ignorance) for a susceptibility, NATIVELY -- independent
+   of the active identification belief system. A susceptibility's uncertainty is a
+   fact about the antibiogram, not the diagnostic algebra, so its serialized shape
+   must be identical under CF and DS (susceptibility-belief-design.md decision C).
+   A ds-belief yields its bounds; a bare scalar is a degenerate zero-ignorance
+   interval; anything else degrades to a zero interval.
+
+   NB: we deliberately do NOT route this through lisa-bridge:belief->json-value.
+   That helper serializes via the ACTIVE belief system, which would render a
+   ds-belief susceptibility as {bel, pl, ignorance} under DS but drop ignorance
+   under CF -- reintroducing the very ID-algebra coupling decision C removed."
+  (cond
+    ((belief:ds-belief-p susceptibility)
+     (values (belief:ds-belief-bel susceptibility)
+             (belief:ds-belief-pl susceptibility)
+             (belief:ds-ignorance susceptibility)))
+    ((realp susceptibility)
+     (values susceptibility susceptibility 0.0))
+    (t (values 0.0 0.0 0.0))))
+
+(defun susceptibility-entry->json (pair)
+  "PAIR is (organism . raw-susceptibility). Render as
+   {organism, bel, pl, ignorance} -- the interval surfaced so a wide (sparse-data)
+   susceptibility is narratable as provisional (S2)."
+  (let ((s (make-hash-table :test #'equal)))
+    (setf (gethash "organism" s) (key->name (car pair)))
+    (multiple-value-bind (bel pl ignorance) (susceptibility-bounds (cdr pair))
+      (setf (gethash "bel" s) bel)
+      (setf (gethash "pl" s) pl)
+      (setf (gethash "ignorance" s) ignorance))
+    s))
+
 (defun regimen-item->json (item)
   (let ((ht (make-hash-table :test #'equal)))
     (setf (gethash "drug" ht) (key->name (regimen-item-drug item)))
@@ -65,14 +98,7 @@
     (setf (gethash "covers" ht)
           (coerce (mapcar #'key->name (regimen-item-covers item)) 'vector))
     (setf (gethash "susceptibility" ht)
-          (coerce (mapcar #'(lambda (pair)
-                              ;; PAIR is (organism . reduced-scalar): the solver
-                              ;; already reduced the belief, so the value is a
-                              ;; plain number ready for JSON.
-                              (let ((s (make-hash-table :test #'equal)))
-                                (setf (gethash "organism" s) (key->name (car pair)))
-                                (setf (gethash "value" s) (cdr pair))
-                                s))
+          (coerce (mapcar #'susceptibility-entry->json
                           (regimen-item-susceptibility item))
                   'vector))
     ht))

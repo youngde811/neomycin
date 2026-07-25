@@ -149,8 +149,12 @@
                :drug best
                :dose (kb-dose kb best)
                :covers best-cov
+               ;; Keep the RAW susceptibility (a scalar or a ds-belief interval),
+               ;; not its reduced scalar, so the serializer can surface the
+               ;; interval's {bel, pl, ignorance} to the clinician (S2). Coverage
+               ;; and weighting above still reduce via susceptibility->scalar.
                :susceptibility (mapcar #'(lambda (o)
-                                           (cons o (susceptibility->scalar (kb-susceptibility kb best o))))
+                                           (cons o (kb-susceptibility kb best o)))
                                        best-cov))
               regimen)
         (setf uncovered (set-difference uncovered best-cov))

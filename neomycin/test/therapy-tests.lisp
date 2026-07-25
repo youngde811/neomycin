@@ -189,6 +189,47 @@
         (is (member :pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered")))))
 
 ;;; ------------------------------------------------------------------
+;;; S2: the susceptibility interval is surfaced through to JSON as
+;;; {bel, pl, ignorance}, rendered NATIVELY so the shape is identical under CF and
+;;; DS (decision C). This is the payload that lets Claude narrate a wide interval
+;;; as provisional.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-susceptibility-serializes-as-interval ()
+  (dolist (sys '(:certainty-factors :dempster-shafer))
+    (belief:use-system sys)
+    (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+      (therapy:with-greedy-solver
+        (therapy:add-drug kb :broad :dose "1g")
+        (therapy:add-sensitivity kb :pseudomonas :broad (belief:make-ds-belief 0.7 0.9))
+        (let* ((rec (therapy:recommend '((:pseudomonas . 0.8)) kb '()))
+               (json (therapy:recommendation->json rec))
+               (regimen (gethash "regimen" json))
+               (entry (aref (gethash "susceptibility" (aref regimen 0)) 0)))
+          (is (string= "pseudomonas" (gethash "organism" entry))
+              (format nil "organism serialized under ~S" sys))
+          (is (approx= 0.7 (gethash "bel" entry)) (format nil "bel surfaced under ~S" sys))
+          (is (approx= 0.9 (gethash "pl" entry)) (format nil "pl surfaced under ~S" sys))
+          (is (approx= 0.2 (gethash "ignorance" entry))
+              (format nil "ignorance surfaced under ~S" sys)))))))
+
+(deftest therapy-scalar-susceptibility-serializes-as-degenerate-interval ()
+  ;; A bare scalar susceptibility serializes as a zero-ignorance interval, so
+  ;; consumers see a uniform {bel, pl, ignorance} shape regardless of authoring.
+  (belief:use-system :dempster-shafer)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :broad :dose "1g")
+      (therapy:add-sensitivity kb :pseudomonas :broad 0.85) ; plain scalar
+      (let* ((rec (therapy:recommend '((:pseudomonas . 0.8)) kb '()))
+             (entry (aref (gethash "susceptibility"
+                                   (aref (gethash "regimen" (therapy:recommendation->json rec)) 0))
+                          0)))
+        (is (approx= 0.85 (gethash "bel" entry)) "scalar becomes bel")
+        (is (approx= 0.85 (gethash "pl" entry)) "scalar becomes pl")
+        (is (approx= 0.0 (gethash "ignorance" entry)) "scalar has zero ignorance")))))
+
+;;; ------------------------------------------------------------------
 ;;; def* authoring surface (design doc 3.2): the macros are thin wrappers over
 ;;; the builder API and populate *THERAPY-KB*. Bind it to a throwaway KB so these
 ;;; never touch the canonical one.

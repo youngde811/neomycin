@@ -133,9 +133,9 @@ carbapenem covers the whole differential:
     {"drug": "meropenem", "dose": "1 g IV q8h",
      "covers": ["pseudomonas", "enterobacteriaceae", "klebsiella"],
      "susceptibility": [
-       {"organism": "pseudomonas", "value": 0.85},
-       {"organism": "enterobacteriaceae", "value": 0.95},
-       {"organism": "klebsiella", "value": 0.95}]}
+       {"organism": "pseudomonas",        "bel": 0.72, "pl": 0.92, "ignorance": 0.20},
+       {"organism": "enterobacteriaceae", "bel": 0.90, "pl": 0.99, "ignorance": 0.09},
+       {"organism": "klebsiella",         "bel": 0.88, "pl": 0.99, "ignorance": 0.11}]}
   ],
   "items_to_treat": [ ...three organisms... ],
   "excluded": [],
@@ -147,6 +147,15 @@ carbapenem covers the whole differential:
 signal — the solver won't stack agents when one covers the field. Ask Claude *"why
 only one drug?"* and it should explain the weighted set cover: fewest drugs that
 cover every above-threshold organism.
+
+**Also note the susceptibility intervals.** Each is `{bel, pl, ignorance}`, not a
+bare number — the same visible-uncertainty idea as identification, now on the
+antibiogram. `bel` is the confident floor coverage was decided on; `ignorance`
+(`pl - bel`) is how thin the schematic data is. Meropenem's Pseudomonas figure is
+wide (`0.72–0.92`, ignorance 0.20) — Claude should narrate that as *provisional
+pending local sensitivities* — while its Enterobacteriaceae figure is tight
+(`0.90–0.99`). Crucially this interval is **identical under CF and DS**: it
+describes the data, not the diagnostic algebra.
 
 ### 2. A contraindication reshapes the regimen
 
@@ -197,7 +206,8 @@ picks the nitroimidazole:
 
 ```json
 {"regimen": [{"drug": "metronidazole", "dose": "500 mg IV q8h",
-              "covers": ["bacteroides"], "susceptibility": [{"organism": "bacteroides", "value": 0.95}]}],
+              "covers": ["bacteroides"],
+              "susceptibility": [{"organism": "bacteroides", "bel": 0.88, "pl": 0.99, "ignorance": 0.11}]}],
  "excluded": [], "uncovered": []}
 ```
 
