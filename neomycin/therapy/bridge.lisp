@@ -148,6 +148,17 @@
       (intern (string-upcase raw) :keyword)
       :greedy))
 
+(defun parse-gate (raw)
+  "The requested coverage-gate keyword, defaulting to :belief (conservative) when
+   unset. Accepts belief | plausibility | midpoint; anything else signals an error
+   the handler surfaces, rather than silently mis-gating."
+  (if (and raw (stringp raw) (plusp (length raw)))
+      (ecase (intern (string-upcase raw) :keyword)
+        (:belief :belief)
+        (:plausibility :plausibility)
+        (:midpoint :midpoint))
+      :belief))
+
 ;;; ------------------------------------------------------------------
 ;;; Handler: POST /recommend-therapy
 ;;; ------------------------------------------------------------------
@@ -158,14 +169,19 @@
       (let* ((body (lisa-bridge:read-json-body))
              (patient (parse-patient-state (and body (gethash "patient" body))))
              (solver-name (parse-solver-name (and body (gethash "solver" body))))
+             (gate (parse-gate (and body (gethash "gate" body))))
              (conclusions (conclusions-for-solver)))
         (use-solver solver-name)
-        (let ((result (recommendation->json
-                       (recommend conclusions (therapy-kb) patient))))
+        ;; Dynamically bind the coverage-gate dial for this request only, so a
+        ;; per-request `gate` never leaks into later sessions.
+        (let* ((*susceptibility-gate* gate)
+               (result (recommendation->json
+                        (recommend conclusions (therapy-kb) patient))))
           ;; Echo the operative context so the response is self-describing.
           (setf (gethash "belief_system" result)
                 (belief:belief-system-name belief:*belief-system*))
           (setf (gethash "solver" result) (key->name solver-name))
+          (setf (gethash "gate" result) (key->name gate))
           (lisa-bridge:json-response result)))
     (error (e)
       (lisa-bridge:error-response

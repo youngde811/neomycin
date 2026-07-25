@@ -189,6 +189,52 @@
         (is (member :pseudomonas (therapy:recommendation-uncovered rec)) "organism uncovered")))))
 
 ;;; ------------------------------------------------------------------
+;;; S3: the coverage-gate dial (*susceptibility-gate*). The SAME case and KB yield
+;;; different coverage under the conservative (:belief) vs optimistic
+;;; (:plausibility) gate -- the research artifact. Legible only because the
+;;; susceptibility interval is explicit.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-gate-flips-coverage ()
+  (belief:use-system :dempster-shafer)
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :only :dose "1g")
+      ;; Straddles the 0.5 threshold: bel 0.4 < 0.5 <= pl 0.8, midpoint 0.6.
+      (therapy:add-sensitivity kb :pseudomonas :only (belief:make-ds-belief 0.4 0.8))
+      (flet ((covered-p (gate)
+               (let ((therapy:*susceptibility-gate* gate))
+                 (null (therapy:recommendation-uncovered
+                        (therapy:recommend '((:pseudomonas . 0.8)) kb '()))))))
+        (is (not (covered-p :belief)) "conservative :belief gate (bel 0.4 < 0.5): not covered")
+        (is (covered-p :plausibility) "optimistic :plausibility gate (pl 0.8 >= 0.5): covered")
+        (is (covered-p :midpoint) "midpoint gate (0.6 >= 0.5): covered")))))
+
+(deftest therapy-gate-default-is-conservative ()
+  ;; The dial defaults to :belief, so the engine's out-of-the-box behavior is the
+  ;; conservative gate -- no surprise change for callers that never touch it.
+  (is (eq :belief therapy:*susceptibility-gate*) "default gate is :belief"))
+
+(deftest therapy-canonical-gate-recovers-provisional ()
+  ;; On the CANONICAL KB: contraindicate every SOLID anti-pseudomonal, leaving only
+  ;; PROVISIONAL agents (cipro/gentamicin, bel < 0.5). The conservative gate leaves
+  ;; pseudomonas honestly UNCOVERED; the optimistic gate lets a provisional agent
+  ;; cover it. Same case, different regimen -- the stewardship dial in action.
+  (belief:use-system :dempster-shafer)
+  (therapy:with-greedy-solver
+    (let ((patient '(:allergy-cephalosporin :allergy-carbapenem :allergy-penicillin)))
+      (flet ((pseudomonas-covered-p (gate)
+               (let ((therapy:*susceptibility-gate* gate))
+                 (not (member :pseudomonas
+                              (therapy:recommendation-uncovered
+                               (therapy:recommend '((:pseudomonas . 0.8))
+                                                  (therapy:therapy-kb) patient)))))))
+        (is (not (pseudomonas-covered-p :belief))
+            "conservative gate: only provisional anti-pseudomonals remain -> uncovered")
+        (is (pseudomonas-covered-p :plausibility)
+            "optimistic gate: a provisional agent (pl >= 0.5) now covers pseudomonas")))))
+
+;;; ------------------------------------------------------------------
 ;;; S2: the susceptibility interval is surfaced through to JSON as
 ;;; {bel, pl, ignorance}, rendered NATIVELY so the shape is identical under CF and
 ;;; DS (decision C). This is the payload that lets Claude narrate a wide interval

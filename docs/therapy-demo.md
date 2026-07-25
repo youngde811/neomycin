@@ -229,6 +229,49 @@ function of *what was identified*. Add *"she's also penicillin-allergic"* to the
 staph case and watch nafcillin, ampicillin, and piperacillin-tazobactam move to
 `excluded` while vancomycin (not a penicillin) still carries the coverage.
 
+### 4. The stewardship dial: conservative vs optimistic gating
+
+**Goal**: See the *same case* yield a *different regimen* under conservative vs
+optimistic susceptibility gating — a question the certainty-factor world cannot
+even pose, because it has no interval to gate on.
+
+Take a Pseudomonas case in a heavily allergic patient — cephalosporin, carbapenem,
+*and* penicillin allergies — which strips out every **solid** anti-pseudomonal
+(ceftazidime, ceftriaxone, meropenem, piperacillin-tazobactam). Only
+ciprofloxacin and gentamicin remain, and in the schematic KB both are
+**provisional** against Pseudomonas: their susceptibility intervals straddle the
+threshold (e.g. gentamicin `bel 0.48, pl 0.88` — 40% ignorance).
+
+> *Pseudomonas bacteremia. She's allergic to cephalosporins, carbapenems, and
+> penicillins. What can we use?*
+
+By default the gate is `belief` (conservative) — coverage needs the interval's
+*lower* bound to clear the threshold. Neither provisional agent does, so the
+solver is honest about the gap:
+
+```json
+{"regimen": [], "uncovered": ["pseudomonas"], "gate": "belief", ...}
+```
+
+Now ask Claude to *explore optimistic gating* (`gate: "plausibility"`) — coverage
+needs only the *upper* bound to clear:
+
+```json
+{"regimen": [{"drug": "gentamicin", "dose": "5-7 mg/kg IV q24h",
+              "covers": ["pseudomonas"],
+              "susceptibility": [{"organism": "pseudomonas", "bel": 0.48, "pl": 0.88, "ignorance": 0.40}]}],
+ "uncovered": [], "gate": "plausibility"}
+```
+
+**The teaching point**: same organism, same KB, same allergies — the *regimen
+flipped* because the stewardship posture changed. Under `belief` we admit we
+can't be sure and say so; under `plausibility` gentamicin becomes usable, but
+*only on its upper bound*, so Claude should narrate it as provisional pending
+local sensitivities. The `midpoint` gate splits the difference. The divergence is
+legible **because the susceptibility interval is explicit** — this is what
+belief-valued susceptibilities buy you on the treatment side. (The dial is a
+research knob, not a clinical one — see the safety note below.)
+
 ---
 
 ## Contraindication vocabulary
@@ -263,17 +306,21 @@ Four parts, all worth narrating:
   Organisms below threshold are deliberately *not* treated.
 - **`regimen`** — the drugs the greedy weighted set cover chose: the fewest that
   cover every item. Each lists `dose`, what it `covers`, and per-organism
-  `susceptibility`.
+  `susceptibility` — a belief interval `{bel, pl, ignorance}`, not a bare number.
+  `bel` is the confident floor coverage was decided on; wide `ignorance` marks a
+  thin/variable antibiogram, which Claude should narrate as provisional. This
+  interval is identical under CF and DS — it describes the data, not the
+  diagnostic algebra.
 - **`excluded`** — drugs ruled out, each with a `reason` (e.g.
   `contraindication`).
 - **`uncovered`** — items no available drug could cover, surfaced honestly rather
-  than dropped. The demo scenarios above all reach full coverage; `uncovered`
-  becomes non-empty only when contraindications strip out every candidate for an
-  organism, and Claude should flag it as a gap the schematic KB can't fill rather
-  than gloss over it.
+  than dropped. Demos 1–3 reach full coverage; `uncovered` becomes non-empty when
+  contraindications strip out every candidate for an organism (Demo 4), and Claude
+  should flag it as a gap the schematic KB can't fill rather than gloss over it.
 
-The response also echoes `belief_system` and `solver`, so a captured transcript is
-self-describing.
+The response also echoes `belief_system`, `solver`, and `gate` (the coverage-gate
+policy — `belief` / `plausibility` / `midpoint`, see Demo 4), so a captured
+transcript is self-describing.
 
 ---
 

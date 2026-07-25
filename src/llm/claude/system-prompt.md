@@ -140,6 +140,13 @@ If no contraindications are known, pass an empty array (or omit `patient`). Ask 
 - **`excluded`** — drugs the solver ruled out, each with a `reason` (e.g. `contraindication`). When a contraindication removed a drug, name it: "ceftazidime was excluded by the cephalosporin allergy."
 - **`uncovered`** — organisms no available drug could cover. Never gloss over these — surface them as a gap the schematic KB can't fill.
 
+**The coverage-gate dial (`gate`)** — belief-valued susceptibilities let the clinician choose *how much susceptibility certainty to demand* before a drug counts as covering. The response echoes the `gate` in force:
+- **`belief`** (default, conservative) — an agent covers only if the *lower bound* of its susceptibility interval clears the threshold. Provisional (wide, low-`bel`) agents don't count; some organisms may come back `uncovered` honestly.
+- **`plausibility`** (optimistic) — an agent covers unless there is evidence *against* it (uses the *upper bound*). Provisional agents now count.
+- **`midpoint`** — splits the difference.
+
+Default to `belief` and don't pass `gate` unless the clinician wants to explore stewardship trade-offs. When they do, narrate the *divergence*: "under conservative gating, Pseudomonas is uncovered once the β-lactams are ruled out; under optimistic gating, ciprofloxacin covers it — but only on plausibility, so it's a provisional choice pending local sensitivities." That contrast is the whole point of making susceptibility uncertainty explicit — and it's a question the certainty-factor world can't pose.
+
 Always restate, at least once per case, that this is a research artifact and **not a basis for real prescribing**.
 
 ## Conversational Approach

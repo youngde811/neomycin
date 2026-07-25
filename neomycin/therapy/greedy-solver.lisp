@@ -64,17 +64,21 @@
 
      NIL         -> 0.0  (no susceptibility recorded -- does not cover)
      a real      -> itself (a raw scalar, or an equivalent CF-scored susceptibility)
-     a ds-belief -> its belief/lower bound: gate on what we are SURE of (the
-                    conservative default, preserving prior behavior). S3 will make
-                    this point a policy dial -- :belief / :plausibility / :midpoint
-                    via *susceptibility-gate* -- but the reduction stays decoupled
-                    from the identification algebra regardless.
+     a ds-belief -> the interval point chosen by *susceptibility-gate*: `bel`
+                    (conservative default), `pl` (optimistic), or the midpoint.
+                    A scalar has no ignorance, so every gate agrees on it.
+
+   The gate is a stewardship policy dial (see *susceptibility-gate*); the reduction
+   stays decoupled from the identification algebra regardless of gate.
 
    Any other value is a KB authoring error and is signalled as one."
   (cond ((null susceptibility) 0.0)
         ((realp susceptibility) susceptibility)
         ((belief:ds-belief-p susceptibility)
-         (belief:ds-belief-bel susceptibility))
+         (ecase *susceptibility-gate*
+           (:belief (belief:ds-belief-bel susceptibility))
+           (:plausibility (belief:ds-belief-pl susceptibility))
+           (:midpoint (belief:ds-midpoint susceptibility))))
         (t (error "Unreducible susceptibility ~S: expected NIL, a real, or a ~
                    BELIEF:DS-BELIEF interval." susceptibility))))
 

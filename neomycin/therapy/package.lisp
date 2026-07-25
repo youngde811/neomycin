@@ -60,4 +60,4 @@
    ;; --- bridge glue (design doc step (c); HTTP handler registers itself) ---
    #:conclusions-for-solver #:recommendation->json
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---
-   #:*coverage-threshold* #:*susceptibility-threshold*))
+   #:*coverage-threshold* #:*susceptibility-threshold* #:*susceptibility-gate*))
