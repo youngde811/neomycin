@@ -45,6 +45,8 @@
    #:recommendation-uncovered
    #:regimen-item #:make-regimen-item #:regimen-item-drug #:regimen-item-dose
    #:regimen-item-covers #:regimen-item-susceptibility
+   #:susceptibility-item #:make-susceptibility-item #:susceptibility-item-organism
+   #:susceptibility-item-value #:susceptibility-item-n-tested #:susceptibility-item-source
    #:treat-item #:make-treat-item #:treat-item-organism #:treat-item-belief
    #:exclusion #:make-exclusion #:exclusion-drug #:exclusion-reason
    ;; --- knowledge base abstraction (design doc 3.2) ---

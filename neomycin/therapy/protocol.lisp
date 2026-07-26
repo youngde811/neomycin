@@ -42,7 +42,16 @@
   drug             ; drug identifier
   dose             ; dose from the drug's (simulated) dosing model
   covers           ; list of organism ids this drug covers
-  susceptibility)  ; belief that the covered organisms are sensitive
+  susceptibility)  ; list of SUSCEPTIBILITY-ITEM, one per covered organism
+
+(defstruct (susceptibility-item (:constructor make-susceptibility-item))
+  "One covered organism's susceptibility to a regimen drug, with antibiogram
+   PROVENANCE so the interval's pedigree is narratable, not just its bounds
+   (design doc 6)."
+  organism         ; organism id
+  value            ; the (possibly overlaid) belief-valued susceptibility
+  n-tested         ; local antibiogram sample size (integer), or NIL if reference-only
+  source)          ; :local-antibiogram (a local count contributed) | :reference
 
 (defstruct (treat-item (:constructor make-treat-item))
   "An organism significant enough to require coverage (design doc 4.2)."

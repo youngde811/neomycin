@@ -272,3 +272,35 @@
     (let ((van (therapy:kb-susceptibility kb :vancomycin :staphylococcus)))
       (is (and (approx= (iv-bel van) 0.88) (approx= (iv-pl van) 0.99))
           "no local count -> canonical unchanged"))))
+
+;;; ==================================================================
+;;; §6 provenance: the susceptibility JSON carries source + n_tested so the
+;;; interval's pedigree (local vs reference) is narratable, not just its bounds.
+;;; ==================================================================
+
+(deftest antibiogram-json-carries-local-provenance ()
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :cip :dose "d")
+      ;; canonical below the gate; the 34/50 local count promotes it to covering.
+      (therapy:add-sensitivity kb :pseudomonas :cip (belief:make-ds-belief 0.46 0.85))
+      (therapy:add-antibiogram kb :pseudomonas :cip :susceptible 34 :tested 50)
+      (let* ((rec (therapy:recommend '((:pseudomonas . 0.8)) kb '()))
+             (json (therapy:recommendation->json rec))
+             (entry (aref (gethash "susceptibility" (aref (gethash "regimen" json) 0)) 0)))
+        (is (string= "local-antibiogram" (gethash "source" entry))
+            "source flags the local antibiogram contribution")
+        (is (eql 50 (gethash "n_tested" entry)) "n_tested carries the local sample size")
+        (is (< (gethash "bel" entry) (gethash "pl" entry)) "still a belief interval")))))
+
+(deftest antibiogram-json-reference-only-omits-n ()
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:with-greedy-solver
+      (therapy:add-drug kb :cip :dose "d")
+      (therapy:add-sensitivity kb :pseudomonas :cip (belief:make-ds-belief 0.7 0.9))
+      ;; no antibiogram entry -> reference only
+      (let* ((rec (therapy:recommend '((:pseudomonas . 0.8)) kb '()))
+             (json (therapy:recommendation->json rec))
+             (entry (aref (gethash "susceptibility" (aref (gethash "regimen" json) 0)) 0)))
+        (is (string= "reference" (gethash "source" entry)) "source flags reference-only")
+        (is (null (gethash "n_tested" entry)) "n_tested absent when no local isolates")))))

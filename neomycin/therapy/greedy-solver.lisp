@@ -102,6 +102,17 @@
         sum (* (susceptibility->scalar (kb-susceptibility kb drug org))
                (funcall belief-of org))))
 
+(defun susceptibility-item-for (kb drug organism)
+  "Build a SUSCEPTIBILITY-ITEM for ORGANISM under DRUG: the (overlaid) susceptibility
+   plus its antibiogram provenance -- the local sample size and whether a local count
+   contributed (design doc 6). No local count => reference-only (n-tested NIL)."
+  (let ((counts (kb-antibiogram kb organism drug)))
+    (make-susceptibility-item
+     :organism organism
+     :value (kb-susceptibility kb drug organism)
+     :n-tested (and counts (cdr counts))
+     :source (if counts :local-antibiogram :reference))))
+
 (defclass greedy-solver (solver) ()
   (:documentation "Greedy weighted set-cover therapy solver (design doc 4.3).
    Deterministic: fewest drugs, ties broken by summed susceptibility x belief then
@@ -155,10 +166,11 @@
                :covers best-cov
                ;; Keep the RAW susceptibility (a scalar or a ds-belief interval),
                ;; not its reduced scalar, so the serializer can surface the
-               ;; interval's {bel, pl, ignorance} to the clinician (S2). Coverage
-               ;; and weighting above still reduce via susceptibility->scalar.
+               ;; interval's {bel, pl, ignorance} to the clinician (S2), plus its
+               ;; antibiogram provenance (design doc 6). Coverage and weighting above
+               ;; still reduce via susceptibility->scalar.
                :susceptibility (mapcar #'(lambda (o)
-                                           (cons o (kb-susceptibility kb best o)))
+                                           (susceptibility-item-for kb best o))
                                        best-cov))
               regimen)
         (setf uncovered (set-difference uncovered best-cov))

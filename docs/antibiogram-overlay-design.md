@@ -231,6 +231,7 @@ Identification goldens are untouched — this stays in the therapy layer.
    KB stays the pure reference (preserving the S1–S3 provisional-gate demo), and a
    deployment `load`s its own counts file to overlay onto the current `*therapy-kb*`.
 
-**Status:** §3 (`counts→interval`), §4 (`combine-susceptibility`, decision D), and §5
-(`defantibiogram` + `kb-susceptibility` wiring) are SHIPPED and green. Remaining: §6
-provenance/narration in the recommendation JSON.
+**Status:** §3–§6 all SHIPPED and green — `counts→interval` (§3), `combine-susceptibility`
+(§4, decision D — Bayesian pooling), `defantibiogram` + `kb-susceptibility` wiring (§5),
+and provenance (`source`/`n_tested`) in the recommendation JSON + `system-prompt.md`
+narration (§6). The antibiogram overlay is **feature-complete**.
