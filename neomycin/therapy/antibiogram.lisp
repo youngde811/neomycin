@@ -74,3 +74,37 @@
          (denom (+ n sigma)))
     (belief:make-ds-belief (/ s denom)
                            (/ (+ s sigma) denom))))
+
+(defun susceptibility->ds-belief (susceptibility)
+  "Coerce a susceptibility to a BELIEF:DS-BELIEF for combination: a ds-belief is
+   itself; a raw scalar x is the degenerate point interval [x, x] (a fully
+   committed probability, zero ignorance). Signals on anything else."
+  (cond ((belief:ds-belief-p susceptibility) susceptibility)
+        ((realp susceptibility)
+         (let ((x (coerce susceptibility 'single-float)))
+           (belief:make-ds-belief x x)))
+        (t (error "Cannot combine susceptibility ~S: expected a real or a ~
+                   BELIEF:DS-BELIEF." susceptibility))))
+
+(defun combine-susceptibility (canonical local)
+  "Combine a CANONICAL susceptibility with a count-derived LOCAL antibiogram
+   interval (design doc 4) into one belief-valued susceptibility, via native
+   Dempster combination (BELIEF:DS-COMBINE) on the frame 'this organism is
+   susceptible to this drug'.
+
+   The combination AUTO-SCALES with the local sample size, which is the whole
+   point: a vacuous LOCAL interval (small n, ≈ [0, 1]) leaves CANONICAL essentially
+   unchanged, while a sharp LOCAL interval (large n) dominates -- no threshold
+   needed. NIL on either side means 'nothing to combine there': a missing LOCAL
+   returns CANONICAL (the pre-overlay behavior); a missing CANONICAL returns LOCAL.
+
+   Combined NATIVELY over ds-belief structs, never through BELIEF:*BELIEF-SYSTEM*
+   (decision C): susceptibility handling -- reduction, display, AND combination --
+   is orthogonal to the identification algebra, so this yields the same result
+   under CF and DS. A scalar CANONICAL is treated as the degenerate interval [s, s]
+   and combined; the alternative (short-circuit to LOCAL) is noted in design doc
+   9.3, but degenerate-combine keeps the algebra uniform."
+  (cond ((null local) canonical)
+        ((null canonical) local)
+        (t (belief:ds-combine (susceptibility->ds-belief canonical)
+                              (susceptibility->ds-belief local)))))

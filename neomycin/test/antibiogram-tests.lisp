@@ -106,3 +106,70 @@
       "susceptible > tested signals an error")
   (is (nth-value 1 (ignore-errors (therapy:counts->interval 3 5 0)))
       "non-positive σ signals an error"))
+
+;;; ==================================================================
+;;; combine-susceptibility: native Dempster combination of the canonical
+;;; figure with the count-derived local interval (design doc 4 and 7).
+;;; ==================================================================
+
+;;; Golden DS combination. Canonical [0.6, 0.8] ⊕ local [0.65, 0.69]:
+;;;   K = .6*.31 + .2*.65 = .316; norm = .684
+;;;   bel = (.6*.65 + .6*.04 + .2*.65)/.684 = .544/.684 = 0.795322
+;;;   pl  = 1 - (.2*.31 + .2*.04 + .2*.31)/.684 = 1 - .132/.684 = 0.807018
+(deftest antibiogram-combine-golden ()
+  (belief:use-system :dempster-shafer)
+  (let ((c (therapy:combine-susceptibility (belief:make-ds-belief 0.6 0.8)
+                                           (belief:make-ds-belief 0.65 0.69))))
+    (is (approx= (iv-bel c) 0.795322) "combined bel = 0.795322")
+    (is (approx= (iv-pl c) 0.807018) "combined pl = 0.807018")
+    (is (< (iv-ign c) 0.02) "agreement sharpens the interval")))
+
+;;; A vacuous local (n = 0 -> [0, 1]) leaves the canonical figure unchanged --
+;;; the overlay's influence auto-scales to nothing when there are no isolates.
+(deftest antibiogram-combine-vacuous-local-is-noop ()
+  (belief:use-system :dempster-shafer)
+  (let ((c (therapy:combine-susceptibility (belief:make-ds-belief 0.6 0.8)
+                                           (therapy:counts->interval 0 0))))
+    (is (approx= (iv-bel c) 0.6) "vacuous local: canonical bel preserved")
+    (is (approx= (iv-pl c) 0.8) "vacuous local: canonical pl preserved")))
+
+;;; A sharp local (large n) dominates a weak/uncertain canonical.
+;;; canonical [0.3, 0.9] ⊕ local counts(900,1000)=[0.898204, 0.900200] -> ~[0.919, 0.920]
+(deftest antibiogram-combine-sharp-local-dominates ()
+  (belief:use-system :dempster-shafer)
+  (let ((c (therapy:combine-susceptibility (belief:make-ds-belief 0.3 0.9)
+                                           (therapy:counts->interval 900 1000))))
+    (is (approx= (iv-bel c) 0.919046) "sharp local drives bel up to ~0.919")
+    (is (approx= (iv-pl c) 0.920409) "sharp local drives pl to ~0.920")
+    (is (< (iv-ign c) 0.005) "large-n local collapses the combined interval")))
+
+;;; Decision C strikes a third time: combination must NOT route through
+;;; *belief-system* -- identical result under CF and DS, and NO error under CF.
+(deftest antibiogram-combine-is-algebra-independent ()
+  (let ((canonical (belief:make-ds-belief 0.6 0.8))
+        (local (therapy:counts->interval 34 50))
+        ds cf)
+    (belief:use-system :dempster-shafer)
+    (setf ds (therapy:combine-susceptibility canonical local))
+    (belief:use-system :certainty-factors)          ; must not error here
+    (setf cf (therapy:combine-susceptibility canonical local))
+    (is (belief:ds-belief-p cf) "combination yields a ds-belief even under CF")
+    (is (approx= (iv-bel ds) (iv-bel cf)) "bel identical under CF and DS")
+    (is (approx= (iv-pl ds) (iv-pl cf)) "pl identical under CF and DS")
+    (belief:use-system :dempster-shafer)))          ; restore default
+
+;;; NIL means 'nothing to combine there'; a scalar canonical is the degenerate
+;;; interval [s, s] (design doc 9.3).
+(deftest antibiogram-combine-nil-and-scalar ()
+  (belief:use-system :dempster-shafer)
+  (let ((canon (belief:make-ds-belief 0.6 0.8)))
+    (let ((c (therapy:combine-susceptibility canon nil)))
+      (is (and (approx= (iv-bel c) 0.6) (approx= (iv-pl c) 0.8))
+          "missing local returns canonical unchanged"))
+    (let ((c (therapy:combine-susceptibility nil canon)))
+      (is (and (approx= (iv-bel c) 0.6) (approx= (iv-pl c) 0.8))
+          "missing canonical returns local unchanged")))
+  ;; scalar canonical 0.9 -> [0.9, 0.9] ⊕ [0.6, 0.8] = [0.947368, 0.947368]
+  (let ((c (therapy:combine-susceptibility 0.9 (belief:make-ds-belief 0.6 0.8))))
+    (is (belief:ds-belief-p c) "scalar canonical combines to a ds-belief")
+    (is (approx= (iv-bel c) 0.947368) "scalar canonical (degenerate [s,s]) dominates")))

@@ -62,4 +62,4 @@
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---
    #:*coverage-threshold* #:*susceptibility-threshold* #:*susceptibility-gate*
    ;; --- antibiogram overlay: empirical interval from isolate counts (design doc 3) ---
-   #:*antibiogram-concentration* #:counts->interval))
+   #:*antibiogram-concentration* #:counts->interval #:combine-susceptibility))
