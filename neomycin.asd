@@ -52,6 +52,9 @@
            (:file "antibiogram" :depends-on ("package"))
            (:file "authoring" :depends-on ("kb"))
            (:file "knowledge-base" :depends-on ("authoring"))
+           ;; The site-local antibiogram layer: loads AFTER knowledge-base so its
+           ;; reset of *therapy-kb* runs first; populates only the antibiogram table.
+           (:file "antibiogram-data" :depends-on ("knowledge-base"))
            (:file "stub-solver" :depends-on ("protocol"))
            (:file "greedy-solver" :depends-on ("protocol" "kb"))
            ;; HTTP surface for the therapy phase (design doc step (c)); depends on

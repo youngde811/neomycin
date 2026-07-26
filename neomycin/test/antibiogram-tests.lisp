@@ -173,3 +173,38 @@
   (let ((c (therapy:combine-susceptibility 0.9 (belief:make-ds-belief 0.6 0.8))))
     (is (belief:ds-belief-p c) "scalar canonical combines to a ds-belief")
     (is (approx= (iv-bel c) 0.947368) "scalar canonical (degenerate [s,s]) dominates")))
+
+;;; ==================================================================
+;;; defantibiogram authoring + the site-local counts table (design doc 5).
+;;; ==================================================================
+
+(deftest antibiogram-authoring-roundtrip ()
+  ;; defantibiogram populates *therapy-kb*; kb-antibiogram reads the raw count back.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:defantibiogram :pseudomonas :ciprofloxacin :susceptible 34 :tested 50)
+    (is (equal (therapy:kb-antibiogram kb :pseudomonas :ciprofloxacin) '(34 . 50))
+        "defantibiogram stores (susceptible . tested)")
+    (is (null (therapy:kb-antibiogram kb :klebsiella :meropenem))
+        "an unrecorded (organism,drug) pair reads back NIL")
+    ;; re-authoring the same pair overwrites (idempotent reload)
+    (therapy:defantibiogram :pseudomonas :ciprofloxacin :susceptible 40 :tested 50)
+    (is (equal (therapy:kb-antibiogram kb :pseudomonas :ciprofloxacin) '(40 . 50))
+        "re-authoring overwrites in place")))
+
+(deftest antibiogram-authoring-rejects-bad-counts ()
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (is (nth-value 1 (ignore-errors
+                       (therapy:add-antibiogram kb :pseudomonas :meropenem
+                                                :susceptible 9 :tested 4)))
+        "susceptible > tested is rejected at authoring time")))
+
+(deftest antibiogram-canonical-data-loaded ()
+  ;; The schematic antibiogram-data.lisp populated the canonical *therapy-kb*.
+  (is (equal (therapy:kb-antibiogram therapy:*therapy-kb* :pseudomonas :ciprofloxacin)
+             '(34 . 50))
+      "canonical antibiogram: pseudomonas/ciprofloxacin present")
+  (is (equal (therapy:kb-antibiogram therapy:*therapy-kb* :pseudomonas :meropenem)
+             '(3 . 4))
+      "canonical antibiogram: the tiny-sample entry present")
+  (is (null (therapy:kb-antibiogram therapy:*therapy-kb* :bacteroides :metronidazole))
+      "a pair with no local isolates has no antibiogram entry"))

@@ -39,6 +39,10 @@
   (drugs (make-hash-table :test #'eq))
   ;; (organism . drug) -> susceptibility (belief-valued: a number or a DS interval)
   (sensitivities (make-hash-table :test #'equal))
+  ;; (organism . drug) -> (n-susceptible . n-tested): site-local antibiogram
+  ;; counts. The overlay (antibiogram.lisp) derives an empirical susceptibility
+  ;; interval from these; kb-susceptibility combines it with the curated figure.
+  (antibiogram (make-hash-table :test #'equal))
   ;; drug id -> list of patient-state tokens that contraindicate it
   (contraindications (make-hash-table :test #'eq))
   ;; list of (drug . drug) forbidden pairs -- stored now, consumed by a later
@@ -62,6 +66,21 @@
   "Record the (belief-valued) SUSCEPTIBILITY of ORGANISM to DRUG."
   (setf (gethash (cons organism drug) (therapy-kb-sensitivities kb)) susceptibility))
 
+(defun add-antibiogram (kb organism drug &key susceptible tested)
+  "Record a site-local antibiogram COUNT: SUSCEPTIBLE of TESTED ORGANISM isolates
+   were susceptible to DRUG. Stored as (susceptible . tested); the overlay derives
+   its empirical susceptibility interval from this (antibiogram.lisp,
+   counts->interval). Validates 0 <= susceptible <= tested so malformed counts fail
+   at authoring time, not at read. Idempotent: re-authoring the same pair overwrites."
+  (check-type susceptible (integer 0))
+  (check-type tested (integer 0))
+  (assert (<= susceptible tested) (susceptible tested)
+          "Antibiogram authoring error for ~S/~S: susceptible (~D) cannot exceed tested (~D)."
+          organism drug susceptible tested)
+  (setf (gethash (cons organism drug) (therapy-kb-antibiogram kb))
+        (cons susceptible tested))
+  (cons organism drug))
+
 (defun add-contraindication (kb drug &rest triggers)
   "Add patient-state TRIGGERS that contraindicate DRUG (e.g. :allergy-cephalosporin).
    Idempotent: re-adding a trigger already present is a no-op, so reloading a KB
@@ -81,6 +100,11 @@
 (defun kb-susceptibility (kb drug organism)
   "The belief-valued susceptibility of ORGANISM to DRUG, or NIL if unknown."
   (gethash (cons organism drug) (therapy-kb-sensitivities kb)))
+
+(defun kb-antibiogram (kb organism drug)
+  "The site-local antibiogram count (N-SUSCEPTIBLE . N-TESTED) for ORGANISM against
+   DRUG, or NIL if no local isolates are recorded."
+  (gethash (cons organism drug) (therapy-kb-antibiogram kb)))
 
 (defun kb-contraindication-triggers (kb drug)
   "Patient-state tokens that contraindicate DRUG."
