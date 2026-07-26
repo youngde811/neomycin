@@ -62,6 +62,14 @@ without redesign:
 
 ## 3. Pivotal decision — flat breadth vs. an intermediate-abstraction layer
 
+> **✅ DECIDED (2026-07-25):** go with **(B)** — the first corpus increment is one
+> **chained organism-family cluster** (§5.1: enterobacteriaceae family, evidence →
+> derived `organism-class` → competing sibling species), built on the **Lisa/Rete
+> symbolic engine**. The DL/classifier alternative (§3.1) is **parked** — right lens
+> for *thinking* about the cluster, wrong substrate to build on. Engine enhancement
+> to support chaining is a deferred future option, not a prerequisite. Parked behind
+> the antibiogram overlay. The analysis below is retained as the rationale.
+
 Every current rule goes **one hop**: raw evidence → `organism-identity`. Real
 MYCIN chained through intermediate abstractions. This is the fork in the road.
 
