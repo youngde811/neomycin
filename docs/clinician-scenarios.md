@@ -11,13 +11,19 @@ annotated with:
 - **Expected differential** — the organism hypotheses and belief behavior,
   contrasted between certainty factors (CF) and Dempster-Shafer (DS)
 
-Together the seven cases exercise most of the base directly, and Scenario 7
+Together Scenarios 1–7 exercise most of the base directly, and Scenario 7
 reaches the disconfirming rules. Two `clumps`-based gram-positive rules
 (staphylococcus, staph-aureus) and two of the three disconfirming rules are
 reachable only by the noted variations (see the coverage matrix). Critically,
 several cases produce situations where *multiple rules conclude the same
 organism* — which is where belief combination becomes visible — and Scenario 7
 produces *conflicting* evidence, which is where CF and DS diverge.
+
+**Scenario 8** steps past identification to the **therapy** side: it shows the
+**antibiogram overlay** changing the recommended regimen once a site-local
+susceptibility count is folded into the curated figures — local data promoting a
+provisional agent and, in the other direction, exposing local resistance the
+reference would miss.
 
 ## How to Run
 
@@ -271,6 +277,78 @@ gram-positive evidence, but they encode the result differently:
 This is the interesting DS case: **DS makes evidential conflict visible as a
 plausibility ceiling below 1.0, where CF collapses it to a single number**.
 Run it under both systems and compare the transcripts.
+
+---
+
+## Scenario 8 — When the local antibiogram changes the answer (therapy overlay)
+
+*Unlike Scenarios 1–7 (identification), this one showcases the **antibiogram
+overlay** on the therapy side: the same case, same allergy, yields a **different
+regimen** once **this ward's** local susceptibility counts are folded in. It
+exercises `recommend_therapy` and the provenance narration.*
+
+**Setup — load the local antibiogram (opt-in).** The schematic site-local counts in
+`neomycin/therapy/antibiogram-data.lisp` are **not** loaded by default — the canonical
+KB stays the pure reference. To overlay them, add one `load` to the bridge startup:
+
+```bash
+sbcl --load lisa.asd \
+     --eval '(asdf:load-system :neomycin)' \
+     --eval '(load (asdf:system-relative-pathname "neomycin" "neomycin/therapy/antibiogram-data.lisp"))' \
+     --eval '(lisa-bridge:start)'
+```
+
+Run the case once **without** that `load` line (reference only) and once **with** it
+(local overlay) to see the contrast. A real deployment would swap in *its own* counts
+file the same way.
+
+> "68-year-old man, two weeks inpatient on chemo — immunocompromised, central line.
+> New fevers. Blood culture: gram-negative rods, aerobic. He's allergic to
+> carbapenems."
+
+**Facts to extract**:
+`compromised-host=t`, `hospital-acquired=t`, `culture-site=blood`, `gram=neg`,
+`morphology=rod`, `aerobicity=aerobic`; patient state `allergy-carbapenem` for therapy.
+
+**Identification differential** (DS — the Scenario 2 shape):
+- **Pseudomonas** — `bel 0.88` (two rules combine)
+- **Klebsiella** — `bel 0.80` (two rules combine)
+- **Enterobacteriaceae** — `bel 0.80` (single rule)
+
+**Therapy — reference only** (`recommend_therapy`, `patient=["allergy-carbapenem"]`):
+- Regimen: **piperacillin-tazobactam** alone — covers all three (pseudomonas `0.64`,
+  klebsiella `0.68`, enterobacteriaceae `0.70`), every entry `source: reference`.
+- (Meropenem, the usual broad choice, is excluded by the allergy.)
+
+**Therapy — with the local antibiogram loaded** (identical request):
+- Regimen: **gentamicin** alone. Why the switch? This ward's antibiogram records
+  **41/48 (85%) gentamicin-susceptible Pseudomonas** — so gentamicin's anti-pseudomonal
+  coverage, only `[0.48, 0.88]` (bel `0.48`, *below* the 0.5 gate) in the reference,
+  is **promoted to bel `0.82`** and now covers. Its entry reads
+  `source: local-antibiogram, n_tested: 48`; klebsiella and enterobacteriaceae remain
+  `source: reference`. The reference run *couldn't* use gentamicin — its pseudomonas
+  figure was too uncertain to count. **The local data earned it.**
+
+**What Claude should narrate** (per the provenance guidance in `system-prompt.md`) —
+cite the sample size, distinguish local from reference:
+
+> *"With this ward's antibiogram, gentamicin alone covers the differential:
+> Pseudomonas at belief 0.82 across **48 local isolates** (85% susceptible here) — a
+> data-grounded, reasonably solid figure. Klebsiella and Enterobacteriaceae coverage
+> is **reference-only**, so treat those as provisional pending local sensitivities."*
+
+**The other direction — resistance the reference would miss.** The overlay pulls
+figures *down* where the ward is more resistant than the textbook, too. This ward's
+**ceftazidime-susceptible Klebsiella is 18/40 (45%)** — a local ESBL signal — so
+`kb-susceptibility` for klebsiella/ceftazidime drops from the reference `[0.64, 0.88]`
+(covers) to `[0.48, 0.52]` (**below the gate**). Ceftazidime can then no longer count
+as covering Klebsiella: where the reference KB would offer it, the overlay makes the
+solver reach for another agent or surface Klebsiella as honestly uncovered. This is
+the overlay's whole point — **"our ward is running 45% this quarter" beats "the
+textbook says ~70%."**
+
+> **⚠️ NOT FOR CLINICAL USE.** These counts are schematic, invented to exercise the
+> machinery — not real surveillance, never a basis for prescribing.
 
 ---
 
