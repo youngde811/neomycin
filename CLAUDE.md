@@ -91,7 +91,7 @@ bin/
 | `/conclusions` | GET | Get organism-identity results + belief factors |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
-| `/recommend-therapy` | POST | Therapy regimen over the canonical KB: `{patient?, solver?, gate?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities |
+| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`) |
 | `/reset` | POST | Clear working memory and entity registry |
 
 ## Testing the Bridge
