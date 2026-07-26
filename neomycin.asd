@@ -49,6 +49,7 @@
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
            (:file "kb" :depends-on ("package"))
+           (:file "antibiogram" :depends-on ("package"))
            (:file "authoring" :depends-on ("kb"))
            (:file "knowledge-base" :depends-on ("authoring"))
            (:file "stub-solver" :depends-on ("protocol"))
@@ -69,6 +70,7 @@
       ((:module "test"
         :components ((:file "setup")
                      (:file "therapy-tests")
+                     (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
