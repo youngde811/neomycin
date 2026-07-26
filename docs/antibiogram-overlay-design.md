@@ -97,35 +97,48 @@ This is the decision the naive path trips over.
   outright. Simple and predictable. But a tiny sample (`n = 2 → ~[0, 0.7]`) would
   *discard* a solid curated figure and replace it with near-vacuum — throwing away
   good reference information precisely when the local data is weakest.
-- **(B) Dempster-combine canonical ⊕ local.** *Recommended.* Treat the canonical
-  interval and the count-derived interval as two belief functions on the same
-  single-hypothesis frame ("this organism is susceptible to this drug") and combine
-  them with Dempster's rule. This has the property (A) lacks: **the overlay's
-  influence auto-scales with `n`**. A vacuous local interval (small `n`, ≈ `[0,1]`)
-  combines to leave the canonical figure essentially unchanged; a sharp local
-  interval (large `n`) dominates. No magic threshold, and it is the *same algebra
-  neomycin exists to showcase*, now on the treatment side.
+- **(B) Dempster-combine canonical ⊕ local.** *Proposed, then EMPIRICALLY REFUTED —
+  see below.* Treat the two intervals as belief functions on the single-hypothesis
+  frame ("this organism is susceptible to this drug") and combine with Dempster's
+  rule. The appeal was reuse of the DS `combine-beliefs` machinery and `n`-scaling.
 - **(C) Threshold fallback.** Use local iff `n ≥ n-min`, else canonical. Crude, and
   it reintroduces the arbitrary constant (B) avoids.
+- **(D) Bayesian pooling — canonical as a Beta prior.** *ADOPTED.* Read the canonical
+  interval as a Beta prior whose *strength* is set by its width (invert the IDM: a
+  narrow curated figure is worth many pseudo-observations, a vacuous `[0,1]` none),
+  add the local isolates as observations, and re-apply the IDM to the pooled counts.
+  Has (B)'s `n`-scaling **and** the correct direction: local data moves the estimate
+  *toward* itself, resistance pulls *down*, tiny samples barely budge a solid figure.
 
-**Recommendation: (B).** It is conceptually right and it **reuses tested
-machinery** — the DS `combine-beliefs` already implements Dempster's rule on
-exactly this frame (`dempster-shafer.lisp`).
+> **🔴 Why not (B): empirical refutation.** Wiring (B) and running it over real
+> examples (design doc's own §9.2 check) showed Dempster's rule **inflates** and even
+> **inverts** the overlay's purpose. Two intervals both placing majority mass on
+> "susceptible" reinforce upward, so: canonical `[0.70,0.90]` ⊕ local **60%** (50
+> isolates) → `[0.81,0.82]` (*higher* than either); and — the smoking gun —
+> klebsiella/ceftazidime canonical `[0.64,0.88]` ⊕ a local ESBL ward at **45%
+> susceptible** → `[0.67,0.68]`, combining a *majority-resistant* signal *upward*.
+> That defeats the entire motivation ("reflect this ward's resistance"). (B)'s stated
+> "sharp local dominates" is also false: klebsiella's local interval was sharp
+> (ignorance 0.05) and got overridden. **(D) fixes all of these**: the same case pools
+> to `[0.48,0.52]`, correctly below the 0.5 gate. So `ceftazidime` stops covering
+> klebsiella under the overlay — the honest, actionable result.
 
-> **⚠️ Decision C strikes a third time.** `combine-beliefs` is a method *on the
-> active belief system* — so combining canonical ⊕ local *through it* would work
-> under DS and **error under CF**, the identical trap decision C removed for
-> reduction (`susceptibility->scalar`) and serialization (`susceptibility-bounds`).
-> Susceptibility handling — reduction, display, **and now combination** — is
-> orthogonal to the identification algebra. So the overlay must combine the two
-> intervals **natively** (a susceptibility-specific Dempster combination over
-> `ds-belief-bel`/`pl`, not routed through `belief:*belief-system*`). This is the
-> single most important implementation constraint in this doc; budget a small
-> `combine-susceptibility` helper for it, tested under both algebras.
+**Recommendation: (D).** Same auto-scaling intent as (B), statistically sound, and it
+*still reuses* the IDM already chosen in §3 (combination is `counts→interval` run on
+pooled prior+data pseudo-counts). `combine-beliefs`/`ds-combine` stays where it
+belongs — combining *identification* evidence — and is no longer used for
+susceptibility.
 
-A raw *scalar* canonical susceptibility (should any remain) has no interval to
-combine; treat it as the degenerate `[s, s]` and combine, or short-circuit to the
-local interval — decide during the spike.
+> **⚠️ Decision C still applies.** Whatever the combinator, susceptibility handling —
+> reduction, display, **and combination** — is orthogonal to the identification
+> algebra and must not route through `belief:*belief-system*` (a method dispatched on
+> the active system errors under CF). (D) is **native by construction**: pure
+> arithmetic over `ds-belief-bel`/`pl` in `combine-susceptibility`, tested identical
+> under CF and DS.
+
+A raw *scalar* canonical susceptibility (should any remain) has no stated
+uncertainty; `combine-susceptibility` **short-circuits to the local interval**
+(§9.3), the empirically-grounded figure.
 
 ---
 
@@ -201,17 +214,23 @@ Identification goldens are untouched — this stays in the therapy layer.
 
 ---
 
-## 9. Open questions (resolve during a short spike, before S-increments)
+## 9. Open questions
 
-1. **`σ` default** — `1` (lighter) vs `2` (Walley IDM, more cautious for small `n`).
-   Proposed `2`; confirm against how wide small-`n` intervals *feel* in a demo.
-2. **Combination (§4)** — confirm **(B) native Dempster** holds up on real examples
-   (does a solid canonical figure + a thin local sample combine to something a
-   clinician would find sane?), with **(A) replace** as the documented fallback.
-3. **Scalar canonical** — degenerate `[s, s]` combine vs short-circuit to local.
-4. **Provenance depth** — just `n` + source, or also the raw `s`/`n` and the
-   pre-combination local interval for full auditability?
+1. **`σ` default** — ✅ RESOLVED: `2` (Walley IDM). Exposed as
+   `*antibiogram-concentration*`.
+2. **Combination (§4)** — ✅ RESOLVED **against (B)**: empirical testing showed
+   Dempster inflates/inverts (klebsiella 45% → 67%). Adopted **(D) Bayesian pooling**
+   — canonical as a Beta prior (width = strength), pooled with local counts via the
+   IDM. Correct direction, `n`-scaling preserved.
+3. **Scalar canonical** — ✅ RESOLVED: `combine-susceptibility` short-circuits to the
+   local interval (a bare scalar is a weak reference; prefer the empirical figure).
+4. **Provenance depth (§6)** — ⏳ OPEN, deferred to the surface/narration increment:
+   just `n` + source, or also raw `s`/`n` and the pre-combination local interval.
+5. **Default loading** — ✅ RESOLVED: the schematic `antibiogram-data.lisp` is **NOT**
+   loaded by default. The antibiogram is an opt-in, swappable layer (§5): the canonical
+   KB stays the pure reference (preserving the S1–S3 provisional-gate demo), and a
+   deployment `load`s its own counts file to overlay onto the current `*therapy-kb*`.
 
-Suggested first step once these are settled: a `combine-susceptibility` +
-`counts->interval` spike with the §7 mapping/combination tests, mirroring how
-decision (C) landed before S1 authored data.
+**Status:** §3 (`counts→interval`), §4 (`combine-susceptibility`, decision D), and §5
+(`defantibiogram` + `kb-susceptibility` wiring) are SHIPPED and green. Remaining: §6
+provenance/narration in the recommendation JSON.

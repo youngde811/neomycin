@@ -97,14 +97,29 @@
   "All drug ids known to KB."
   (loop for id being the hash-keys of (therapy-kb-drugs kb) collect id))
 
-(defun kb-susceptibility (kb drug organism)
-  "The belief-valued susceptibility of ORGANISM to DRUG, or NIL if unknown."
-  (gethash (cons organism drug) (therapy-kb-sensitivities kb)))
-
 (defun kb-antibiogram (kb organism drug)
   "The site-local antibiogram count (N-SUSCEPTIBLE . N-TESTED) for ORGANISM against
    DRUG, or NIL if no local isolates are recorded."
   (gethash (cons organism drug) (therapy-kb-antibiogram kb)))
+
+(defun kb-susceptibility (kb drug organism)
+  "The belief-valued susceptibility of ORGANISM to DRUG -- the solver's single read
+   point. When a site-local antibiogram count exists for this (organism, drug), its
+   empirical IDM interval (COUNTS->INTERVAL) is Dempster-combined with the curated
+   figure (COMBINE-SUSCEPTIBILITY) so local isolate data refines the reference, its
+   influence auto-scaling with the sample size. With no local count the curated
+   figure is returned unchanged (pre-overlay behavior); NIL if neither is recorded.
+
+   Belief-system-agnostic (decision C): the overlay builds/combines ds-belief
+   intervals natively, so this returns a ds-belief under CF and DS alike, and
+   SUSCEPTIBILITY->SCALAR reduces it through the coverage gate regardless of the
+   active identification algebra."
+  (let ((canonical (gethash (cons organism drug) (therapy-kb-sensitivities kb)))
+        (counts (kb-antibiogram kb organism drug)))
+    (if counts
+        (combine-susceptibility canonical
+                                (counts->interval (car counts) (cdr counts)))
+        canonical)))
 
 (defun kb-contraindication-triggers (kb drug)
   "Patient-state tokens that contraindicate DRUG."
