@@ -98,9 +98,9 @@
 ;;; Core Algebra
 ;;; ============================================================
 
-(defmethod combine-beliefs ((system dempster-shafer-system) a b)
-  "Combine two DS beliefs for the same hypothesis via Dempster's rule of
-   combination on the dichotomous frame {H, not-H}.
+(defun ds-combine (a b)
+  "Combine two DS beliefs A and B for the SAME single hypothesis via Dempster's
+   rule of combination on the dichotomous frame {H, not-H}.
 
    Each [Bel, Pl] interval encodes a basic probability assignment over that
    frame:
@@ -121,7 +121,14 @@
    power-set machinery. When there is no disconfirming evidence
    (m(not-H) = 0 on both sides) K collapses to 0 and the rule reduces to the
    familiar Bel = a + b - a*b, Pl = 1 form, so confirmatory-only scenarios are
-   numerically unchanged from before."
+   numerically unchanged.
+
+   A PLAIN function over two ds-belief structs, independent of *BELIEF-SYSTEM*.
+   COMBINE-BELIEFS (the DS method) delegates here; the antibiogram overlay's
+   susceptibility combination also calls it natively — a susceptibility's
+   data-sparseness is orthogonal to the CF-vs-DS diagnostic algebra, so it must
+   NOT dispatch on the active system (which under CF has no ds-belief method and
+   would error). See susceptibility-belief-design.md decision C."
   (let* ((h1 (ds-belief-bel a)) (nh1 (- 1.0 (ds-belief-pl a)))
          (th1 (- (ds-belief-pl a) (ds-belief-bel a)))
          (h2 (ds-belief-bel b)) (nh2 (- 1.0 (ds-belief-pl b)))
@@ -141,6 +148,13 @@
                (bel (max 0.0 (min 1.0 mh)))
                (pl  (max 0.0 (min 1.0 (- 1.0 mnh)))))
           (make-ds-belief (min bel pl) pl)))))
+
+(defmethod combine-beliefs ((system dempster-shafer-system) a b)
+  "Combine two DS beliefs for the same hypothesis via Dempster's rule. Delegates
+   to the system-independent DS-COMBINE (which the antibiogram susceptibility
+   overlay also calls natively; see that function for the full derivation)."
+  (declare (ignore system))
+  (ds-combine a b))
 
 (defmethod weaken-belief ((system dempster-shafer-system) belief rule-factor)
   "Scale the premise support by a rule's intrinsic belief, producing a simple

@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.1.0"
+  :version "0.2.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -48,9 +48,17 @@
         :components
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
-           (:file "kb" :depends-on ("package"))
+           (:file "antibiogram" :depends-on ("package"))
+           ;; kb-susceptibility overlays the antibiogram interval onto the curated
+           ;; figure, so kb depends on the antibiogram counts->interval/combine core.
+           (:file "kb" :depends-on ("package" "antibiogram"))
            (:file "authoring" :depends-on ("kb"))
            (:file "knowledge-base" :depends-on ("authoring"))
+           ;; NOTE: antibiogram-data.lisp (the schematic site-local counts) is
+           ;; deliberately NOT loaded by default. The antibiogram is an OPT-IN,
+           ;; swappable layer (design doc 5): the canonical KB stays the pure
+           ;; reference, and a deployment/demo LOADs its own counts file to overlay
+           ;; local data onto the current *therapy-kb*.
            (:file "stub-solver" :depends-on ("protocol"))
            (:file "greedy-solver" :depends-on ("protocol" "kb"))
            ;; HTTP surface for the therapy phase (design doc step (c)); depends on
@@ -69,6 +77,7 @@
       ((:module "test"
         :components ((:file "setup")
                      (:file "therapy-tests")
+                     (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")

@@ -66,6 +66,16 @@
    patient's state. Idempotent, so reloading the data file does not duplicate."
   `(apply #'add-contraindication *therapy-kb* ,drug ',when))
 
+(defmacro defantibiogram (organism drug &key susceptible tested)
+  "Author a site-local antibiogram COUNT into *THERAPY-KB*: SUSCEPTIBLE of TESTED
+   ORGANISM isolates were susceptible to DRUG. ORGANISM and DRUG are keywords;
+   SUSCEPTIBLE and TESTED are evaluated integers. The overlay turns these counts
+   into an empirical susceptibility interval whose width reflects the sample size
+   (antibiogram.lisp). Authored in its OWN data file, kept separate from the curated
+   reference KB so a deployment can swap its local antibiogram as a tracked diff
+   without touching the reference figures (design doc 5)."
+  `(add-antibiogram *therapy-kb* ,organism ,drug :susceptible ,susceptible :tested ,tested))
+
 (defmacro with-therapy-kb ((kb form) &body body)
   `(let* ((,kb ,form)
           (therapy:*therapy-kb* ,kb))
