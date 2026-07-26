@@ -1,6 +1,6 @@
 # neomycin
 
-**neomycin 0.1.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
+**neomycin 0.2.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
 
 > **Not the antibiotic.** The name is an homage to William Clancey's *NEOMYCIN*,
 > his 1980s re-representation of MYCIN that separated diagnostic *strategy* from
@@ -59,8 +59,17 @@ tool and **narrates** it, but never chooses a drug. The engine reasons; the mode
 translates and explains — on the treatment side exactly as on the diagnostic one.
 See [`docs/therapy-demo.md`](docs/therapy-demo.md) for an end-to-end walkthrough.
 
-Still ahead: scaling the rule corpus, an antibiogram overlay, drug–drug
-interaction constraints, and an exact-solver oracle for the greedy one.
+A **site-local antibiogram overlay** refines those susceptibilities with *this
+ward's* isolate counts: a `(susceptible, tested)` count becomes a Dempster-Shafer
+interval whose width reflects the sample size, then **Bayesian-pooled** with the
+curated figure — so local resistance pulls coverage *down* and solid local data can
+*promote* a provisional agent, with each susceptibility carrying its provenance
+(`source`, `n_tested`) for the LLM to narrate. See
+[`docs/antibiogram-overlay-design.md`](docs/antibiogram-overlay-design.md) and
+Scenario 8 in [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md).
+
+Still ahead: scaling the rule corpus, drug–drug interaction constraints, and an
+exact-solver oracle for the greedy one.
 
 ## Provenance and license
 

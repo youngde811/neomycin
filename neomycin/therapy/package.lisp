@@ -45,19 +45,24 @@
    #:recommendation-uncovered
    #:regimen-item #:make-regimen-item #:regimen-item-drug #:regimen-item-dose
    #:regimen-item-covers #:regimen-item-susceptibility
+   #:susceptibility-item #:make-susceptibility-item #:susceptibility-item-organism
+   #:susceptibility-item-value #:susceptibility-item-n-tested #:susceptibility-item-source
    #:treat-item #:make-treat-item #:treat-item-organism #:treat-item-belief
    #:exclusion #:make-exclusion #:exclusion-drug #:exclusion-reason
    ;; --- knowledge base abstraction (design doc 3.2) ---
    #:therapy-kb #:make-therapy-kb #:therapy-kb-p
-   #:add-drug #:add-sensitivity #:add-contraindication
-   #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers
+   #:add-drug #:add-sensitivity #:add-contraindication #:add-antibiogram
+   #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers #:kb-antibiogram
    #:kb-dose #:kb-drug-class #:kb-drug-route
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
-   #:defdrug #:defsensitivity #:defcontraindication #:with-therapy-kb #:therapy-kb #:with-greedy-solver
+   #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram
+   #:with-therapy-kb #:therapy-kb #:with-greedy-solver
    ;; --- solvers ---
    #:greedy-solver
    ;; --- bridge glue (design doc step (c); HTTP handler registers itself) ---
    #:conclusions-for-solver #:recommendation->json
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---
-   #:*coverage-threshold* #:*susceptibility-threshold* #:*susceptibility-gate*))
+   #:*coverage-threshold* #:*susceptibility-threshold* #:*susceptibility-gate*
+   ;; --- antibiogram overlay: empirical interval from isolate counts (design doc 3) ---
+   #:*antibiogram-concentration* #:counts->interval #:combine-susceptibility))

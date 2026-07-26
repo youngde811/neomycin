@@ -79,16 +79,24 @@
      (values susceptibility susceptibility 0.0))
     (t (values 0.0 0.0 0.0))))
 
-(defun susceptibility-entry->json (pair)
-  "PAIR is (organism . raw-susceptibility). Render as
-   {organism, bel, pl, ignorance} -- the interval surfaced so a wide (sparse-data)
-   susceptibility is narratable as provisional (S2)."
+(defun susceptibility-entry->json (item)
+  "ITEM is a SUSCEPTIBILITY-ITEM. Render as {organism, bel, pl, ignorance, source,
+   [n_tested]} -- the interval surfaced so a wide (sparse-data) susceptibility is
+   narratable as provisional (S2), plus antibiogram PROVENANCE (design doc 6) so
+   Claude can cite the local sample size and distinguish local from reference.
+   `source` is \"local-antibiogram\" when a local count contributed, else
+   \"reference\"; `n_tested` is present only in the former case -- its absence means
+   reference-only, the pre-overlay behavior."
   (let ((s (make-hash-table :test #'equal)))
-    (setf (gethash "organism" s) (key->name (car pair)))
-    (multiple-value-bind (bel pl ignorance) (susceptibility-bounds (cdr pair))
+    (setf (gethash "organism" s) (key->name (susceptibility-item-organism item)))
+    (multiple-value-bind (bel pl ignorance)
+        (susceptibility-bounds (susceptibility-item-value item))
       (setf (gethash "bel" s) bel)
       (setf (gethash "pl" s) pl)
       (setf (gethash "ignorance" s) ignorance))
+    (setf (gethash "source" s) (key->name (susceptibility-item-source item)))
+    (when (susceptibility-item-n-tested item)
+      (setf (gethash "n_tested" s) (susceptibility-item-n-tested item)))
     s))
 
 (defun regimen-item->json (item)
