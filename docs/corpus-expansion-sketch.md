@@ -190,10 +190,31 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
 5. **Host-factor modifiers.** Age, steroids, neutropenia, prosthetic material —
    patient-level `param-mixin`s that shift beliefs rather than name organisms.
    Good CF-vs-DS material (weak modifying evidence), low structural risk.
+6. **Clinical-syndrome conclusions (e.g. necrotizing fasciitis).** *A different
+   conclusion TYPE, not just more organisms — logged 2026-07-26.* A syndrome sits
+   *over* organisms: NF is Type II mono-microbial (*S. pyogenes* / Group A Strep),
+   Type I polymicrobial (mixed anaerobes + Enterobacteriaceae), Type III *Vibrio
+   vulnificus* (marine exposure). Modeling it needs (a) a new
+   `syndrome`/`clinical-diagnosis` conclusion class distinct from
+   `organism-identity`, and (b) a new evidence modality — clinical/lab signs (pain
+   out of proportion, crepitus/gas, rapid progression, an LRINEC-style lab score)
+   rather than Gram-stain morphology. This is the §3(B) abstraction layer seen from
+   the *top* (syndrome as a higher conclusion), and it also stresses the therapy
+   layer, whose real NF answer is urgent surgical debridement + empiric
+   broad-spectrum + clindamycin — a *non-drug intervention* the set-cover solver
+   can't yet represent. High concept value, real scope: a deliberate increment, not
+   a bolt-on. **Verify clinical specifics against a source (e.g. Wikipedia) before
+   authoring — do not work from memory.**
 
 *Deliberately deferred:* the full therapy-rule corpus (the therapy phase already
 owns that surface); anything requiring numeric lab reasoning beyond the existing
 `white-blood-count`-style categoricals.
+
+*Near-term light taste (post-antibiogram, logged 2026-07-26):* drop in *S. pyogenes*
+(NF Type II) and *Vibrio vulnificus* as ordinary `organism-identity` rules — the
+latter pairing naturally with a new `marine-exposure` param (sibling to
+`recent-travel`). This is honest **organism breadth only** (decision A), explicitly
+*not* NF-the-syndrome (candidate 6): a fun, low-risk warm-up, not the syndrome model.
 
 ---
 
