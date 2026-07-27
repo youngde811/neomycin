@@ -20,23 +20,29 @@ Forward-chaining expert system shell in Common Lisp (Rete algorithm, CLOS/MOP, c
 
 ## Build & Load
 
-Requires SBCL with Quicklisp. From the SBCL REPL at project root:
+Requires SBCL with Quicklisp. From the SBCL REPL at project root, the easy way:
 
 ```lisp
-;; Load Lisa core
+(load "neomycin.lisp")   ; loads the :neomycin system and starts the bridge on 8090
+```
+
+Or explicitly — which is all that convenience file does:
+
+```lisp
 (load "lisa.asd")
-(asdf:load-system :lisa)
-
-;; Load the MYCIN rules (classes + rules, no assertions)
-(in-package :lisa-user)
-(load "examples/mycin.lisp")
-
-;; Load and start the LLM bridge
-(asdf:load-system :lisa-bridge)
-(lisa-bridge:start)  ; starts on port 8090
+(load "neomycin.asd")
+(load "lisa-bridge.asd")
+(asdf:load-system :neomycin)   ; loads neomycin/rulebase.lisp + the therapy system
+                               ; (:neomycin depends on :lisa and :lisa-bridge)
+(lisa-bridge:start)            ; port 8090
 ```
 
 To stop: `(lisa-bridge:stop)`
+
+neomycin's canonical rulebase is **`neomycin/rulebase.lisp`** (the keyword-vocabulary
+MYCIN reconstruction, loaded by the `:neomycin` ASDF system). Lisa's
+`examples/mycin.lisp` is Lisa-proper and is **never** used by neomycin — don't load it
+over the neomycin rulebase.
 
 ### Choosing a belief system
 
@@ -56,29 +62,50 @@ and emits `{bel, pl, ignorance}` payloads under DS.
 ## Project Structure
 
 ```
-lisa.asd              — Core system definition (depends on log4cl)
+# --- neomycin layer (the fork's own code) ---
+neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
+neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
+neomycin/
+  rulebase.lisp       — THE canonical MYCIN rulebase: 18 rules (incl. 3 disconfirming),
+                        keyword vocabulary, culture-1/1a/2/3 demo drivers
+  therapy/            — therapy-recommendation phase (own :neomycin-therapy package, nick :therapy)
+    package.lisp      — package definition + exports
+    protocol.lisp     — pluggable solver protocol, recommendation structs, policy dials
+    kb.lisp           — therapy KB abstraction (drugs / sensitivities / contraindications /
+                        antibiogram counts) + kb-susceptibility (applies the overlay)
+    authoring.lisp    — def* macros (defdrug / defsensitivity / defcontraindication / defantibiogram)
+    knowledge-base.lisp — canonical schematic KB (belief-valued susceptibilities)
+    antibiogram.lisp  — counts→interval (IDM) + Bayesian combine-susceptibility
+    antibiogram-data.lisp — schematic site-local counts; OPT-IN, NOT loaded by default
+    stub-solver.lisp / greedy-solver.lisp — solvers (greedy weighted set-cover)
+    bridge.lisp       — /recommend-therapy handler + recommendation→JSON (with provenance)
+  test/               — neomycin/test system: therapy + antibiogram tests + repointed goldens
+  clinician-samples/  — saved driver transcripts
+docs/                 — design docs, runbook, clinician scenarios, therapy demo
+
+# --- Lisa substrate (used as-is; engine intentionally not renamed) ---
+lisa.asd              — Lisa core (depends on log4cl)
 lisa-bridge.asd       — Bridge system (depends on lisa, hunchentoot, jzon, bordeaux-threads)
 src/
   core/               — Rete engine, rules, facts, conflict resolution
   belief-systems/     — Pluggable belief-system protocol
     protocol.lisp     — Generic function surface + dispatcher + use-system
     certainty-factors/— Shortliffe-Buchanan CF implementation
-    dempster-shafer/  — Simplified [Bel, Pl] interval implementation
+    dempster-shafer/  — [Bel, Pl] intervals + ds-combine (Dempster's rule)
   rete/reference/     — Rete network nodes and compiler
-  llm/bridge/         — HTTP bridge for LLM integration
-    package.lisp      — :lisa-bridge package
+  llm/bridge/         — identification HTTP bridge (:lisa-bridge package)
     session.lisp      — Entity registry, session reset
     server.lisp       — Hunchentoot start/stop; LISA_BELIEF_SYSTEM env var
     handlers.lisp     — REST endpoints (belief-system-aware)
   llm/claude/         — Claude tool-use integration
     driver.py         — Python client: tool-call loop; transcript capture
-    tools.json        — Tool schemas (assert_fact, run_inference, get_conclusions, etc.)
-    system-prompt.md  — Clinical diagnostic system prompt (18 rules, CF/DS output)
+    tools.json        — Tool schemas (assert_fact, run_inference, recommend_therapy, …)
+    system-prompt.md  — clinical system prompt (identification + therapy/antibiogram narration)
 examples/
-  mycin.lisp          — MYCIN rules (18 rules incl. 3 disconfirming; culture-1, culture-1a, culture-2, culture-3)
+  mycin.lisp          — Lisa-proper MYCIN example; NOT neomycin's rulebase (unused by neomycin)
 bin/
-  test-culture-1.sh   — End-to-end bridge test (curl-based)
-  run-mycin.sh        — Same as test-culture-1.sh (legacy name)
+  test-culture-1.sh   — end-to-end identification bridge test (curl); run-mycin.sh is a legacy alias
+  test-therapy.sh     — end-to-end therapy bridge test (curl)
 ```
 
 ## Bridge Endpoints (port 8090)
@@ -98,44 +125,56 @@ bin/
 
 ```bash
 # Start the bridge first (see Build & Load above), then:
-./bin/test-culture-1.sh
+./bin/test-culture-1.sh     # identification: culture-1 → pseudomonas + enterobacteriaceae
+./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen with belief-valued susceptibilities
 ```
 
-Expected: culture-1 scenario produces pseudomonas (0.6) and enterobacteriaceae (0.8).
+Expected (identification): culture-1 produces pseudomonas (0.6) and enterobacteriaceae (0.8).
 
 ## Running the Test Suite
 
-Dependency-free golden-master + belief-algebra tests live in `tests/` as the
-`lisa/test` ASDF system (no external framework). From an SBCL REPL with Lisa loaded:
+Two dependency-free suites (golden-master + belief-algebra, no external framework):
+
+- **`neomycin/test`** — neomycin's suite (`neomycin/test/`). Its `setup.lisp` repoints the
+  shared LISA-TEST harness at `neomycin/rulebase.lisp` and adds the therapy + antibiogram
+  tests. **This is the suite to run for neomycin work.**
+- **`lisa/test`** — the Lisa substrate suite (`tests/`), run against Lisa's own
+  `examples/mycin.lisp`.
+
+From an SBCL REPL at project root:
 
 ```lisp
-(asdf:test-system :lisa)                 ; runs the suite; errors on any failure
+(load "lisa.asd") (load "lisa-bridge.asd") (load "neomycin.asd")
+(asdf:test-system "neomycin/test")       ; runs the suite; errors on any failure
 ;; or, for the raw report / interactive use:
-(asdf:load-system "lisa/test")
+(asdf:load-system "neomycin/test")
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage: both belief algebras (CF and DS) directly, all four `culture-*` scenarios
-under each system with hand-verified golden values, the DS clamp / total-conflict /
-malformed-input edge cases, **each of the 18 rules fired in isolation** (confirming
-rules contribute exactly their `:belief`; disconfirming rules drop plausibility below
-1.0), and behavioral properties (confirmatory evidence keeps
-`pl = 1.0`; conflicting evidence drops it below 1.0; CF and DS agree without conflict
-and diverge with it). Golden values were captured from the 4.1.0 engine; if a belief
-computation changes intentionally, re-capture and update `tests/scenarios.lisp`.
+Coverage (~310 assertions / 93 tests): both belief algebras (CF and DS) directly; all four
+`culture-*` scenarios under each system (against neomycin's rulebase) with hand-verified
+golden values; DS clamp / total-conflict / malformed-input edge cases; **each of the 18
+rules fired in isolation**; the therapy solver (greedy set-cover, coverage gating,
+contraindications, belief-valued susceptibilities); and the **antibiogram overlay** (IDM
+counts→interval, Bayesian combination under both algebras, JSON provenance). If a belief
+computation changes intentionally, re-capture and update the goldens in `tests/scenarios.lisp`.
 
 ## Key Packages
 
 - `lisa` / `lisa-user` — Core engine and user-facing DSL (defrule, assert, run, reset)
-- `belief` — Certainty factor operations (belief-factor, combine-beliefs)
-- `lisa-bridge` — HTTP bridge (start, stop, reset-session)
+- `belief` (nickname for `lisa.belief`) — pluggable belief protocol: CF and DS systems,
+  `belief-factor`, `combine-beliefs` / `ds-combine`, `normalize-belief`, `ds-belief` accessors
+- `lisa-bridge` — identification HTTP bridge (start, stop, reset-session)
+- `neomycin-therapy` (nickname `therapy`) — therapy phase: solver protocol, KB abstraction,
+  `def*` authoring, the antibiogram overlay, and the `/recommend-therapy` glue
 
 ## LLM Integration Status
 
-Both phases are complete:
+Identification and therapy both run end to end:
 
-- **Phase 1 — HTTP Bridge**: Hunchentoot server exposing Lisa's inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, reset). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
-- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) implementing a tool-call dispatch loop between Claude and the Lisa bridge. Includes tool schemas for all 6 endpoints, a system prompt with the MYCIN clinical ontology (18 rules) and uncertainty-mapping guidelines, goal-directed dialogue via `/partial-matches`, and configurable session transcript capture.
+- **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
+- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (18 rules), uncertainty-mapping **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
 
 ### Running the Clinician Driver
 
@@ -200,8 +239,8 @@ regardless of terminal display.
 
 **Hands-on runbook** (start here for a guided tour): `docs/runbook.md`.
 
-**Clinician scenarios** for exercising the 18-rule MYCIN base:
-`docs/clinician-scenarios.md`.
+**Clinician scenarios** for exercising the rulebase (Scenarios 1–7) and the
+therapy/antibiogram overlay (Scenario 8): `docs/clinician-scenarios.md`.
 
 Architecture plan: `docs/lisa-llm-architecture.md`
 
