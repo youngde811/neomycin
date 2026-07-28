@@ -170,7 +170,14 @@ r_subspecies · …`). The sketch's §10.1 "stop at one tier (class → species)
 recommendation is now quantitatively motivated: a second chained hop would shrink
 beliefs fast. One tier.
 
-### 5.3 The double path is a real double-count — re-parent (decision B)
+### 5.3 The double path is a real double-count — re-parent (DECIDED)
+> **✅ DECIDED (David, 2026-07-28):** re-parent. The system must **not**
+> double-count: the existing one-hop leaves are retired in favour of the chained
+> class → species path, not kept alongside it. This is the (a)/(b) question from
+> the increment kickoff, now closed on (b) — cleaner, more faithful, and it
+> eliminates the arithmetic double-count below. Only the *scope* of the re-parent
+> (which/how many siblings in the first increment) remains open (§6.3).
+
 If both the chained path **and** the old one-hop leaf conclude the same species,
 `combine-beliefs` merges them. Concretely, chained `:e-coli` at `0.56` plus a
 hypothetical leaf `:e-coli` at `0.7` would CF-combine to `0.56 + 0.7 − 0.56·0.7 =
@@ -215,10 +222,11 @@ a surprise.
    Salmonella 0.55–0.65) or re-derive now that they compose off 0.8? Don't invent —
    pin each to something citable or to an existing corpus value, and let the
    composed goldens document the result.
-3. **Re-parent scope.** Re-parent only the two existing leaves (Klebsiella,
-   Salmonella), or model the whole family uniformly (add E. coli/Enterobacter/
-   Serratia/Proteus as new species) in the same increment? Smaller = safer spike;
-   larger = the richer DS conflict material §5.1 wants.
+3. **Re-parent scope.** Re-parenting itself is **decided** (§5.3, no double path);
+   the open part is *how far* in the first increment: re-parent only the two
+   existing leaves (Klebsiella, Salmonella), or model the whole family uniformly
+   (add E. coli/Enterobacter/Serratia/Proteus as new species) at once? Smaller =
+   safer spike; larger = the richer DS conflict material §5.1 wants.
 4. **Golden strategy.** Hand-verify the *composed* species values (the `0.56`-style
    numbers) as the new DS goldens, and add a class→species conflict golden (two
    siblings near-tied) — the §6 "competing hypotheses on one organism" DS workout.
