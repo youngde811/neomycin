@@ -76,6 +76,7 @@
     :components
       ((:module "test"
         :components ((:file "setup")
+                     (:file "chain-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))
