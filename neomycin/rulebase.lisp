@@ -114,6 +114,16 @@
 ;; Conclusion (organism level)
 (defclass organism-identity (param-mixin) ())
 
+;; Derived intermediate abstraction (organism level). Unlike organism-identity
+;; -- a leaf species -- organism-class names a taxonomic FAMILY and is designed
+;; to appear on BOTH sides of => : concluded by tier-1 evidence rules, and (in a
+;; later increment) read as a premise by tier-2 species-refinement rules. This is
+;; the one structurally novel piece of the chained cluster (corpus sketch §3B/§7):
+;; a param that is both a rule conclusion and a rule premise, so belief flows
+;; THROUGH a belief-valued intermediate -- the DS composition path nothing else in
+;; the corpus exercises yet.
+(defclass organism-class (param-mixin) ())
+
 ;;; ------------------------------------------------------------------
 ;;; Confirming rules (1-15). Each joins the organism to its culture and
 ;;; patient as needed, then scopes every premise to that lineage.
@@ -260,6 +270,36 @@
   (infection-site (value abdominal) (of ?p))
   =>
   (assert (organism-identity (value :bacteroides) (of ?o))))
+
+;;; ------------------------------------------------------------------
+;;; Chained cluster, tier 1: evidence -> derived ORGANISM-CLASS.
+;;;
+;;; The corpus's first multi-hop inference (sketch §3B/§5.1). This tier concludes
+;;; a belief-valued FAMILY abstraction from raw evidence; a later tier will refine
+;;; class -> competing sibling species, so belief composes THROUGH the intermediate.
+;;;
+;;; Premises mirror the aerobic-gram-neg-rod-suggests-ENTEROBACTERIACEAE leaf rule
+;;; (same evidence, same 0.8); the difference is the CONCLUSION target -- a class,
+;;; not a species. The two coexist harmlessly for now (distinct fact types); the
+;;; leaf will be re-parented under this class when tier 2 lands, retiring the
+;;; double path to the species. 0.8 is carried over from the established leaf
+;;; rather than invented; family membership is arguably firmer than any single
+;;; species call, but the honest move is to reuse the corpus's existing value and
+;;; let it be tuned against tier-2 goldens.
+;;;
+;;; Provenance: neomycin-extrapolation. The family-abstraction / chaining STRUCTURE
+;;; is faithful to MYCIN's use of organism class/genus context (Buchanan &
+;;; Shortliffe 1984), but this specific rule is our reconstruction, not a verbatim
+;;; published rule.
+;;; ------------------------------------------------------------------
+
+(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (:belief 0.8)
+  (organism (id ?o))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  =>
+  (assert (organism-class (value :enterobacteriaceae) (of ?o))))
 
 ;;; --- Ruling-out (disconfirming) rules ---
 ;;;
