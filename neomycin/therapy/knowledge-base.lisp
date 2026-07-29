@@ -74,11 +74,15 @@
 ;;
 ;; Vocabulary is KEYWORDS end to end. Organism keywords match the engine's
 ;; keyword organism-identity values exactly (same global objects, no conversion),
-;; so conclusions flow straight from the Rete facts into the KB. Organisms
-;; (matches organism-identity in neomycin/rulebase.lisp):
-;;   :pseudomonas :enterobacteriaceae :klebsiella :salmonella :bacteroides
-;;   :streptococcus :streptococcus-pneumoniae :staphylococcus
-;;   :staphylococcus-aureus :enterococcus
+;; so conclusions flow straight from the Rete facts into the KB. Leaf-species
+;; organism-identities (matches organism-identity in neomycin/rulebase.lisp):
+;;   :pseudomonas :klebsiella :salmonella :e-coli :enterobacter :serratia
+;;   :proteus :bacteroides :streptococcus :streptococcus-pneumoniae
+;;   :staphylococcus :staphylococcus-aureus :enterococcus
+;; :enterobacteriaceae is NOT a leaf identity (C2): it is the taxonomic FAMILY,
+;; concluded as an organism-CLASS and carried here as a therapy backstop item only
+;; when no member species clears the coverage gate (conclusions-for-solver). Its
+;; KB sensitivities are the empiric family-level figures the roll-up inherits.
 ;; ==========================================================================
 
 (in-package :neomycin-therapy)

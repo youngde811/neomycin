@@ -85,6 +85,22 @@
              (list (cons "enterobacteriaceae" *ctx-organism*)))
       "organism-class enterobacteriaceae should be scoped to the single organism"))
 
+(deftest chain-tier1-class-scoped-in-multi-organism ()
+  ;; Multi-organism companion to multi-organism-identities-stay-scoped (scenarios.lisp):
+  ;; the enterobacteriaceae CLASS must land on o1 (the aerobic gram-neg rod) and NOT
+  ;; on o2 (the gram-pos coccus). After C2 the class is the only conclusion o1
+  ;; carries, so this is the positive scoping assertion the identity-side test can no
+  ;; longer make.
+  (belief:use-system :dempster-shafer)
+  (let ((*standard-output* (make-broadcast-stream)))
+    (funcall 'lisa-user::culture-multi))
+  (let ((classes (collect-classes-scoped))
+        (o1 (lu "o1")) (o2 (lu "o2")))
+    (is (equal classes (list (cons "enterobacteriaceae" o1)))
+        "exactly one organism-class, enterobacteriaceae, scoped to o1")
+    (is (not (find o2 classes :key #'cdr))
+        "the enterobacteriaceae class must NOT leak onto o2")))
+
 ;;; ------------------------------------------------------------------
 ;;; Chained cluster, tier 2 (§3B) -- a species refined FROM the intermediate, with
 ;;; belief composing THROUGH it, and its therapy susceptibility rolling UP to the

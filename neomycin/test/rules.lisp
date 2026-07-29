@@ -49,11 +49,10 @@
                 (af "compromised-host" "t" p))
               "pseudomonas" 0.6))
 
-(deftest rule-aerobic-gram-neg-rod-enterobacteriaceae () ; 0.8
-  (check-rule (lambda (o p) (declare (ignore p))
-                (af "gram" "neg" o) (af "morphology" "rod" o)
-                (af "aerobicity" "aerobic" o))
-              "enterobacteriaceae" 0.8))
+;; The one-hop aerobic-gram-neg-rod -> enterobacteriaceae IDENTITY rule was retired
+;; in C2 (enterobacteriaceae is now a class-only family). The same premises now
+;; fire the tier-1 CLASS rule instead -- see chain-tier1-aerobic-gram-neg-rod-
+;; enterobacteriaceae-class in chain-tests.lisp, which covers this evidence path.
 
 (deftest rule-gram-pos-cocci-chains-streptococcus () ; 0.7
   (check-rule (lambda (o p) (declare (ignore p))

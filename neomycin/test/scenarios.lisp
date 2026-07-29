@@ -22,15 +22,15 @@
 (deftest cf-culture-1 ()
   (let ((c (run-scenario 'lisa-user::culture-1 :certainty-factors)))
     (check-cf c "pseudomonas" 0.76)
-    (check-cf c "enterobacteriaceae" 0.80)   ; family-level identity, still one-hop (Slice A)
-    (check-cf c "klebsiella" 0.40)           ; chained via organism-class: 0.8*0.5
+    (check-cf c "klebsiella" 0.40)             ; chained via organism-class: 0.8*0.5
+    (check-absent c "enterobacteriaceae")      ; C2: family is a CLASS, not a leaf identity
     (check-absent c "bacteroides")))
 
 (deftest cf-culture-1a ()
   (let ((c (run-scenario 'lisa-user::culture-1a :certainty-factors)))
     (check-cf c "pseudomonas" 0.88)
     (check-cf c "klebsiella" 0.688)          ; chained: (0.8*0.6) combine (0.8*0.5)
-    (check-cf c "enterobacteriaceae" 0.80)))
+    (check-absent c "enterobacteriaceae")))  ; C2: family is a CLASS, not a leaf identity
 
 (deftest cf-culture-2 ()
   ;; Ambiguous gram stain: disconfirming rules fire, lowering both hypotheses.
@@ -51,14 +51,14 @@
 (deftest ds-culture-1 ()
   (let ((c (run-scenario 'lisa-user::culture-1 :dempster-shafer)))
     (check-ds c "pseudomonas" 0.76 1.00)
-    (check-ds c "enterobacteriaceae" 0.80 1.00)
-    (check-ds c "klebsiella" 0.40 1.00)))    ; chained via organism-class: 0.8*0.5
+    (check-ds c "klebsiella" 0.40 1.00)       ; chained via organism-class: 0.8*0.5
+    (check-absent c "enterobacteriaceae")))   ; C2: family is a CLASS, not a leaf identity
 
 (deftest ds-culture-1a ()
   (let ((c (run-scenario 'lisa-user::culture-1a :dempster-shafer)))
     (check-ds c "pseudomonas" 0.88 1.00)
-    (check-ds c "klebsiella" 0.688 1.00)     ; chained: (0.8*0.6) combine (0.8*0.5)
-    (check-ds c "enterobacteriaceae" 0.80 1.00)))
+    (check-ds c "klebsiella" 0.688 1.00)      ; chained: (0.8*0.6) combine (0.8*0.5)
+    (check-absent c "enterobacteriaceae")))   ; C2: family is a CLASS, not a leaf identity
 
 (deftest ds-culture-2 ()
   ;; The conflict scenario: plausibility drops below 1.0 on both hypotheses.
@@ -80,7 +80,7 @@
   ;; No rule argues *against* anything in culture-1, so every hypothesis keeps
   ;; pl = 1.0 — the regime in which DS carries no more than CF does.
   (let ((c (run-scenario 'lisa-user::culture-1 :dempster-shafer)))
-    (dolist (name '("pseudomonas" "enterobacteriaceae" "klebsiella"))
+    (dolist (name '("pseudomonas" "klebsiella"))
       (is (approx= (belief:ds-belief-pl (belief-of c name)) 1.0)
           (format nil "~A plausibility should be 1.0 in the confirmatory regime" name)))))
 
@@ -95,7 +95,7 @@
   ;; Without disconfirming evidence, DS belief equals the CF number.
   (let ((cf (run-scenario 'lisa-user::culture-1 :certainty-factors))
         (ds (run-scenario 'lisa-user::culture-1 :dempster-shafer)))
-    (dolist (name '("pseudomonas" "enterobacteriaceae" "klebsiella"))
+    (dolist (name '("pseudomonas" "klebsiella"))
       (is (approx= (belief-of cf name) (belief:ds-belief-bel (belief-of ds name)))
           (format nil "~A: CF and DS-bel should match on confirmatory evidence" name)))))
 
@@ -116,17 +116,17 @@
 ;;; ------------------------------------------------------------------
 
 (deftest multi-organism-identities-stay-scoped ()
-  ;; Two organisms in one culture: o1 (aerobic gram-neg rod) must be ONLY
-  ;; enterobacteriaceae; o2 (gram-pos coccus in clumps) must be ONLY
-  ;; staphylococcus. Neither identity may leak onto the sibling organism --
-  ;; the property the flat rulebase silently violated.
+  ;; Two organisms in one culture: o2 (gram-pos coccus in clumps) must be
+  ;; identified as staphylococcus, scoped to o2 and NOT leaking onto o1 -- the
+  ;; property the flat rulebase silently violated. o1 (a bare aerobic gram-neg rod)
+  ;; produces NO leaf identity after C2 (only the enterobacteriaceae CLASS, whose
+  ;; scoping is asserted in chain-tests.lisp), so the sole organism-identity in
+  ;; play must sit on o2 alone.
   (let ((ids (run-scenario-identities 'lisa-user::culture-multi :dempster-shafer))
         (o1 (lu "o1")) (o2 (lu "o2")))
-    (is (identity-on-p ids "enterobacteriaceae" o1)
-        "o1 should be identified as enterobacteriaceae")
     (is (identity-on-p ids "staphylococcus" o2)
         "o2 should be identified as staphylococcus")
     (is (not (identity-on-p ids "staphylococcus" o1))
         "staphylococcus must NOT leak onto o1")
-    (is (not (identity-on-p ids "enterobacteriaceae" o2))
-        "enterobacteriaceae must NOT leak onto o2")))
+    (is (every (lambda (pair) (eq (cdr pair) o2)) ids)
+        "o1 carries no leaf identity -- every organism-identity is scoped to o2")))

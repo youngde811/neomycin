@@ -11,16 +11,18 @@
 
 (in-package "LISA-TEST")
 
-;;; culture-1 under CF yields three gram-negative identities (pseudomonas 0.76,
-;;; enterobacteriaceae 0.80, klebsiella 0.50), all above *coverage-threshold* and
-;;; all covered by the canonical KB's broad agents.
+;;; culture-1 under CF yields two leaf-species gram-negative identities
+;;; (pseudomonas 0.76, klebsiella 0.40), both above *coverage-threshold* and both
+;;; covered by the canonical KB's broad agents. Enterobacteriaceae is NO LONGER a
+;;; conclusion here (C2): it is a family CLASS, and its member klebsiella clears the
+;;; gate, so the family backstop is suppressed (see the backstop tests below).
 
 (deftest therapy-bridge-conclusions-are-keyword-organisms ()
   ;; The glue reads keyword organism ids straight off working memory -- no
   ;; conversion -- which is exactly what lets them key the therapy KB.
   (run-scenario 'lisa-user::culture-1 :certainty-factors)
   (let ((concl (therapy:conclusions-for-solver)))
-    (is (= 3 (length concl)) "three organism-identity conclusions")
+    (is (= 2 (length concl)) "two organism-identity conclusions")
     (is (every #'keywordp (mapcar #'car concl)) "every organism id is a keyword")
     (is (assoc :pseudomonas concl) "pseudomonas present as :pseudomonas")
     (is (numberp (cdr (assoc :pseudomonas concl))) "belief is a CF number under CF")))
@@ -31,8 +33,8 @@
   (therapy:with-greedy-solver
     (let ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                   (therapy:therapy-kb) '())))
-      (is (= 3 (length (therapy:recommendation-items-to-treat rec)))
-          "all three organisms are items to treat")
+      (is (= 2 (length (therapy:recommendation-items-to-treat rec)))
+          "both leaf-species organisms are items to treat")
       (is (plusp (length (therapy:recommendation-regimen rec))) "a regimen was produced")
       (is (null (therapy:recommendation-uncovered rec)) "culture-1 gram-negs fully covered"))))
 
@@ -46,7 +48,7 @@
            (json (therapy:recommendation->json rec)))
       (is (typep (gethash "regimen" json) 'vector) "regimen is a JSON array")
       (is (plusp (length (gethash "regimen" json))) "regimen non-empty")
-      (is (= 3 (length (gethash "items_to_treat" json))) "three items_to_treat")
+      (is (= 2 (length (gethash "items_to_treat" json))) "two items_to_treat")
       (is (typep (gethash "uncovered" json) 'vector) "uncovered is a JSON array")
       (is (zerop (length (gethash "uncovered" json))) "nothing uncovered")
       (let ((drug (gethash "drug" (aref (gethash "regimen" json) 0))))
@@ -68,3 +70,35 @@
           "ceftazidime recorded as excluded")
       (is (null (therapy:recommendation-uncovered rec))
           "still fully covered by an alternative"))))
+
+;;; ------------------------------------------------------------------
+;;; Family-as-backstop item selection (C2). The family enterobacteriaceae is
+;;; carried to the solver ONLY when no member species clears the coverage gate;
+;;; when a member does, the member covers the family and the backstop is
+;;; suppressed. We never treat both a family and its own member.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-bridge-family-backstop-fires-when-no-species-identified ()
+  ;; culture-multi's o1 is a bare aerobic gram-neg rod: it yields the
+  ;; enterobacteriaceae CLASS but no member species. With nothing below it clearing
+  ;; the gate, the family must be carried in as a backstop item so the organism is
+  ;; still treated empirically. (o2's staphylococcus is unrelated -- a different
+  ;; family -- and rides along untouched.)
+  (run-scenario 'lisa-user::culture-multi :certainty-factors)
+  (let ((concl (therapy:conclusions-for-solver)))
+    (is (assoc :enterobacteriaceae concl)
+        "family enterobacteriaceae is a backstop item when no member species clears the gate")
+    (is (null (intersection '(:klebsiella :e-coli :salmonella :enterobacter :serratia :proteus)
+                            (mapcar #'car concl)))
+        "no enterobacteriaceae member species was identified in culture-multi")
+    (is (assoc :staphylococcus concl) "o2's staphylococcus rides along, unaffected")))
+
+(deftest therapy-bridge-family-backstop-suppressed-when-member-covers ()
+  ;; culture-1 identifies klebsiella (0.40), a member species that clears the
+  ;; coverage gate, so the enterobacteriaceae family is NOT separately treated --
+  ;; the member carries the family's coverage need.
+  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (let ((concl (therapy:conclusions-for-solver)))
+    (is (assoc :klebsiella concl) "klebsiella (a family member) was identified")
+    (is (not (assoc :enterobacteriaceae concl))
+        "the family is suppressed because a member species clears the gate")))

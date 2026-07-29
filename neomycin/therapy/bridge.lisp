@@ -40,15 +40,53 @@
 ;;; Glue: engine working memory -> solver conclusions
 ;;; ------------------------------------------------------------------
 
-(defun conclusions-for-solver ()
-  "Return ((organism-keyword . belief) ...): one entry per organism-identity fact
-   in the engine's working memory, each belief taken from the active belief
-   system. The value slot is already a keyword (the vocabulary migration), so it
-   drops straight into the keyword-keyed therapy KB with no conversion."
+(defun collect-identity-conclusions ()
+  "Alist ((species-keyword . belief) ...): one entry per organism-identity fact in
+   working memory, each belief from the active belief system. The value slot is
+   already a keyword (the vocabulary migration), so it drops straight into the
+   keyword-keyed therapy KB with no conversion."
   (loop for fact in (lisa:get-fact-list (lisa:inference-engine))
         when (eq (lisa:fact-name fact) 'lisa-user::organism-identity)
           collect (cons (lisa:get-slot-value fact 'lisa-user::value)
                         (belief:belief-factor fact))))
+
+(defun collect-class-conclusions ()
+  "Alist ((family-keyword . belief) ...): one entry per organism-CLASS fact in
+   working memory (the derived taxonomic abstraction the chain concludes, e.g.
+   :enterobacteriaceae). Read exactly like the identities, one tier up."
+  (loop for fact in (lisa:get-fact-list (lisa:inference-engine))
+        when (eq (lisa:fact-name fact) 'lisa-user::organism-class)
+          collect (cons (lisa:get-slot-value fact 'lisa-user::value)
+                        (belief:belief-factor fact))))
+
+(defun family-backstops (species classes kb)
+  "The subset of CLASSES to carry into the solver as BACKSTOP items to treat.
+
+   A family (organism-class) is treated empirically ONLY when identification could
+   not pin down a member species firmly enough: it is included IFF no member
+   species in SPECIES clears the coverage gate (*coverage-threshold*, reduced via
+   the active belief system by SCALAR-OF -- the same gate the solver's Phase A
+   applies to identities). When a member species DOES clear the gate, that species
+   carries the enterobacteriaceae coverage need and the family is suppressed, so we
+   never treat both a family and its own member (C2; the item-selection rule David
+   confirmed 2026-07-29). Family membership is read from the KB taxonomy
+   (KB-FAMILY-OF), the same relation the susceptibility roll-up uses."
+  (loop for (family . belief) in classes
+        unless (some (lambda (pair)
+                       (and (eq (kb-family-of kb (car pair)) family)
+                            (>= (scalar-of (cdr pair)) *coverage-threshold*)))
+                     species)
+          collect (cons family belief)))
+
+(defun conclusions-for-solver (&optional (kb (therapy-kb)))
+  "Return ((organism-keyword . belief) ...) for the solver: every organism-identity
+   (leaf species) in working memory, PLUS a family backstop entry for any
+   organism-class whose member species all fall below the coverage gate (see
+   FAMILY-BACKSTOPS). KB supplies the family taxonomy; it defaults to the canonical
+   therapy KB, matching what the handler recommends over."
+  (let ((species (collect-identity-conclusions))
+        (classes (collect-class-conclusions)))
+    (append species (family-backstops species classes kb))))
 
 ;;; ------------------------------------------------------------------
 ;;; Serializer: RECOMMENDATION -> JSON-ready hash-tables

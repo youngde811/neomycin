@@ -171,13 +171,15 @@
   =>
   (assert (organism-identity (value :pseudomonas) (of ?o))))
 
-(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae (:belief 0.8)
-  (organism (id ?o))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
-  (aerobicity (value aerobic) (of ?o))
-  =>
-  (assert (organism-identity (value :enterobacteriaceae) (of ?o))))
+;; NOTE: the one-hop `aerobic-gram-neg-rod-suggests-enterobacteriaceae` leaf
+;; identity rule was RETIRED in slice C2. Enterobacteriaceae is now purely a
+;; taxonomic FAMILY -- concluded as an ORGANISM-CLASS (see the tier-1 class rule
+;; below), never as an ORGANISM-IDENTITY. The identity layer names only leaf
+;; SPECIES (E. coli, Klebsiella, Salmonella, ...); the family is carried to the
+;; therapy phase as a backstop item only when no member species clears the
+;; coverage gate (conclusions-for-solver, therapy/bridge.lisp). Keeping the leaf
+;; alongside the chain would have double-counted the same aerobic-gram-neg-rod
+;; evidence (a leaf identity AND a class, then again through the species).
 
 (defrule gram-pos-cocci-in-chains-suggests-streptococcus (:belief 0.7)
   (organism (id ?o))
@@ -294,14 +296,14 @@
 ;;; a belief-valued FAMILY abstraction from raw evidence; a later tier will refine
 ;;; class -> competing sibling species, so belief composes THROUGH the intermediate.
 ;;;
-;;; Premises mirror the aerobic-gram-neg-rod-suggests-ENTEROBACTERIACEAE leaf rule
-;;; (same evidence, same 0.8); the difference is the CONCLUSION target -- a class,
-;;; not a species. The two coexist harmlessly for now (distinct fact types); the
-;;; leaf will be re-parented under this class when tier 2 lands, retiring the
-;;; double path to the species. 0.8 is carried over from the established leaf
-;;; rather than invented; family membership is arguably firmer than any single
-;;; species call, but the honest move is to reuse the corpus's existing value and
-;;; let it be tuned against tier-2 goldens.
+;;; Premises are those of the RETIRED aerobic-gram-neg-rod enterobacteriaceae leaf
+;;; rule (same evidence, same 0.8); the difference is the CONCLUSION target -- a
+;;; class, not a species. As of C2 this class rule is the SOLE consumer of that
+;;; evidence: the leaf identity rule has been retired, so there is no longer a
+;;; double path to enterobacteriaceae. 0.8 is carried over from the established
+;;; leaf rather than invented; family membership is arguably firmer than any
+;;; single species call, but the honest move is to reuse the corpus's existing
+;;; value and let it be tuned against tier-2 goldens.
 ;;;
 ;;; Provenance: neomycin-extrapolation. The family-abstraction / chaining STRUCTURE
 ;;; is faithful to MYCIN's use of organism class/genus context (Buchanan &
@@ -397,7 +399,9 @@
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella
+  ;; :enterobacteriaceae dropped from this list in C2 -- it is a family CLASS now,
+  ;; never an organism-identity, so it can never match here.
+  (test (member ?value '(:pseudomonas :klebsiella :salmonella
                          :e-coli :enterobacter :serratia :proteus :bacteroides)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
@@ -448,8 +452,10 @@
   "First PAIP scenario (pg. 555): aerobic gram-neg rod cultured from the blood of a
    seriously burned, immunocompromised patient. Evidence enters with the active
    belief system's default (full belief / no ignorance). Multiple rules fire on
-   overlapping evidence, producing competing pseudomonas, enterobacteriaceae and
-   klebsiella hypotheses that the belief system must combine."
+   overlapping evidence, producing competing pseudomonas and klebsiella species
+   hypotheses (the latter chained off the derived enterobacteriaceae CLASS) that
+   the belief system must combine. Enterobacteriaceae itself is an organism-CLASS
+   here, not a leaf identity (C2)."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -466,7 +472,8 @@
 
 (defun culture-1a (&key (runp t))
   "Hospital-acquired gram-neg infection in an immunocompromised patient.
-   Produces competing hypotheses: pseudomonas, klebsiella, enterobacteriaceae."
+   Produces competing species hypotheses pseudomonas and klebsiella (chained off
+   the derived enterobacteriaceae CLASS, which is not itself a leaf identity)."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -520,9 +527,10 @@
 
 (defun culture-multi (&key (runp t))
   "Two organisms in one culture, to exercise lineage scoping. o1 is an aerobic
-   gram-neg rod (=> enterobacteriaceae only); o2 is a gram-pos coccus in clumps
-   (=> staphylococcus only). Each identity must stay on its own organism -- the
-   flat rulebase would cross-contaminate via unscoped morphology/gram joins."
+   gram-neg rod (=> enterobacteriaceae CLASS only, no leaf identity after C2); o2
+   is a gram-pos coccus in clumps (=> staphylococcus identity only). Each
+   conclusion must stay on its own organism -- the flat rulebase would
+   cross-contaminate via unscoped morphology/gram joins."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
