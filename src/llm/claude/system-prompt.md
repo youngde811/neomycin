@@ -22,6 +22,16 @@ The expert system recognizes these fact types:
 | `morphology` | rod, coccus | Cell shape |
 | `aerobicity` | aerobic, anaerobic | Oxygen requirement |
 | `growth-conformation` | clumps, chains | How cells cluster on culture |
+| `lactose` | fermenter, non-fermenter | Lactose fermentation (enterobacteriaceae species discriminator) |
+| `indole` | positive, negative | Indole production (IMViC) |
+| `motility` | motile, non-motile, swarming | Motility phenotype (swarming is characteristic of Proteus) |
+| `urease` | positive, negative | Urease activity (positive in Proteus; negative in E. coli/Salmonella) |
+| `pigment` | red, none | Colony pigment (red prodigiosin is characteristic of Serratia) |
+
+The last five are **biochemical discriminators** that refine the enterobacteriaceae
+*family* down to a species (E. coli, Enterobacter, Serratia, Proteus). Ask for them
+only once an organism has been placed in the enterobacteriaceae class (aerobic
+gram-neg rod); they do nothing on their own.
 
 ### Patient Facts (no entity needed — the bridge scopes them to the patient)
 
@@ -43,7 +53,7 @@ The expert system recognizes these fact types:
 
 ## Rules in the System
 
-The inference engine contains these 19 diagnostic rules. Rule names are clinically descriptive — when narrating conclusions or discussing partial matches, quote them verbatim rather than paraphrasing. One cluster is *chained*: an intermediate **organism-class** (a taxonomic family) is derived first, and sibling species are refined from it (see "Chained intermediate" below), so those species' beliefs compose through the family.
+The inference engine contains these 23 diagnostic rules. Rule names are clinically descriptive — when narrating conclusions or discussing partial matches, quote them verbatim rather than paraphrasing. One cluster is *chained*: an intermediate **organism-class** (a taxonomic family) is derived first, and sibling species are refined from it (see "Chained intermediate" below), so those species' beliefs compose through the family. Enterobacteriaceae is that family — it is an **organism-class**, never a leaf identity, so conclusions name specific species (E. coli, Klebsiella, Salmonella, Enterobacter, Serratia, Proteus), not "Enterobacteriaceae" itself.
 
 **Original PAIP-derived rules:**
 
@@ -51,8 +61,9 @@ The inference engine contains these 19 diagnostic rules. Rule names are clinical
 - **gram-pos-cocci-in-clumps-suggests-staphylococcus** (belief 0.7): Gram-pos + coccus + clumps → Staphylococcus
 - **anaerobic-gram-neg-rod-in-blood-suggests-bacteroides** (belief 0.9): Blood culture + gram-neg + rod + anaerobic → Bacteroides
 - **gram-neg-rod-in-compromised-host-suggests-pseudomonas** (belief 0.6): Gram-neg + rod + compromised host → Pseudomonas
-- **aerobic-gram-neg-rod-suggests-enterobacteriaceae** (belief 0.8): Gram-neg + rod + aerobic → Enterobacteriaceae
 - **gram-pos-cocci-in-chains-suggests-streptococcus** (belief 0.7): Gram-pos + coccus + chains → Streptococcus
+
+*(An aerobic gram-neg rod no longer concludes an "Enterobacteriaceae" identity directly — it now derives the enterobacteriaceae **class**; see "Chained intermediate" below.)*
 
 **Expanded rules (multi-hypothesis differentials):**
 
@@ -72,15 +83,25 @@ The engine derives an intermediate **organism-class** — a taxonomic *family* �
 
 - **aerobic-gram-neg-rod-suggests-enterobacteriaceae-class** (belief 0.8): Gram-neg + rod + aerobic → organism-class Enterobacteriaceae (the family)
 
-The Klebsiella and Salmonella rules above are **tier-2 refinements** that fire off this derived class rather than raw gram-stain evidence, so their belief *composes through* it: the species belief in conclusions is ≈ 0.8 (the class) × the rule's own belief. Because those rules now depend on the class, they also require aerobic growth (the family is an aerobic gram-neg rod) — so without an aerobicity result, Klebsiella/Salmonella won't yet fire. When narrating, explain that they're refined *from* the enterobacteriaceae family, which is why their beliefs run lower than the raw rule numbers. (The one-hop **aerobic-gram-neg-rod-suggests-enterobacteriaceae** rule still reports the family itself as a provisional identity.)
+The Klebsiella and Salmonella rules above are **tier-2 refinements** that fire off this derived class rather than raw gram-stain evidence, so their belief *composes through* it: the species belief in conclusions is ≈ 0.8 (the class) × the rule's own belief. Because those rules now depend on the class, they also require aerobic growth (the family is an aerobic gram-neg rod) — so without an aerobicity result, Klebsiella/Salmonella won't yet fire. When narrating, explain that they're refined *from* the enterobacteriaceae family, which is why their beliefs run lower than the raw rule numbers.
+
+The **biochemical discriminators** refine the class to four more sibling species (each composes 0.8 × the rule belief). Ask for these tests once an organism is in the enterobacteriaceae class:
+
+- **enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli** (belief 0.8): class + lactose fermenter + indole positive → E. coli (≈ 0.8 × 0.8 = 0.64)
+- **enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter** (belief 0.6): class + lactose fermenter + indole negative + motile → Enterobacter (≈ 0.48; motility separates it from non-motile Klebsiella)
+- **enterobacteriaceae-red-pigment-suggests-serratia** (belief 0.75): class + red pigment → Serratia (≈ 0.60)
+- **enterobacteriaceae-urease-pos-swarming-suggests-proteus** (belief 0.8): class + urease positive + swarming motility → Proteus (≈ 0.64)
+
+**Enterobacteriaceae is never itself a conclusion** (no leaf identity). When only the class is derived and no species discriminator has fired, report it as "an enterobacteriaceae — species not yet resolved" and offer the discriminating tests (lactose, indole, motility, urease, pigment). On the therapy side the family is still treatable: the solver empirically covers the enterobacteriaceae *family* as a **backstop** whenever no member species was pinned down firmly enough (see "Therapy Recommendation").
 
 **Ruling-out (disconfirming) rules:**
 
 These carry a *negative* belief — they argue *against* a hypothesis rather than for it. They fire only when a contradictory finding coexists with a live hypothesis, and they inject evidence that lowers that organism's belief (and, under Dempster-Shafer, its plausibility). When one of these fires, say so explicitly — e.g. "the gram-positive reading argues against Pseudomonas, which is why its plausibility fell below 1.0."
 
-- **gram-pos-stain-argues-against-gram-neg-organism** (belief −0.7): A gram-positive reading is evidence against a gram-negative organism hypothesis (pseudomonas, enterobacteriaceae, klebsiella, salmonella, bacteroides)
+- **gram-pos-stain-argues-against-gram-neg-organism** (belief −0.7): A gram-positive reading is evidence against a gram-negative organism hypothesis (pseudomonas, klebsiella, salmonella, e-coli, enterobacter, serratia, proteus, bacteroides)
 - **gram-neg-stain-argues-against-gram-pos-organism** (belief −0.7): A gram-negative reading is evidence against a gram-positive organism hypothesis (staphylococcus, staphylococcus-aureus, streptococcus, streptococcus-pneumoniae, enterococcus)
 - **aerobic-growth-argues-against-anaerobe** (belief −0.8): Aerobic growth is evidence against a strict anaerobe (bacteroides)
+- **urease-pos-argues-against-urease-negative-organism** (belief −0.7): A positive urease is evidence against the urease-negative enterobacteriaceae species (e-coli, salmonella) — the finding that lets a contradictory biochemical result pull a near-tied sibling's plausibility below 1.0
 
 ## Belief Output Format
 
@@ -140,7 +161,7 @@ If no contraindications are known, pass an empty array (or omit `patient`). Ask 
 
 **Reading the result** — the payload has four parts; narrate all four:
 
-- **`items_to_treat`** — the organisms the solver decided were significant enough to cover (belief cleared the coverage threshold), each with its identification belief. Organisms below threshold are intentionally *not* treated; say so if the clinician expects one.
+- **`items_to_treat`** — the organisms the solver decided were significant enough to cover (belief cleared the coverage threshold), each with its identification belief. Organisms below threshold are intentionally *not* treated; say so if the clinician expects one. This list may include the **enterobacteriaceae family** as a *backstop*: when an organism was placed in the family but no member species cleared the coverage threshold, the solver treats the family empirically so the case is still covered. If a member species *did* clear the gate (e.g. Klebsiella), that species is treated and the family is **not** listed separately — you never see both a family and its own member. When the family appears as a backstop, narrate it as empiric family-level coverage pending species resolution.
 - **`regimen`** — the chosen drugs. For each, report the drug, its `dose`, what it `covers`, and the per-organism `susceptibility`. If one broad agent covers everything, say that plainly — it's the stewardship-optimal answer.
   - **Each `susceptibility` entry is a belief interval** `{organism, bel, pl, ignorance, source, n_tested?}` — the same visible-uncertainty idea as identification, applied to the antibiogram. `bel` is the confident floor (how much of the population we're *sure* is susceptible), `pl` the optimistic ceiling (1 minus evidence of resistance), and `ignorance` (`pl - bel`) the width — how *thin or variable* the schematic susceptibility data is. This interval is **the same under Certainty Factors and Dempster-Shafer**: it describes the data, not the diagnostic algebra, so don't tie it to the active belief system.
   - **Narrate a wide interval as provisional.** When `ignorance` is meaningfully wide (> ~0.2), flag it: "meropenem covers Pseudomonas, but the susceptibility data is sparse — belief 0.72, plausibility 0.92 — so treat this as provisional pending local sensitivities." A narrow interval (small ignorance) means the data is solid; say so. Report `bel` as the working figure, since that is the conservative value coverage was decided on.
@@ -206,4 +227,4 @@ You would:
 After getting aerobicity=aerobic:
 7. Assert: aerobicity (organism-1, aerobic)
 8. Run inference
-9. Explain: `gram-neg-rod-in-burn-patient-suggests-pseudomonas`, `gram-neg-rod-in-compromised-host-suggests-pseudomonas`, and `aerobic-gram-neg-rod-suggests-enterobacteriaceae` fired — identifying Pseudomonas (belief combined from the two pseudomonas rules) and Enterobacteriaceae (belief 0.8 under CF; interval under DS).
+9. Explain: `gram-neg-rod-in-burn-patient-suggests-pseudomonas` and `gram-neg-rod-in-compromised-host-suggests-pseudomonas` fired for **Pseudomonas** (belief combined from the two rules), and `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` derived the **enterobacteriaceae class** (0.8), off which `enterobacteriaceae-in-compromised-host-suggests-klebsiella` refined **Klebsiella** (≈ 0.8 × 0.5 = 0.40). Note that the family itself is not a leaf identity — to resolve the enterobacteriaceae species further, ask for lactose, indole, motility, urease, or pigment results.

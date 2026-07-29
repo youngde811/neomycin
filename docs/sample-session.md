@@ -10,8 +10,11 @@
 > enterobacteriaceae *chained cluster* (`docs/chaining-belief-spike.md`). Some rule
 > names and the Klebsiella/Salmonella beliefs shown below have since changed — those
 > species are now refined from a derived `organism-class`, so their belief composes
-> through the family (e.g. Klebsiella 0.50 → 0.40). Kept as-is for the DS-narration
-> illustration; see `docs/clinician-scenarios.md` for current values.
+> through the family (e.g. Klebsiella 0.50 → 0.40). **Enterobacteriaceae is no longer a
+> leaf identity at all (slice C2)** — it is now that `organism-class`, so the
+> "Enterobacteriaceae 0.80" hypothesis shown below would not appear in today's
+> `/conclusions`. Kept as-is for the DS-narration illustration; see
+> `docs/clinician-scenarios.md` for current values.
 
 ---
 

@@ -47,13 +47,15 @@ The system has two halves that talk over HTTP:
   observations into structured facts, calls Lisa's endpoints as tool-use
   invocations, and narrates the results with full rule-level traceability.
 
-The MYCIN rulebase currently has **19 rules** covering gram-stain morphology,
+The MYCIN rulebase currently has **23 rules** covering gram-stain morphology,
 site-of-culture context, host status (burn / immunocompromised /
-hospital-acquired), travel history, and WBC — including a **tier-1 organism-class
-chain rule** (deriving the enterobacteriaceae *family*, from which Klebsiella and
-Salmonella are refined) and **three disconfirming rules** that argue *against* a
-hypothesis (a contradictory stain or oxygen
-requirement), which is what lets Dempster-Shafer's conflict handling produce
+hospital-acquired), travel history, WBC, and biochemical discriminators
+(lactose / indole / motility / urease / pigment) — including a **tier-1
+organism-class chain rule** (deriving the enterobacteriaceae *family*, from which
+Klebsiella, Salmonella, E. coli, Enterobacter, Serratia and Proteus are refined —
+the family is class-only, never a leaf identity) and **four disconfirming rules**
+that argue *against* a hypothesis (a contradictory stain, oxygen requirement, or
+urease result), which is what lets Dempster-Shafer's conflict handling produce
 plausibility below 1.0. See
 [`docs/clinician-scenarios.md`](clinician-scenarios.md) for the full annotated
 scenario catalog.
@@ -92,14 +94,16 @@ From the project root, in an SBCL REPL:
 
 ```lisp
 (load "lisa.asd")
-(asdf:load-system :lisa)
-
-(in-package :lisa-user)
-(load "examples/mycin.lisp")     ; loads classes, 18 rules, culture-* driver funcs
-
-(asdf:load-system :lisa-bridge)
+(load "lisa-bridge.asd")
+(load "neomycin.asd")
+(asdf:load-system :neomycin)     ; loads neomycin/rulebase.lisp (23 rules,
+                                 ; culture-* drivers) + the therapy system
 (lisa-bridge:start)              ; port 8090
 ```
+
+(Or just `(load "neomycin.lisp")`, the convenience loader that does exactly the
+above. Do **not** load Lisa's `examples/mycin.lisp` — that is Lisa-proper and lacks
+neomycin's chained enterobacteriaceae cluster.)
 
 You should see:
 

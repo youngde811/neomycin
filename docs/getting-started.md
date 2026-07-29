@@ -169,7 +169,7 @@ As of this writing the suite is **195 assertions / 60 tests, all green.** It cov
 With the bridge running (see above), two curl scripts exercise the whole HTTP path:
 
 ```bash
-./bin/test-culture-1.sh    # identification: culture-1 → pseudomonas + enterobacteriaceae ...
+./bin/test-culture-1.sh    # identification: culture-1 → pseudomonas + klebsiella ...
 ./bin/test-therapy.sh      # therapy: culture-1 → a regimen; + a contraindication case
 ```
 

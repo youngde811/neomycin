@@ -17,13 +17,13 @@ The tempting framing — "more rules ⇒ the solver sees more cases" — bundles
 things that scale differently, and the distinction should drive what we build:
 
 - **Knowledge breadth (the corpus).** How much of MYCIN's differential space is
-  reachable. Today: 19 rules (15 confirming, 1 tier-1 organism-class, 3 disconfirming) reaching ~10
+  reachable. Today: 23 rules (18 confirming, 1 tier-1 organism-class, 4 disconfirming) reaching ~13
   organism-identity values. This is the genuine bottleneck for realistic
   scenarios and — more to the point for this fork — for making the CF-vs-DS
   divergence *empirically* interesting. With so few conflicting rules the DS
   ignorance intervals barely get exercised.
 - **Engine capability (the mechanism).** The Rete network, conflict resolution,
-  and belief combination are *already* exercised by 19 rules. Adding rule #200
+  and belief combination are *already* exercised by 23 rules. Adding rule #200
   runs the **same code paths** — more coverage and scaling pressure, not new
   reasoning. A bigger flat rulebase alone does not make the engine reason
   differently.
