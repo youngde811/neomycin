@@ -88,6 +88,18 @@
 (setf *therapy-kb* (make-therapy-kb))
 
 ;;; --------------------------------------------------------------------------
+;;; Taxonomy: the enterobacteriaceae family (for therapy roll-up).
+;;; --------------------------------------------------------------------------
+;;; A family member with no sensitivity of its own inherits its family's curated
+;;; figure (empiric therapy is pitched at the family level; chaining decision 4,
+;;; docs/chaining-belief-spike.md §7). :e-coli carries NO species-specific entries,
+;;; so it falls back entirely to :enterobacteriaceae below. :klebsiella / :salmonella
+;;; carry their own entries and are mapped in a later slice (alongside any per-drug
+;;; overrides they need, e.g. salmonella must NOT silently inherit the family's
+;;; gentamicin figure). Taxonomy is citable to any clinical microbiology reference.
+(deffamily :enterobacteriaceae :e-coli)
+
+;;; --------------------------------------------------------------------------
 ;;; Beta-lactams: anti-pseudomonal cephalosporin (WHO AWaRe: Watch)
 ;;; --------------------------------------------------------------------------
 

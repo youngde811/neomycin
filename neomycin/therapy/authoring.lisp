@@ -76,6 +76,13 @@
    without touching the reference figures (design doc 5)."
   `(add-antibiogram *therapy-kb* ,organism ,drug :susceptible ,susceptible :tested ,tested))
 
+(defmacro deffamily (family &rest members)
+  "Author a taxonomic FAMILY and its MEMBERS (all keywords) into *THERAPY-KB*. Each
+   member is recorded as belonging to FAMILY, so a member species with no
+   sensitivity of its own rolls up to the family's curated figure in
+   KB-SUSCEPTIBILITY. Pure taxonomy -- no belief or policy logic."
+  `(progn ,@(mapcar (lambda (m) `(add-family-member *therapy-kb* ,m ,family)) members)))
+
 (defmacro with-therapy-kb ((kb form) &body body)
   `(let* ((,kb ,form)
           (therapy:*therapy-kb* ,kb))

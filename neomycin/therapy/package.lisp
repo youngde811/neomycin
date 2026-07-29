@@ -51,12 +51,12 @@
    #:exclusion #:make-exclusion #:exclusion-drug #:exclusion-reason
    ;; --- knowledge base abstraction (design doc 3.2) ---
    #:therapy-kb #:make-therapy-kb #:therapy-kb-p
-   #:add-drug #:add-sensitivity #:add-contraindication #:add-antibiogram
+   #:add-drug #:add-sensitivity #:add-contraindication #:add-antibiogram #:add-family-member
    #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers #:kb-antibiogram
-   #:kb-dose #:kb-drug-class #:kb-drug-route
+   #:kb-dose #:kb-drug-class #:kb-drug-route #:kb-family-of
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
-   #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram
+   #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram #:deffamily
    #:with-therapy-kb #:therapy-kb #:with-greedy-solver
    ;; --- solvers ---
    #:greedy-solver
