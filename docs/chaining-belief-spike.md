@@ -230,4 +230,72 @@ a surprise.
 4. **Golden strategy.** Hand-verify the *composed* species values (the `0.56`-style
    numbers) as the new DS goldens, and add a class→species conflict golden (two
    siblings near-tied) — the §6 "competing hypotheses on one organism" DS workout.
-```
+
+---
+
+## 7. Tier-2 approach — DECIDED (2026-07-29)
+
+Resolutions to §6, agreed with David:
+
+1. **Discriminators — new + citable.** Introduce new biochemical discriminators
+   (lactose fermentation, H₂S, urease, indole, swarming motility, prodigiosin),
+   each verified against a microbiology reference before authoring and tagged
+   `neomycin-extrapolation` (citable to micro texts / the API-20E panel, **not** to
+   MYCIN, which took identity from the lab). A minimal set suffices — residual
+   near-ties are *desirable* (they stress DS).
+2. **Species beliefs — re-derived, tied to discriminator specificity.** A species
+   rule's conditional belief tracks how specifically its evidence points at that
+   species (pathognomonic → high; shared → low), documented per rule. No invented
+   precision (MYCIN CFs were elicited, not computed): illustrative-but-reasoned,
+   framed like the therapy policy dials.
+3. **Whole family, uniformly** — E. coli, Klebsiella, Enterobacter, Serratia,
+   Proteus, Salmonella — for the rich DS conflict, delivered in test-first slices
+   (§7.2), not one commit.
+4. **Species roll up to the family for therapy.** Species are the identities; the
+   family is the therapy roll-up. A species with no KB sensitivity inherits its
+   family's; species-specific entries override. Preserves every existing KB entry
+   (enterobacteriaceae's become the family default) and is clinically faithful
+   (empiric therapy is pitched at the family level). Implemented as a family
+   fallback in `kb-susceptibility` (kb.lisp).
+5. **Testing — hand goldens for the core + a mechanical invariant.** Hand-verify
+   representative composed values and the conflict case; add a property test
+   asserting every chained species belief = `class_bel × rule_belief` across the
+   cluster (the sketch §8 generalization, now needed as the corpus passes ~30 rules).
+
+### 7.1 Forced consequence — neomycin's goldens fork from Lisa's
+
+Re-parenting changes composed values (culture-1 klebsiella `0.50 → 0.8·0.5 =
+0.40`), so **neomycin/rulebase.lisp behaviorally diverges from
+examples/mycin.lisp for the first time.** The shared golden files
+(`tests/scenarios.lisp`, `tests/rules.lisp`) run against BOTH rulebases (lisa/test
+and neomycin/test) and assume identical results — that assumption now breaks.
+
+Resolution: split the rulebase-INDEPENDENT pieces (`tests/harness.lisp` +
+`belief-algebra.lisp`) into a base test system both depend on; keep
+`tests/scenarios.lisp` + `tests/rules.lisp` as **lisa-only** (validating
+examples/mycin.lisp, unchanged); give neomycin/test its OWN forked scenarios +
+per-rule goldens (validating neomycin/rulebase.lisp, free to diverge). The natural
+extension of the locked "neomycin/rulebase.lisp is THE canonical rulebase; never
+use examples/*" decision — the tests separate where the rulebases do.
+
+### 7.2 Slice plan (each independently green)
+
+- **Slice 0 — fork the goldens.** Refactor the test systems per §7.1. No rulebase
+  change; suite stays 314/95, just reorganized. Prerequisite for any divergence.
+- **Slice A — re-parent the two known leaves.** Klebsiella + Salmonella rules fire
+  off `organism-class` (belief composes `0.8·r`); the raw `(gram neg)(rod)[(aerobic)]`
+  premises are replaced by the class premise (which already encodes aerobic gram-neg
+  rod — a deliberate refinement: the two salmonella rules and the hospital-acquired
+  klebsiella rule gain an aerobic requirement, faithful since enterobacteriaceae are
+  facultative). enterobacteriaceae stays a family-level identity for now (retired in
+  Slice C). Re-capture the composed K/S goldens. Therapy untouched (K/S have own KB
+  entries).
+- **Slice B — family roll-up + first new species (E. coli).** Build the
+  species→family fallback in `kb-susceptibility` (foundation, unit-tested first); add
+  E. coli with its first citable discriminator; verify E. coli inherits the
+  enterobacteriaceae family susceptibility.
+- **Slice C — fill the family + disconfirming rules + retire the enterobacteriaceae
+  *identity* (class-only) + item-selection (family as backstop when no species clears
+  the gate).** The deepest, most rippling changes last, once the pattern is proven.
+- **Slice D — invariant/property tests + the two-siblings-near-tied DS conflict
+  golden.**
