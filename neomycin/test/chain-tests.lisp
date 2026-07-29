@@ -152,3 +152,107 @@
                 (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
                 (af "urease" "positive" o) (af "motility" "swarming" o))
               "proteus" 0.64))
+
+;;; ------------------------------------------------------------------
+;;; The composition INVARIANT, stated once over every isolatable tier-2 rule.
+;;;
+;;; The individual chain-tier2-* / rule-* tests above pin specific goldens; this one
+;;; asserts the *law* they all instance: a chained species' belief is exactly the
+;;; enterobacteriaceae class belief (0.8) times the species rule's own belief, because
+;;; belief composes through the derived organism-class (docs/chaining-belief-spike.md
+;;; §7). Under CF that product is the belief; under DS it is [product, 1.0] --
+;;; confirmatory, no conflict. Each case fires a SINGLE tier-2 rule on a minimal
+;;; aerobic-gram-neg-rod lineage plus that rule's discriminators. (The hospital-acquired
+;;; klebsiella rule, 0.6, is deliberately omitted: its premises are a superset of the
+;;; compromised rule's, so it cannot fire alone -- both key off the shared class and
+;;; their masses combine to 0.688, covered by rule-hospital-compromised-klebsiella-combines.)
+;;; ------------------------------------------------------------------
+
+(defparameter *entero-class-belief* 0.8
+  "The tier-1 enterobacteriaceae organism-class belief every tier-2 species composes
+   through. Change here iff the class rule's belief changes.")
+
+(deftest chain-belief-composes-as-class-times-rule ()
+  (dolist (case (list
+                 ;; (species-string rule-belief discriminator-builder)
+                 (list "e-coli"      0.8  (lambda (o p) (declare (ignore p))
+                                            (af "lactose" "fermenter" o) (af "indole" "positive" o)))
+                 (list "enterobacter" 0.6 (lambda (o p) (declare (ignore p))
+                                            (af "lactose" "fermenter" o) (af "indole" "negative" o)
+                                            (af "motility" "motile" o)))
+                 (list "serratia"    0.75 (lambda (o p) (declare (ignore p))
+                                            (af "pigment" "red" o)))
+                 (list "proteus"     0.8  (lambda (o p) (declare (ignore p))
+                                            (af "urease" "positive" o) (af "motility" "swarming" o)))
+                 (list "klebsiella"  0.5  (lambda (o p) (declare (ignore o))
+                                            (af "compromised-host" "t" p)))
+                 (list "salmonella"  0.65 (lambda (o p) (declare (ignore o))
+                                            (af "recent-travel" "tropical" p)))
+                 (list "salmonella"  0.55 (lambda (o p) (declare (ignore o))
+                                            (af "culture-site" "blood" *ctx-culture*)
+                                            (af "white-blood-count" "low" p)))))
+    (destructuring-bind (species rule-belief discriminators) case
+      (let ((expected (* *entero-class-belief* rule-belief))
+            (builder (lambda (o p)
+                       (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                       (funcall discriminators o p))))
+        ;; CF: exactly the product. DS: [product, 1.0] -- confirmatory regime.
+        (check-cf (run-facts :certainty-factors builder) species expected)
+        (check-ds (run-facts :dempster-shafer builder) species expected 1.0)))))
+
+;;; ------------------------------------------------------------------
+;;; Two near-tied siblings + a discriminating biochemical -> DS CONFLICT.
+;;;
+;;; This is the sibling-cluster analogue of culture-2's ambiguous-stain conflict, and
+;;; the reason the urease disconfirming rule was added in C1. Construct an organism the
+;;; biochemistry pulls two ways: lactose+/indole+ refines E. coli (0.8*0.8 = 0.64), while
+;;; urease+/swarming refines Proteus (0.8*0.8 = 0.64) -- two siblings TIED at 0.64 out of
+;;; the shared class. But E. coli is a urease-NEGATIVE species, so the same urease+ reading
+;;; fires `urease-pos-argues-against-urease-negative-organism` (-0.7) against E. coli only.
+;;;
+;;; Under DS this is genuine conflict (K = 0.64*0.7 = 0.448): E. coli's mass renormalizes to
+;;; bel 0.348 and -- the fingerprint -- its PLAUSIBILITY drops to 0.543, below 1.0. Proteus,
+;;; untouched by any disconfirming rule, stays [0.64, 1.0]. The tie is broken by the
+;;; discriminator, and DS shows HOW (a lowered ceiling), not just that a number fell.
+;;; CF collapses the same conflict to a single scalar: E. coli to -0.167 (a negative CF,
+;;; "evidence against"), losing the bel/pl structure DS preserves. (Biologically an isolate
+;;; is not both E. coli and Proteus; like culture-2 this case exists to exercise the belief
+;;; algebra on the cluster, not to model a real organism.)
+;;; ------------------------------------------------------------------
+
+(defun run-sibling-conflict (system)
+  "Aerobic gram-neg rod that reads lactose+/indole+ (E. coli) AND urease+/swarming
+   (Proteus): the urease+ additionally disconfirms the urease-negative E. coli."
+  (run-facts system
+             (lambda (o p) (declare (ignore p))
+               (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+               (af "lactose" "fermenter" o) (af "indole" "positive" o)
+               (af "urease" "positive" o) (af "motility" "swarming" o))))
+
+(deftest chain-sibling-urease-conflict-cf ()
+  ;; CF collapses the conflict: E. coli's 0.64 confirming CF combines with the -0.7
+  ;; disconfirming CF to a single negative number; Proteus is untouched at 0.64.
+  (let ((c (run-sibling-conflict :certainty-factors)))
+    (check-cf c "proteus" 0.64)
+    (check-cf c "e-coli" -0.16667)))
+
+(deftest chain-sibling-urease-conflict-ds ()
+  ;; DS keeps the conflict legible: Proteus clean at [0.64, 1.0]; E. coli renormalized
+  ;; to bel 0.348 with plausibility 0.543 -- a ceiling below 1.0 is the conflict's
+  ;; fingerprint (K = 0.448).
+  (let ((c (run-sibling-conflict :dempster-shafer)))
+    (check-ds c "proteus" 0.64 1.0)
+    (check-ds c "e-coli" 0.34783 0.54348)))
+
+(deftest chain-sibling-conflict-drops-only-the-disconfirmed-plausibility ()
+  ;; The behavioral property behind the goldens: the discriminating urease+ pulls the
+  ;; urease-negative sibling's plausibility below 1.0 while leaving the other sibling's
+  ;; at 1.0 -- DS localizes the conflict to the hypothesis the evidence argues against.
+  (let ((c (run-sibling-conflict :dempster-shafer)))
+    (is (< (belief:ds-belief-pl (belief-of c "e-coli")) 1.0)
+        "urease+ should drop E. coli's plausibility below 1.0 (it is urease-negative)")
+    (is (approx= (belief:ds-belief-pl (belief-of c "proteus")) 1.0)
+        "Proteus plausibility stays 1.0 -- no rule argues against it")
+    (is (> (belief:ds-belief-bel (belief-of c "proteus"))
+           (belief:ds-belief-bel (belief-of c "e-coli")))
+        "the tie breaks in Proteus's favor once E. coli absorbs the urease conflict")))
