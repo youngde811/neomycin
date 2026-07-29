@@ -43,7 +43,7 @@ The expert system recognizes these fact types:
 
 ## Rules in the System
 
-The inference engine contains these 18 diagnostic rules. Rule names are clinically descriptive — when narrating conclusions or discussing partial matches, quote them verbatim rather than paraphrasing.
+The inference engine contains these 19 diagnostic rules. Rule names are clinically descriptive — when narrating conclusions or discussing partial matches, quote them verbatim rather than paraphrasing. One cluster is *chained*: an intermediate **organism-class** (a taxonomic family) is derived first, and sibling species are refined from it (see "Chained intermediate" below), so those species' beliefs compose through the family.
 
 **Original PAIP-derived rules:**
 
@@ -57,14 +57,22 @@ The inference engine contains these 18 diagnostic rules. Rule names are clinical
 **Expanded rules (multi-hypothesis differentials):**
 
 - **hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus** (belief 0.8): Gram-pos + coccus + clumps + hospital-acquired → Staphylococcus aureus
-- **hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella** (belief 0.6): Gram-neg + rod + hospital-acquired + compromised host → Klebsiella
+- **hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella** (belief 0.6): Enterobacteriaceae class + hospital-acquired + compromised host → Klebsiella (tier-2; effective belief ≈ 0.8 × 0.6)
 - **hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas** (belief 0.7): Gram-neg + rod + aerobic + hospital-acquired → Pseudomonas
-- **aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella** (belief 0.5): Gram-neg + rod + aerobic + compromised host → Klebsiella
+- **enterobacteriaceae-in-compromised-host-suggests-klebsiella** (belief 0.5): Enterobacteriaceae class + compromised host → Klebsiella (tier-2; effective belief ≈ 0.8 × 0.5 = 0.40)
 - **respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae** (belief 0.75): Gram-pos + coccus + chains + respiratory site → Streptococcus pneumoniae
-- **gram-neg-rod-with-tropical-travel-suggests-salmonella** (belief 0.65): Gram-neg + rod + recent tropical travel → Salmonella
+- **enterobacteriaceae-with-tropical-travel-suggests-salmonella** (belief 0.65): Enterobacteriaceae class + recent tropical travel → Salmonella (tier-2; effective belief ≈ 0.8 × 0.65 = 0.52)
 - **gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus** (belief 0.7): Blood culture + gram-pos + coccus + chains + compromised host → Enterococcus
-- **gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella** (belief 0.55): Gram-neg + rod + blood culture + low WBC → Salmonella
+- **enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella** (belief 0.55): Enterobacteriaceae class + blood culture + low WBC → Salmonella (tier-2; effective belief ≈ 0.8 × 0.55 = 0.44)
 - **anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides** (belief 0.8): Gram-neg + rod + anaerobic + abdominal site → Bacteroides
+
+**Chained intermediate (enterobacteriaceae family):**
+
+The engine derives an intermediate **organism-class** — a taxonomic *family* — from which sibling species are refined. This is the one two-hop inference in the corpus:
+
+- **aerobic-gram-neg-rod-suggests-enterobacteriaceae-class** (belief 0.8): Gram-neg + rod + aerobic → organism-class Enterobacteriaceae (the family)
+
+The Klebsiella and Salmonella rules above are **tier-2 refinements** that fire off this derived class rather than raw gram-stain evidence, so their belief *composes through* it: the species belief in conclusions is ≈ 0.8 (the class) × the rule's own belief. Because those rules now depend on the class, they also require aerobic growth (the family is an aerobic gram-neg rod) — so without an aerobicity result, Klebsiella/Salmonella won't yet fire. When narrating, explain that they're refined *from* the enterobacteriaceae family, which is why their beliefs run lower than the raw rule numbers. (The one-hop **aerobic-gram-neg-rod-suggests-enterobacteriaceae** rule still reports the family itself as a provisional identity.)
 
 **Ruling-out (disconfirming) rules:**
 

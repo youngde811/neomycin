@@ -79,8 +79,9 @@ Transcript flags: `--no-transcript`, `--transcript-verbosity {minimal,normal,ful
 **Rules that fire**:
 - `gram-neg-rod-in-burn-patient-suggests-pseudomonas` (0.4)
 - `gram-neg-rod-in-compromised-host-suggests-pseudomonas` (0.6)
-- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8)
-- `aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella` (0.5)
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8) — family-level identity
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.5, tier-2) — composes to 0.8×0.5 = 0.40
 
 **Expected differential**:
 - **Enterobacteriaceae** — single rule, strongest single hypothesis.
@@ -88,9 +89,9 @@ Transcript flags: `--no-transcript`, `--transcript-verbosity {minimal,normal,ful
 - **Pseudomonas** — two rules conclude it, so belief combines.
   - CF: `~0.76` (0.4 ⊕ 0.6 = 0.4 + 0.6 − 0.24)
   - DS: `bel ~0.76`, `pl 1.0`, `ignorance ~0.24`
-- **Klebsiella** — single rule with a moderate belief; enters the
-  differential but with wide ignorance.
-  - CF: `0.5`, DS: `bel 0.5, pl 1.0, ignorance 0.5`
+- **Klebsiella** — a *chained* (tier-2) refinement of the enterobacteriaceae
+  family: its belief composes through the class (0.8 × 0.5), landing lower.
+  - CF: `0.40`, DS: `bel 0.40, pl 1.0, ignorance 0.60`
 
 This is the canonical case for showing "multiple rules → belief
 combination" (on pseudomonas), and simultaneously for showing how a
@@ -112,15 +113,17 @@ It's also the anchor case in the README.
 
 **Rules that fire**:
 - `gram-neg-rod-in-compromised-host-suggests-pseudomonas` (0.6)
-- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8)
-- `hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella` (0.6)
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8) — family-level identity
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.6, tier-2)
 - `hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas` (0.7)
-- `aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella` (0.5)
+- `enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.5, tier-2)
 
 **Expected differential**:
 - **Pseudomonas** — two rules → combined belief. CF ~0.88; DS bel ~0.88, low
   ignorance.
-- **Klebsiella** — two rules → combined belief. CF ~0.80; DS bel ~0.80.
+- **Klebsiella** — two *chained* (tier-2) rules → combined belief, each composing
+  through the family (0.8×0.6 and 0.8×0.5). CF ~0.688; DS bel ~0.688.
 - **Enterobacteriaceae** — single rule. CF 0.8; DS bel 0.8, ignorance 0.2.
 
 Good three-way differential. Exercises the hospital-acquired branch of the
@@ -166,12 +169,14 @@ source?" completes the *strep-pneumoniae* rule).
 `morphology=rod`, `aerobicity=aerobic`.
 
 **Rules that fire**:
-- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8)
-- `gram-neg-rod-with-tropical-travel-suggests-salmonella` (0.65)
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8) — family-level identity
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `enterobacteriaceae-with-tropical-travel-suggests-salmonella` (0.65, tier-2)
 
 **Expected differential**:
 - **Enterobacteriaceae** — CF 0.8, DS bel 0.8 / ignorance 0.2
-- **Salmonella** — CF 0.65, DS bel 0.65 / ignorance 0.35
+- **Salmonella** — a *chained* (tier-2) refinement: belief composes 0.8 × 0.65.
+  CF 0.52, DS bel 0.52 / ignorance 0.48
 
 Enterobacteriaceae is the correct broader hypothesis (Salmonella is one of
 them); worth having Claude explain the taxonomic relationship after
@@ -190,19 +195,26 @@ narrating the beliefs.
 scenario.)
 
 **Rules that fire**:
-- `gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella` (0.55)
+- (none conclude yet) — the low-WBC salmonella rule is now a *tier-2* refinement
+  (`enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella`, 0.55), so it needs
+  the enterobacteriaceae **class** established first, and the class requires an
+  aerobicity result. Without aerobicity, neither the family nor Salmonella fires.
 
 **Expected partial matches**:
-Multiple rules are one fact away from firing — this is a good scenario for
-demonstrating `get_partial_matches` and Claude asking "do you have
-aerobicity results?" as the discriminating question.
+Because aerobicity isn't yet available, the enterobacteriaceae class hasn't been
+derived, so Salmonella can't be refined from it. This makes the case an even sharper
+demonstration of `get_partial_matches` and Claude asking "do you have aerobicity
+results?" as *the* discriminating question — without it, the family (and every
+species under it) stays out of reach.
 
 **Expected differential (with only the facts above)**:
-- **Salmonella** — CF 0.55, DS bel 0.55 / ignorance 0.45 (wide — a good
-  DS-narration teaching moment)
+- (nothing concluded yet — aerobicity is the gating fact for the whole family)
 
 If aerobicity=aerobic is added, `aerobic-gram-neg-rod-suggests-enterobacteriaceae`
-also fires and the differential broadens.
+(the family identity) and `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class`
+(the family class) both fire; the class then lets the tier-2 rule refine Salmonella,
+composing to 0.8 × 0.55 = 0.44. The differential broadens from nothing to the family
+plus Salmonella.
 
 ---
 
@@ -363,13 +375,14 @@ textbook says ~70%."**
 | aerobic-gram-neg-rod-suggests-enterobacteriaceae | 1, 2, 4 |
 | gram-pos-cocci-in-chains-suggests-streptococcus | 3 |
 | hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus | (variant of 2) |
-| hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella | 2 |
+| hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella (tier-2) | 2 |
 | hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas | 2 |
-| aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella | 1, 2 |
+| enterobacteriaceae-in-compromised-host-suggests-klebsiella (tier-2) | 1, 2 |
 | respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae | 3 |
-| gram-neg-rod-with-tropical-travel-suggests-salmonella | 4 |
+| enterobacteriaceae-with-tropical-travel-suggests-salmonella (tier-2) | 4 |
 | gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus | 3 |
-| gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella | 5 |
+| enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella (tier-2) | 5 |
+| aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (tier-1) | 1, 2, 4 |
 | anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides | 6 |
 | gram-pos-stain-argues-against-gram-neg-organism | 7 |
 | gram-neg-stain-argues-against-gram-pos-organism | (needs a gram-neg reading alongside a live gram-positive hypothesis) |

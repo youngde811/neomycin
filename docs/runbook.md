@@ -47,10 +47,12 @@ The system has two halves that talk over HTTP:
   observations into structured facts, calls Lisa's endpoints as tool-use
   invocations, and narrates the results with full rule-level traceability.
 
-The MYCIN rulebase currently has **18 rules** covering gram-stain morphology,
+The MYCIN rulebase currently has **19 rules** covering gram-stain morphology,
 site-of-culture context, host status (burn / immunocompromised /
-hospital-acquired), travel history, and WBC — including **three disconfirming
-rules** that argue *against* a hypothesis (a contradictory stain or oxygen
+hospital-acquired), travel history, and WBC — including a **tier-1 organism-class
+chain rule** (deriving the enterobacteriaceae *family*, from which Klebsiella and
+Salmonella are refined) and **three disconfirming rules** that argue *against* a
+hypothesis (a contradictory stain or oxygen
 requirement), which is what lets Dempster-Shafer's conflict handling produce
 plausibility below 1.0. See
 [`docs/clinician-scenarios.md`](clinician-scenarios.md) for the full annotated
@@ -227,10 +229,11 @@ That's belief combination — two independent lines of evidence for the same
 hypothesis reinforcing each other via `combine-beliefs`.
 
 Also note the *ignorance widths* across the three hypotheses (0.20 / 0.24 /
-0.50). Klebsiella is a real hit on this evidence — the
-`aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella` rule (belief
-0.5) matches — but with only one rule supporting it and a moderate rule
-belief, DS honestly reports "50% supported, 50% still unresolved." That's
+0.60). Klebsiella is a real hit on this evidence — the
+`enterobacteriaceae-in-compromised-host-suggests-klebsiella` rule (belief 0.5)
+matches off the derived enterobacteriaceae *class* — but its belief composes
+through the family (0.8 × 0.5 = 0.40), so with a single supporting rule and a
+moderate belief, DS honestly reports "40% supported, 60% still unresolved." That's
 exactly the sort of nuance CF collapses into a single number.
 
 Ask Claude a follow-up: *"Why is pseudomonas at 0.76 and not 1.0?"* — it will

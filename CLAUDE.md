@@ -66,8 +66,9 @@ and emits `{bel, pl, ignorance}` payloads under DS.
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rulebase.lisp       — THE canonical MYCIN rulebase: 18 rules (incl. 3 disconfirming),
-                        keyword vocabulary, culture-1/1a/2/3 demo drivers
+  rulebase.lisp       — THE canonical MYCIN rulebase: 19 rules (15 confirming + 1 tier-1
+                        organism-class chain rule + 3 disconfirming), keyword vocabulary,
+                        culture-1/1a/2/3 demo drivers
   therapy/            — therapy-recommendation phase (own :neomycin-therapy package, nick :therapy)
     package.lisp      — package definition + exports
     protocol.lisp     — pluggable solver protocol, recommendation structs, policy dials
@@ -173,7 +174,7 @@ computation changes intentionally, re-capture and update the goldens in `tests/s
 Identification and therapy both run end to end:
 
 - **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
-- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (18 rules), uncertainty-mapping **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (19 rules), uncertainty-mapping **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
 - **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
 
 ### Running the Clinician Driver
