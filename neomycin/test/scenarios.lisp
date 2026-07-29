@@ -22,14 +22,14 @@
 (deftest cf-culture-1 ()
   (let ((c (run-scenario 'lisa-user::culture-1 :certainty-factors)))
     (check-cf c "pseudomonas" 0.76)
-    (check-cf c "enterobacteriaceae" 0.80)
-    (check-cf c "klebsiella" 0.50)
+    (check-cf c "enterobacteriaceae" 0.80)   ; family-level identity, still one-hop (Slice A)
+    (check-cf c "klebsiella" 0.40)           ; chained via organism-class: 0.8*0.5
     (check-absent c "bacteroides")))
 
 (deftest cf-culture-1a ()
   (let ((c (run-scenario 'lisa-user::culture-1a :certainty-factors)))
     (check-cf c "pseudomonas" 0.88)
-    (check-cf c "klebsiella" 0.80)
+    (check-cf c "klebsiella" 0.688)          ; chained: (0.8*0.6) combine (0.8*0.5)
     (check-cf c "enterobacteriaceae" 0.80)))
 
 (deftest cf-culture-2 ()
@@ -52,12 +52,12 @@
   (let ((c (run-scenario 'lisa-user::culture-1 :dempster-shafer)))
     (check-ds c "pseudomonas" 0.76 1.00)
     (check-ds c "enterobacteriaceae" 0.80 1.00)
-    (check-ds c "klebsiella" 0.50 1.00)))
+    (check-ds c "klebsiella" 0.40 1.00)))    ; chained via organism-class: 0.8*0.5
 
 (deftest ds-culture-1a ()
   (let ((c (run-scenario 'lisa-user::culture-1a :dempster-shafer)))
     (check-ds c "pseudomonas" 0.88 1.00)
-    (check-ds c "klebsiella" 0.80 1.00)
+    (check-ds c "klebsiella" 0.688 1.00)     ; chained: (0.8*0.6) combine (0.8*0.5)
     (check-ds c "enterobacteriaceae" 0.80 1.00)))
 
 (deftest ds-culture-2 ()

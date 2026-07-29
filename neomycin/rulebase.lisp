@@ -191,11 +191,15 @@
   =>
   (assert (organism-identity (value :staphylococcus-aureus) (of ?o))))
 
-(defrule hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.6)
+;; Tier-2 (chained): refines the enterobacteriaceae class -> klebsiella. The raw
+;; gram-neg-rod premises are replaced by organism-class (which already encodes
+;; aerobic gram-neg rod), so belief composes 0.8*0.6 through the intermediate and
+;; the aerobic requirement now rides in via the class -- faithful, as
+;; enterobacteriaceae are facultative. Re-parented from the one-hop leaf.
+(defrule hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella (:belief 0.6)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (hospital-acquired (value t) (of ?p))
   (compromised-host (value t) (of ?p))
   =>
@@ -211,12 +215,14 @@
   =>
   (assert (organism-identity (value :pseudomonas) (of ?o))))
 
-(defrule aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.5)
+;; Tier-2 (chained): enterobacteriaceae class + compromised host -> klebsiella.
+;; Belief composes 0.8*0.5. (The old rule's explicit aerobic premise is subsumed
+;; by the class, so this is behaviour-equivalent on firing conditions, only the
+;; belief now flows through the intermediate.)
+(defrule enterobacteriaceae-in-compromised-host-suggests-klebsiella (:belief 0.5)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
-  (aerobicity (value aerobic) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
   (assert (organism-identity (value :klebsiella) (of ?o))))
@@ -231,11 +237,13 @@
   =>
   (assert (organism-identity (value :streptococcus-pneumoniae) (of ?o))))
 
-(defrule gram-neg-rod-with-tropical-travel-suggests-salmonella (:belief 0.65)
+;; Tier-2 (chained): enterobacteriaceae class + tropical travel -> salmonella.
+;; Belief composes 0.8*0.65. Re-parenting adds an aerobic requirement (via the
+;; class) the one-hop rule lacked -- faithful, salmonella is enterobacteriaceae.
+(defrule enterobacteriaceae-with-tropical-travel-suggests-salmonella (:belief 0.65)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (recent-travel (value tropical) (of ?p))
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))
@@ -251,12 +259,14 @@
   =>
   (assert (organism-identity (value :enterococcus) (of ?o))))
 
-(defrule gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
+;; Tier-2 (chained): enterobacteriaceae class + blood + low WBC -> salmonella.
+;; Belief composes 0.8*0.55. Re-parenting adds an aerobic requirement (via the
+;; class) the one-hop rule lacked -- faithful, salmonella is enterobacteriaceae.
+(defrule enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (white-blood-count (value low) (of ?p))
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))

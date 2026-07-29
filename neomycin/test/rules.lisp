@@ -68,11 +68,18 @@
                 (af "hospital-acquired" "t" p))
               "staphylococcus-aureus" 0.8))
 
-(deftest rule-hospital-gram-neg-rod-compromised-klebsiella () ; 0.6
+(deftest rule-hospital-compromised-klebsiella-combines () ; 0.688 = (0.8*0.6) combine (0.8*0.5)
+  ;; NOT an isolation: with hospital-acquired + compromised, BOTH klebsiella rules
+  ;; fire off the shared organism-class -- the hospital rule (0.8*0.6 = 0.48) and the
+  ;; compromised rule (0.8*0.5 = 0.40) -- and their masses combine to 0.688 (this is
+  ;; culture-1a's klebsiella). The hospital rule's premises are a superset of the
+  ;; compromised rule's, so once both key off the class it cannot be fired alone; the
+  ;; compromised rule IS isolated separately (rule-enterobacteriaceae-compromised-klebsiella).
   (check-rule (lambda (o p)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
+                (af "aerobicity" "aerobic" o)
                 (af "hospital-acquired" "t" p) (af "compromised-host" "t" p))
-              "klebsiella" 0.6))
+              "klebsiella" 0.688))
 
 (deftest rule-hospital-aerobic-gram-neg-rod-pseudomonas () ; 0.7
   (check-rule (lambda (o p)
@@ -80,11 +87,12 @@
                 (af "aerobicity" "aerobic" o) (af "hospital-acquired" "t" p))
               "pseudomonas" 0.7))
 
-(deftest rule-aerobic-gram-neg-rod-compromised-klebsiella () ; 0.5
+(deftest rule-enterobacteriaceae-compromised-klebsiella () ; chained: 0.8*0.5 = 0.40
+  ;; Tier-2: organism-class (0.8) + compromised host refines to klebsiella (rule 0.5) = 0.40.
   (check-rule (lambda (o p)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
                 (af "aerobicity" "aerobic" o) (af "compromised-host" "t" p))
-              "klebsiella" 0.5))
+              "klebsiella" 0.40))
 
 (deftest rule-respiratory-gram-pos-cocci-chains-strep-pneumoniae () ; 0.75
   (check-rule (lambda (o p)
@@ -93,11 +101,13 @@
                 (af "infection-site" "respiratory" p))
               "streptococcus-pneumoniae" 0.75))
 
-(deftest rule-gram-neg-rod-travel-salmonella () ; 0.65
+(deftest rule-enterobacteriaceae-travel-salmonella () ; chained: 0.8*0.65 = 0.52
+  ;; Tier-2: organism-class (0.8) + tropical travel refines to salmonella (rule 0.65) = 0.52.
   (check-rule (lambda (o p)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
+                (af "aerobicity" "aerobic" o)
                 (af "recent-travel" "tropical" p))
-              "salmonella" 0.65))
+              "salmonella" 0.52))
 
 (deftest rule-gram-pos-cocci-chains-blood-compromised-enterococcus () ; 0.7
   (check-rule (lambda (o p)
@@ -107,12 +117,14 @@
                 (af "compromised-host" "t" p))
               "enterococcus" 0.7))
 
-(deftest rule-gram-neg-rod-blood-low-wbc-salmonella () ; 0.55
+(deftest rule-enterobacteriaceae-blood-low-wbc-salmonella () ; chained: 0.8*0.55 = 0.44
+  ;; Tier-2: organism-class (0.8) + blood + low WBC refines to salmonella (rule 0.55) = 0.44.
   (check-rule (lambda (o p)
                 (af "culture-site" "blood" *ctx-culture*)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
+                (af "aerobicity" "aerobic" o)
                 (af "white-blood-count" "low" p))
-              "salmonella" 0.55))
+              "salmonella" 0.44))
 
 (deftest rule-anaerobic-gram-neg-rod-abdomen-bacteroides () ; 0.8
   (check-rule (lambda (o p)
