@@ -92,12 +92,16 @@
 ;;; --------------------------------------------------------------------------
 ;;; A family member with no sensitivity of its own inherits its family's curated
 ;;; figure (empiric therapy is pitched at the family level; chaining decision 4,
-;;; docs/chaining-belief-spike.md §7). :e-coli carries NO species-specific entries,
-;;; so it falls back entirely to :enterobacteriaceae below. :klebsiella / :salmonella
-;;; carry their own entries and are mapped in a later slice (alongside any per-drug
-;;; overrides they need, e.g. salmonella must NOT silently inherit the family's
-;;; gentamicin figure). Taxonomy is citable to any clinical microbiology reference.
-(deffamily :enterobacteriaceae :e-coli)
+;;; docs/chaining-belief-spike.md §7). Membership also drives item-selection: when a
+;;; member SPECIES is identified, the family is not separately treated (the species
+;;; covers it); the family is treated only as a backstop when NO member species
+;;; clears the gate. :e-coli / :enterobacter / :serratia / :proteus carry no
+;;; species-specific entries and fall back entirely to :enterobacteriaceae. :klebsiella
+;;; carries its own entries for every family drug (roll-up never triggers). :salmonella
+;;; carries its own entries too, plus an explicit gentamicin override above so it does
+;;; NOT inherit the family's aminoglycoside figure. Taxonomy is citable to any clinical
+;;; microbiology reference.
+(deffamily :enterobacteriaceae :e-coli :enterobacter :serratia :proteus :klebsiella :salmonella)
 
 ;;; --------------------------------------------------------------------------
 ;;; Beta-lactams: anti-pseudomonal cephalosporin (WHO AWaRe: Watch)
@@ -181,6 +185,11 @@
 (defsensitivity :pseudomonas        :gentamicin (belief:make-ds-belief 0.48 0.88)) ; [PROVISIONAL] highly antibiogram-dependent
 (defsensitivity :enterobacteriaceae :gentamicin (belief:make-ds-belief 0.64 0.90))
 (defsensitivity :klebsiella         :gentamicin (belief:make-ds-belief 0.64 0.90))
+;; Explicit salmonella override so the family roll-up does NOT lend salmonella the
+;; family's gentamicin figure: aminoglycosides test susceptible in vitro but are
+;; clinically unreliable against intracellular salmonella. [PROVISIONAL] and below
+;; the coverage gate, so gentamicin does not count as covering salmonella.
+(defsensitivity :salmonella         :gentamicin (belief:make-ds-belief 0.30 0.55)) ; [PROVISIONAL] poor intracellular activity
 (defcontraindication :gentamicin :when (:renal-impaired :pregnancy))
 
 ;;; --------------------------------------------------------------------------

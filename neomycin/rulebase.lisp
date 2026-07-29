@@ -113,6 +113,9 @@
 ;; Biochemical discriminators for enterobacteriaceae species refinement (tier 2).
 (defclass lactose (param-mixin) ())     ; value = fermenter | non-fermenter
 (defclass indole (param-mixin) ())      ; value = positive | negative
+(defclass motility (param-mixin) ())    ; value = motile | non-motile | swarming
+(defclass urease (param-mixin) ())      ; value = positive | negative
+(defclass pigment (param-mixin) ())     ; value = red | none
 
 ;; Conclusion (organism level)
 (defclass organism-identity (param-mixin) ())
@@ -340,6 +343,43 @@
   =>
   (assert (organism-identity (value :e-coli) (of ?o))))
 
+;; Enterobacter: lactose-fermenting, indole-NEGATIVE, and MOTILE -- the motility is
+;; what separates it from Klebsiella (lactose+/indole- but NON-motile). Belief 0.6
+;; (moderate: it shares lactose+/indole- with Klebsiella, so motility is the only
+;; discriminator; a near-tie by design). Composes to 0.8*0.6 = 0.48.
+;; Provenance: neomycin-extrapolation; biochemistry per NCBI Medical Microbiology
+;; ch. 26 (NBK8035): Enterobacter motile, Klebsiella non-motile.
+(defrule enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter (:belief 0.6)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (lactose (value fermenter) (of ?o))
+  (indole (value negative) (of ?o))
+  (motility (value motile) (of ?o))
+  =>
+  (assert (organism-identity (value :enterobacter) (of ?o))))
+
+;; Serratia (marcescens): RED PIGMENT (prodigiosin) is the distinctive marker.
+;; Belief 0.75 (distinctive but not universal -- many clinical isolates are
+;; non-pigmented). Composes to 0.8*0.75 = 0.60. Provenance: neomycin-extrapolation;
+;; prodigiosin per NCBI NBK8035 (Serratia "red pigment").
+(defrule enterobacteriaceae-red-pigment-suggests-serratia (:belief 0.75)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (pigment (value red) (of ?o))
+  =>
+  (assert (organism-identity (value :serratia) (of ?o))))
+
+;; Proteus: rapid UREASE and SWARMING motility -- both highly characteristic.
+;; Belief 0.8 (distinctive pair). Composes to 0.8*0.8 = 0.64. Provenance:
+;; neomycin-extrapolation; swarming + rapid urease (+ H2S) per NCBI NBK8035.
+(defrule enterobacteriaceae-urease-pos-swarming-suggests-proteus (:belief 0.8)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (urease (value positive) (of ?o))
+  (motility (value swarming) (of ?o))
+  =>
+  (assert (organism-identity (value :proteus) (of ?o))))
+
 ;;; --- Ruling-out (disconfirming) rules ---
 ;;;
 ;;; These inject *negative* evidence: a contradictory Gram stain or oxygen
@@ -357,7 +397,8 @@
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella :e-coli :bacteroides)))
+  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella
+                         :e-coli :enterobacter :serratia :proteus :bacteroides)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
@@ -375,6 +416,19 @@
   (aerobicity (value aerobic) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:bacteroides)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; Biochemical disconfirmation among the enterobacteriaceae siblings: a positive
+;; urease argues AGAINST the urease-negative species (E. coli, Salmonella). This is
+;; what lets a contradictory biochemical finding pull a species' plausibility below
+;; 1.0 -- the DS-conflict material for near-tied siblings. Provenance:
+;; neomycin-extrapolation; E. coli/Salmonella urease-negative per NCBI NBK8035.
+(defrule urease-pos-argues-against-urease-negative-organism (:belief -0.7)
+  (organism (id ?o))
+  (urease (value positive) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:e-coli :salmonella)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 

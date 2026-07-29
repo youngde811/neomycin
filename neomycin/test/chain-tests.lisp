@@ -113,3 +113,26 @@
              (= (belief:ds-belief-bel eco) (belief:ds-belief-bel fam))
              (= (belief:ds-belief-pl eco) (belief:ds-belief-pl fam)))
         "e-coli's meropenem susceptibility equals the enterobacteriaceae family figure (roll-up)")))
+
+(deftest chain-tier2-enterobacter-composes-through-class () ; 0.8*0.6 = 0.48
+  ;; lactose+ / indole- / MOTILE -> Enterobacter (motility separates it from
+  ;; non-motile Klebsiella). Composed 0.8*0.6 = 0.48.
+  (check-rule (lambda (o p) (declare (ignore p))
+                (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                (af "lactose" "fermenter" o) (af "indole" "negative" o)
+                (af "motility" "motile" o))
+              "enterobacter" 0.48))
+
+(deftest chain-tier2-serratia-composes-through-class () ; 0.8*0.75 = 0.60
+  ;; Red pigment (prodigiosin) -> Serratia. Composed 0.8*0.75 = 0.60.
+  (check-rule (lambda (o p) (declare (ignore p))
+                (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                (af "pigment" "red" o))
+              "serratia" 0.60))
+
+(deftest chain-tier2-proteus-composes-through-class () ; 0.8*0.8 = 0.64
+  ;; Urease+ and swarming -> Proteus. Composed 0.8*0.8 = 0.64.
+  (check-rule (lambda (o p) (declare (ignore p))
+                (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                (af "urease" "positive" o) (af "motility" "swarming" o))
+              "proteus" 0.64))
