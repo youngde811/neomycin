@@ -47,7 +47,12 @@
   (contraindications (make-hash-table :test #'eq))
   ;; list of (drug . drug) forbidden pairs -- stored now, consumed by a later
   ;; interaction-aware solver increment (design doc 4.3 step 4)
-  (interactions '()))
+  (interactions '())
+  ;; species id -> family id (taxonomy). A species with no sensitivity of its own
+  ;; inherits its family's figure in KB-SUSCEPTIBILITY -- empiric therapy is pitched
+  ;; at the family level, so the KB's structure mirrors the corpus's class->species
+  ;; refinement (docs/chaining-belief-spike.md §7, decision 4).
+  (families (make-hash-table :test #'eq)))
 
 (defun make-therapy-kb ()
   "Create an empty therapy knowledge base."
@@ -89,6 +94,13 @@
         (union (gethash drug (therapy-kb-contraindications kb)) triggers))
   drug)
 
+(defun add-family-member (kb species family)
+  "Record that SPECIES belongs to FAMILY (taxonomy), so KB-SUSCEPTIBILITY can roll a
+   species with no sensitivity of its own up to its family's figure. Idempotent:
+   re-authoring a species overwrites its family."
+  (setf (gethash species (therapy-kb-families kb)) family)
+  species)
+
 ;;; ------------------------------------------------------------------
 ;;; Accessor API (what the solver calls; pure reads, no policy/belief logic).
 ;;; ------------------------------------------------------------------
@@ -102,6 +114,11 @@
    DRUG, or NIL if no local isolates are recorded."
   (gethash (cons organism drug) (therapy-kb-antibiogram kb)))
 
+(defun kb-family-of (kb organism)
+  "The family ORGANISM belongs to (e.g. :enterobacteriaceae for :e-coli), or NIL if
+   ORGANISM is not a mapped family member."
+  (gethash organism (therapy-kb-families kb)))
+
 (defun kb-susceptibility (kb drug organism)
   "The belief-valued susceptibility of ORGANISM to DRUG -- the solver's single read
    point. When a site-local antibiogram count exists for this (organism, drug), its
@@ -114,7 +131,14 @@
    intervals natively, so this returns a ds-belief under CF and DS alike, and
    SUSCEPTIBILITY->SCALAR reduces it through the coverage gate regardless of the
    active identification algebra."
-  (let ((canonical (gethash (cons organism drug) (therapy-kb-sensitivities kb)))
+  (let ((canonical (or (gethash (cons organism drug) (therapy-kb-sensitivities kb))
+                       ;; Family roll-up: a species with no sensitivity of its own
+                       ;; inherits its family's curated figure (empiric therapy is
+                       ;; pitched at the family level). A species-specific entry, if
+                       ;; present, always wins -- the OR short-circuits before this.
+                       (let ((family (kb-family-of kb organism)))
+                         (and family
+                              (gethash (cons family drug) (therapy-kb-sensitivities kb))))))
         (counts (kb-antibiogram kb organism drug)))
     (if counts
         (combine-susceptibility canonical

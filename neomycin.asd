@@ -68,14 +68,22 @@
 ;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
 ;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
 ;;; (asdf:load-system "neomycin/test") followed by (lisa-test:run-all).
+;;; Depends on lisa/test-base (the rulebase-independent harness + belief-algebra),
+;;; NOT lisa/test -- neomycin ships its OWN forked golden files (scenarios, rules)
+;;; validating neomycin/rulebase.lisp, which diverges from Lisa's examples/mycin.lisp
+;;; once rules are re-parented (docs/chaining-belief-spike.md §7.1). setup.lisp loads
+;;; first and repoints the shared harness at neomycin's canonical rulebase.
 (asdf:defsystem "neomycin/test"
-  :description "Fixture-based tests for neomycin's therapy solver (no external deps)."
-  :depends-on ("neomycin" "lisa/test")
+  :description "Fixture-based tests for neomycin's rulebase + therapy solver (no external deps)."
+  :depends-on ("neomycin" "lisa/test-base")
   :components
   ((:module neomycin
     :components
       ((:module "test"
         :components ((:file "setup")
+                     (:file "scenarios")
+                     (:file "rules")
+                     (:file "chain-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))

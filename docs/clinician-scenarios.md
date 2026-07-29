@@ -1,9 +1,9 @@
 # Clinician Scenarios for the MYCIN Rulebase
 
-A curated set of vignettes for driving the expanded 18-rule MYCIN rulebase
-(`examples/mycin.lisp`) through the Claude driver
-(`src/llm/claude/driver.py`) and the HTTP bridge. Each scenario is written
-the way a clinician might present a case at the bedside, and each is
+A curated set of vignettes for driving the 23-rule neomycin MYCIN rulebase
+(`neomycin/rulebase.lisp` — **not** Lisa's `examples/mycin.lisp`) through the
+Claude driver (`src/llm/claude/driver.py`) and the HTTP bridge. Each scenario is
+written the way a clinician might present a case at the bedside, and each is
 annotated with:
 
 - **Facts to be extracted** — what Claude should turn the vignette into
@@ -11,13 +11,22 @@ annotated with:
 - **Expected differential** — the organism hypotheses and belief behavior,
   contrasted between certainty factors (CF) and Dempster-Shafer (DS)
 
-Together Scenarios 1–7 exercise most of the base directly, and Scenario 7
-reaches the disconfirming rules. Two `clumps`-based gram-positive rules
-(staphylococcus, staph-aureus) and two of the three disconfirming rules are
-reachable only by the noted variations (see the coverage matrix). Critically,
-several cases produce situations where *multiple rules conclude the same
-organism* — which is where belief combination becomes visible — and Scenario 7
-produces *conflicting* evidence, which is where CF and DS diverge.
+Together Scenarios 1–7 exercise most of the base directly; Scenarios 9–10 cover
+the biochemical enterobacteriaceae species (E. coli, Enterobacter, Serratia,
+Proteus) and the therapy family-backstop. Scenario 7 reaches the disconfirming
+rules. Two `clumps`-based gram-positive rules (staphylococcus, staph-aureus) and
+several disconfirming rules are reachable only by the noted variations (see the
+coverage matrix). Critically, several cases produce situations where *multiple
+rules conclude the same organism* — which is where belief combination becomes
+visible — and Scenario 7 produces *conflicting* evidence, which is where CF and DS
+diverge.
+
+**A note on enterobacteriaceae (post-C2):** the family is an **organism-class**, not
+a leaf identity. An aerobic gram-neg rod derives the *class* (0.8); specific species
+(Klebsiella, Salmonella, E. coli, Enterobacter, Serratia, Proteus) are refined *from*
+it and are what appear in `/conclusions`. "Enterobacteriaceae" itself never appears as
+an identity — but on the therapy side the solver still covers the family empirically
+as a **backstop** when no member species was pinned down (Scenario 10).
 
 **Scenario 8** steps past identification to the **therapy** side: it shows the
 **antibiogram overlay** changing the recommended regimen once a site-local
@@ -30,17 +39,20 @@ reference would miss.
 Start the bridge under the belief system you want to see:
 
 ```bash
-# Dempster-Shafer (default)
+# Dempster-Shafer (default). Loads neomycin's canonical rulebase — NOT
+# examples/mycin.lisp, which is Lisa-proper and lacks the chained cluster.
 sbcl --load lisa.asd \
-     --eval '(asdf:load-system :lisa)' \
-     --eval '(in-package :lisa-user)' \
-     --eval '(load "examples/mycin.lisp")' \
-     --eval '(asdf:load-system :lisa-bridge)' \
+     --eval '(load "lisa-bridge.asd")' \
+     --eval '(load "neomycin.asd")' \
+     --eval '(asdf:load-system :neomycin)' \
      --eval '(lisa-bridge:start)'
 
 # Certainty factors (override with the env var)
 LISA_BELIEF_SYSTEM=cf sbcl --load lisa.asd ...  (same, just the env var)
 ```
+
+(Or simply `(load "neomycin.lisp")`, the convenience loader that does the above
+and starts the bridge on 8090.)
 
 Then start the driver in another shell:
 
@@ -79,23 +91,24 @@ Transcript flags: `--no-transcript`, `--transcript-verbosity {minimal,normal,ful
 **Rules that fire**:
 - `gram-neg-rod-in-burn-patient-suggests-pseudomonas` (0.4)
 - `gram-neg-rod-in-compromised-host-suggests-pseudomonas` (0.6)
-- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8)
-- `aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella` (0.5)
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.5, tier-2) — composes to 0.8×0.5 = 0.40
 
-**Expected differential**:
-- **Enterobacteriaceae** — single rule, strongest single hypothesis.
-  - CF: `0.8`, DS: `bel 0.8, pl 1.0, ignorance 0.2`
+**Expected differential** (identities in `/conclusions`):
 - **Pseudomonas** — two rules conclude it, so belief combines.
   - CF: `~0.76` (0.4 ⊕ 0.6 = 0.4 + 0.6 − 0.24)
   - DS: `bel ~0.76`, `pl 1.0`, `ignorance ~0.24`
-- **Klebsiella** — single rule with a moderate belief; enters the
-  differential but with wide ignorance.
-  - CF: `0.5`, DS: `bel 0.5, pl 1.0, ignorance 0.5`
+- **Klebsiella** — a *chained* (tier-2) refinement of the enterobacteriaceae
+  family: its belief composes through the class (0.8 × 0.5), landing lower.
+  - CF: `0.40`, DS: `bel 0.40, pl 1.0, ignorance 0.60`
+- **Enterobacteriaceae (class, not an identity)** — the derived organism-*class*
+  at `0.8` sits behind Klebsiella but does **not** appear in `/conclusions`. Ask
+  for lactose/indole/motility/urease/pigment to resolve the species further.
 
 This is the canonical case for showing "multiple rules → belief
 combination" (on pseudomonas), and simultaneously for showing how a
-single-rule hypothesis with a moderate belief factor produces a wide
-ignorance interval under DS — a nuance CF collapses to a single number.
+single-rule *chained* hypothesis (Klebsiella) produces a wide ignorance
+interval under DS — a nuance CF collapses to a single number.
 It's also the anchor case in the README.
 
 ---
@@ -112,19 +125,21 @@ It's also the anchor case in the README.
 
 **Rules that fire**:
 - `gram-neg-rod-in-compromised-host-suggests-pseudomonas` (0.6)
-- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8)
-- `hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella` (0.6)
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.6, tier-2)
 - `hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas` (0.7)
-- `aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella` (0.5)
+- `enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.5, tier-2)
 
-**Expected differential**:
+**Expected differential** (identities in `/conclusions`):
 - **Pseudomonas** — two rules → combined belief. CF ~0.88; DS bel ~0.88, low
   ignorance.
-- **Klebsiella** — two rules → combined belief. CF ~0.80; DS bel ~0.80.
-- **Enterobacteriaceae** — single rule. CF 0.8; DS bel 0.8, ignorance 0.2.
+- **Klebsiella** — two *chained* (tier-2) rules → combined belief, each composing
+  through the family (0.8×0.6 and 0.8×0.5). CF ~0.688; DS bel ~0.688.
+- **Enterobacteriaceae (class, not an identity)** — derived at 0.8, sits behind
+  Klebsiella but is not itself in `/conclusions`.
 
-Good three-way differential. Exercises the hospital-acquired branch of the
-new rules and produces two organisms with multi-rule support.
+Good two-way species differential (Pseudomonas + Klebsiella), both with multi-rule
+support. Exercises the hospital-acquired branch of the chained rules.
 
 ---
 
@@ -166,16 +181,19 @@ source?" completes the *strep-pneumoniae* rule).
 `morphology=rod`, `aerobicity=aerobic`.
 
 **Rules that fire**:
-- `aerobic-gram-neg-rod-suggests-enterobacteriaceae` (0.8)
-- `gram-neg-rod-with-tropical-travel-suggests-salmonella` (0.65)
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `enterobacteriaceae-with-tropical-travel-suggests-salmonella` (0.65, tier-2)
 
-**Expected differential**:
-- **Enterobacteriaceae** — CF 0.8, DS bel 0.8 / ignorance 0.2
-- **Salmonella** — CF 0.65, DS bel 0.65 / ignorance 0.35
+**Expected differential** (identities in `/conclusions`):
+- **Salmonella** — a *chained* (tier-2) refinement: belief composes 0.8 × 0.65.
+  CF 0.52, DS bel 0.52 / ignorance 0.48
+- **Enterobacteriaceae (class, not an identity)** — derived at 0.8; Salmonella is
+  refined from it but the family itself is not in `/conclusions`.
 
-Enterobacteriaceae is the correct broader hypothesis (Salmonella is one of
-them); worth having Claude explain the taxonomic relationship after
-narrating the beliefs.
+The enterobacteriaceae *class* is the correct broader abstraction (Salmonella is
+one of its species); worth having Claude explain the taxonomic relationship —
+that Salmonella's belief is lower precisely because it composes *through* the
+family — after narrating the beliefs.
 
 ---
 
@@ -190,19 +208,26 @@ narrating the beliefs.
 scenario.)
 
 **Rules that fire**:
-- `gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella` (0.55)
+- (none conclude yet) — the low-WBC salmonella rule is now a *tier-2* refinement
+  (`enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella`, 0.55), so it needs
+  the enterobacteriaceae **class** established first, and the class requires an
+  aerobicity result. Without aerobicity, neither the family nor Salmonella fires.
 
 **Expected partial matches**:
-Multiple rules are one fact away from firing — this is a good scenario for
-demonstrating `get_partial_matches` and Claude asking "do you have
-aerobicity results?" as the discriminating question.
+Because aerobicity isn't yet available, the enterobacteriaceae class hasn't been
+derived, so Salmonella can't be refined from it. This makes the case an even sharper
+demonstration of `get_partial_matches` and Claude asking "do you have aerobicity
+results?" as *the* discriminating question — without it, the family (and every
+species under it) stays out of reach.
 
 **Expected differential (with only the facts above)**:
-- **Salmonella** — CF 0.55, DS bel 0.55 / ignorance 0.45 (wide — a good
-  DS-narration teaching moment)
+- (nothing concluded yet — aerobicity is the gating fact for the whole family)
 
-If aerobicity=aerobic is added, `aerobic-gram-neg-rod-suggests-enterobacteriaceae`
-also fires and the differential broadens.
+If aerobicity=aerobic is added, `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class`
+fires and derives the family class; the class then lets the tier-2 rule refine
+Salmonella, composing to 0.8 × 0.55 = 0.44. The differential broadens from nothing to
+Salmonella (with the enterobacteriaceae *class* standing behind it, though the class
+itself is not a `/conclusions` identity).
 
 ---
 
@@ -310,32 +335,38 @@ file the same way.
 `compromised-host=t`, `hospital-acquired=t`, `culture-site=blood`, `gram=neg`,
 `morphology=rod`, `aerobicity=aerobic`; patient state `allergy-carbapenem` for therapy.
 
-**Identification differential** (DS — the Scenario 2 shape):
+**Identification differential** (DS — the Scenario 2 shape). Both `/conclusions`
+identities are enterobacteriaceae-family species or pseudomonas; the family itself is
+a *class*, not an identity:
 - **Pseudomonas** — `bel 0.88` (two rules combine)
-- **Klebsiella** — `bel 0.80` (two rules combine)
-- **Enterobacteriaceae** — `bel 0.80` (single rule)
+- **Klebsiella** — `bel 0.688` (two *chained* tier-2 rules combine, each composing
+  through the enterobacteriaceae class: 0.8×0.6 ⊕ 0.8×0.5)
+- **Enterobacteriaceae** — the derived *class* (0.8), not a `/conclusions` identity.
+  Because Klebsiella (a member species) clears the coverage gate, the therapy solver
+  treats Klebsiella and does **not** add the family as a backstop (contrast Scenario 10).
 
 **Therapy — reference only** (`recommend_therapy`, `patient=["allergy-carbapenem"]`):
-- Regimen: **piperacillin-tazobactam** alone — covers all three (pseudomonas `0.64`,
-  klebsiella `0.68`, enterobacteriaceae `0.70`), every entry `source: reference`.
+- Regimen: **ceftazidime** alone — covers both (pseudomonas `0.70`, klebsiella `0.64`),
+  every entry `source: reference`.
 - (Meropenem, the usual broad choice, is excluded by the allergy.)
 
 **Therapy — with the local antibiogram loaded** (identical request):
 - Regimen: **gentamicin** alone. Why the switch? This ward's antibiogram records
   **41/48 (85%) gentamicin-susceptible Pseudomonas** — so gentamicin's anti-pseudomonal
   coverage, only `[0.48, 0.88]` (bel `0.48`, *below* the 0.5 gate) in the reference,
-  is **promoted to bel `0.82`** and now covers. Its entry reads
-  `source: local-antibiogram, n_tested: 48`; klebsiella and enterobacteriaceae remain
-  `source: reference`. The reference run *couldn't* use gentamicin — its pseudomonas
-  figure was too uncertain to count. **The local data earned it.**
+  is **promoted to bel `0.82`** and now covers. That promotion also lifts gentamicin's
+  weighted score above ceftazidime's, so the solver prefers it. Its pseudomonas entry
+  reads `source: local-antibiogram, n_tested: 48`; klebsiella stays `source: reference`.
+  The reference run *couldn't* use gentamicin — its pseudomonas figure was too uncertain
+  to count. **The local data earned it.**
 
 **What Claude should narrate** (per the provenance guidance in `system-prompt.md`) —
 cite the sample size, distinguish local from reference:
 
 > *"With this ward's antibiogram, gentamicin alone covers the differential:
 > Pseudomonas at belief 0.82 across **48 local isolates** (85% susceptible here) — a
-> data-grounded, reasonably solid figure. Klebsiella and Enterobacteriaceae coverage
-> is **reference-only**, so treat those as provisional pending local sensitivities."*
+> data-grounded, reasonably solid figure. Klebsiella coverage is **reference-only**,
+> so treat it as provisional pending local sensitivities."*
 
 **The other direction — resistance the reference would miss.** The overlay pulls
 figures *down* where the ward is more resistant than the textbook, too. This ward's
@@ -352,6 +383,78 @@ textbook says ~70%."**
 
 ---
 
+## Scenario 9 — Resolving the enterobacteriaceae species (biochemistry)
+
+> "Aerobic gram-negative rods from a urine culture. The lab ran biochemicals:
+> lactose fermenter, indole positive."
+
+**Facts to extract**:
+`gram=neg`, `morphology=rod`, `aerobicity=aerobic`, `lactose=fermenter`,
+`indole=positive` (all organism-1).
+
+**Rules that fire**:
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
+- `enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli` (0.8, tier-2) — composes to 0.8×0.8
+
+**Expected differential**:
+- **E. coli** — the classic lactose+/indole+ pair. Its belief composes *through*
+  the family class: `0.8 × 0.8 = 0.64`.
+  - CF `0.64`, DS `bel 0.64, pl 1.0, ignorance 0.36`
+- Enterobacteriaceae itself is the derived *class* (0.8) behind E. coli, not a
+  `/conclusions` identity.
+
+**Therapy**: E. coli carries no KB sensitivities of its own — via the family
+roll-up it inherits enterobacteriaceae's, so **meropenem** (family `bel 0.90`)
+covers it, nothing uncovered.
+
+**The sibling variations** (swap the biochemistry to land on a different species —
+each composes through the same 0.8 class):
+
+| Discriminators | Rule | Species | Composed belief |
+|---|---|---|---|
+| lactose+ / indole− / motile | `…motile-lactose-pos-indole-neg-suggests-enterobacter` (0.6) | Enterobacter | 0.48 |
+| red pigment | `…red-pigment-suggests-serratia` (0.75) | Serratia | 0.60 |
+| urease+ / swarming | `…urease-pos-swarming-suggests-proteus` (0.8) | Proteus | 0.64 |
+
+Motility is what separates Enterobacter from non-motile Klebsiella (both
+lactose+/indole−). A **urease-positive** result additionally fires the disconfirming
+`urease-pos-argues-against-urease-negative-organism` (−0.7) against E. coli and
+Salmonella — so in a case with two near-tied siblings, a contradictory urease pulls the
+urease-negative one's *plausibility below 1.0*: the DS-conflict fingerprint applied to
+biochemistry.
+
+---
+
+## Scenario 10 — Family backstop when the species won't resolve (therapy)
+
+> "Aerobic gram-negative rods in the blood. No host risk factors noted, and we
+> don't have biochemicals back yet. What can we start empirically?"
+
+**Facts to extract**:
+`culture-site=blood`, `gram=neg`, `morphology=rod`, `aerobicity=aerobic` (organism-1).
+
+**Rules that fire**:
+- `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — the class, and *only* the class
+
+**Expected differential**:
+- `/conclusions` is **empty of leaf identities** — no host context or biochemistry
+  fired any species rule. Only the enterobacteriaceae *class* (0.8) was derived.
+
+**Therapy — the family backstop** (`recommend_therapy`):
+- Because no member species cleared the coverage gate, the solver carries the
+  **enterobacteriaceae family** itself in as a backstop item and treats it empirically:
+  **meropenem** alone (family `bel 0.90`), nothing uncovered.
+- This is the mirror image of Scenario 8: there, Klebsiella *did* clear the gate, so
+  the family was suppressed and the member was treated. Here nothing did, so the family
+  is the honest empiric target — "an enterobacteriaceae, species not yet resolved; cover
+  the family until the biochemicals narrow it."
+
+Claude should offer the discriminating tests (lactose, indole, motility, urease,
+pigment) that would let Scenario 9 refine the species — and note that once a species
+clears the gate, the recommendation narrows from family-level to species-level.
+
+---
+
 ## Rule Coverage Matrix
 
 | Rule | Scenarios that exercise it |
@@ -360,27 +463,38 @@ textbook says ~70%."**
 | gram-pos-cocci-in-clumps-suggests-staphylococcus | (add clumps to 7) |
 | anaerobic-gram-neg-rod-in-blood-suggests-bacteroides | 6*, 7 |
 | gram-neg-rod-in-compromised-host-suggests-pseudomonas | 1, 2, 7 |
-| aerobic-gram-neg-rod-suggests-enterobacteriaceae | 1, 2, 4 |
 | gram-pos-cocci-in-chains-suggests-streptococcus | 3 |
 | hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus | (variant of 2) |
-| hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella | 2 |
-| hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas | 2 |
-| aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella | 1, 2 |
+| hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella (tier-2) | 2, 8 |
+| hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas | 2, 8 |
+| enterobacteriaceae-in-compromised-host-suggests-klebsiella (tier-2) | 1, 2, 8 |
 | respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae | 3 |
-| gram-neg-rod-with-tropical-travel-suggests-salmonella | 4 |
+| enterobacteriaceae-with-tropical-travel-suggests-salmonella (tier-2) | 4 |
 | gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus | 3 |
-| gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella | 5 |
+| enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella (tier-2) | 5 |
+| enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli (tier-2) | 9 |
+| enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter (tier-2) | 9 (variation) |
+| enterobacteriaceae-red-pigment-suggests-serratia (tier-2) | 9 (variation) |
+| enterobacteriaceae-urease-pos-swarming-suggests-proteus (tier-2) | 9 (variation) |
+| aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (tier-1) | 1, 2, 4, 5, 8, 9, 10 |
 | anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides | 6 |
 | gram-pos-stain-argues-against-gram-neg-organism | 7 |
 | gram-neg-stain-argues-against-gram-pos-organism | (needs a gram-neg reading alongside a live gram-positive hypothesis) |
 | aerobic-growth-argues-against-anaerobe | (needs an aerobic result contradicting a prior bacteroides hypothesis) |
+| urease-pos-argues-against-urease-negative-organism | 9 (with two siblings and a urease+ reading) |
 
 *Scenario 6 fires this rule only if a blood culture is also asserted.
 
-The three disconfirming rules carry negative beliefs and fire only when a
-contradictory finding meets a live hypothesis. Scenario 7 exercises the first
-directly; the other two need a scenario where the oxygen requirement or stain
-flips against an already-supported organism.
+The retired one-hop `aerobic-gram-neg-rod-suggests-enterobacteriaceae` **identity**
+rule is gone (C2) — the tier-1 **class** rule now covers that evidence path, and the
+family reaches therapy only as a species (Scenarios 1/2/4/5/8/9) or as a backstop
+(Scenario 10).
+
+The four disconfirming rules carry negative beliefs and fire only when a
+contradictory finding meets a live hypothesis. Scenario 7 exercises the gram-stain
+one directly; the urease one is reachable in Scenario 9's two-sibling variation; the
+other two need a scenario where the oxygen requirement or stain flips against an
+already-supported organism.
 
 ---
 

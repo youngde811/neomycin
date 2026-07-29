@@ -113,39 +113,39 @@ Fresh session, then paste:
 > ago: gram-negative rods, aerobic.*
 
 Claude asserts the burn/compromised/blood/gram-neg/rod/aerobic facts and runs
-inference, producing three gram-negative identities:
+inference, producing two gram-negative species identities (plus the derived
+enterobacteriaceae *class*, which is not itself a `/conclusions` identity):
 
 | Organism | Belief (DS) |
 |---|---|
-| enterobacteriaceae | `bel 0.80, pl 1.0` |
 | pseudomonas | `bel 0.76, pl 1.0` |
-| klebsiella | `bel 0.50, pl 1.0` |
+| klebsiella | `bel 0.40, pl 1.0` (chained through the enterobacteriaceae class, 0.8×0.5) |
 
 Now ask:
 
 > *What would you treat this with? No known allergies.*
 
-Claude calls `recommend_therapy` with `patient: []`. All three organisms clear the
+Claude calls `recommend_therapy` with `patient: []`. Both organisms clear the
 coverage threshold (0.2), and the greedy set cover finds that a **single**
-carbapenem covers the whole differential:
+carbapenem covers the whole differential (Klebsiella clears the gate, so the
+enterobacteriaceae family is *not* separately treated — the member covers it):
 
 ```json
 {
   "regimen": [
     {"drug": "meropenem", "dose": "1 g IV q8h",
-     "covers": ["pseudomonas", "enterobacteriaceae", "klebsiella"],
+     "covers": ["pseudomonas", "klebsiella"],
      "susceptibility": [
-       {"organism": "pseudomonas",        "bel": 0.72, "pl": 0.92, "ignorance": 0.20},
-       {"organism": "enterobacteriaceae", "bel": 0.90, "pl": 0.99, "ignorance": 0.09},
-       {"organism": "klebsiella",         "bel": 0.88, "pl": 0.99, "ignorance": 0.11}]}
+       {"organism": "pseudomonas", "bel": 0.72, "pl": 0.92, "ignorance": 0.20},
+       {"organism": "klebsiella",  "bel": 0.88, "pl": 0.99, "ignorance": 0.11}]}
   ],
-  "items_to_treat": [ ...three organisms... ],
+  "items_to_treat": [ ...both organisms... ],
   "excluded": [],
   "uncovered": []
 }
 ```
 
-**The teaching point**: one drug, not three. Minimality *is* the stewardship
+**The teaching point**: one drug, not two. Minimality *is* the stewardship
 signal — the solver won't stack agents when one covers the field. Ask Claude *"why
 only one drug?"* and it should explain the weighted set cover: fewest drugs that
 cover every above-threshold organism.
@@ -155,8 +155,8 @@ bare number — the same visible-uncertainty idea as identification, now on the
 antibiogram. `bel` is the confident floor coverage was decided on; `ignorance`
 (`pl - bel`) is how thin the schematic data is. Meropenem's Pseudomonas figure is
 wide (`0.72–0.92`, ignorance 0.20) — Claude should narrate that as *provisional
-pending local sensitivities* — while its Enterobacteriaceae figure is tight
-(`0.90–0.99`). Crucially this interval is **identical under CF and DS**: it
+pending local sensitivities* — while its Klebsiella figure is tight
+(`0.88–0.99`). Crucially this interval is **identical under CF and DS**: it
 describes the data, not the diagnostic algebra.
 
 ### 2. A contraindication reshapes the regimen
@@ -176,7 +176,7 @@ carbapenem, so the regimen is unchanged and coverage stays complete:
 {
   "regimen": [
     {"drug": "meropenem", "dose": "1 g IV q8h",
-     "covers": ["pseudomonas", "enterobacteriaceae", "klebsiella"]}
+     "covers": ["pseudomonas", "klebsiella"]}
   ],
   "excluded": [
     {"drug": "ceftazidime", "reason": "contraindication"},
@@ -189,7 +189,7 @@ carbapenem, so the regimen is unchanged and coverage stays complete:
 **The teaching point**: the exclusion is *explicit and reasoned* — ceftazidime and
 ceftriaxone are named, each with `reason: contraindication`, rather than silently
 dropped. Claude should say something like *"the cephalosporin allergy rules out
-ceftazidime and ceftriaxone; meropenem still covers all three organisms, so the
+ceftazidime and ceftriaxone; meropenem still covers both organisms, so the
 regimen doesn't change."* That's the audit trail the bright line buys you.
 
 ### 3. A different organism, a different drug class

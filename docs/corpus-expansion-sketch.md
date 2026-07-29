@@ -17,13 +17,13 @@ The tempting framing — "more rules ⇒ the solver sees more cases" — bundles
 things that scale differently, and the distinction should drive what we build:
 
 - **Knowledge breadth (the corpus).** How much of MYCIN's differential space is
-  reachable. Today: 18 rules (15 confirming, 3 disconfirming) reaching ~10
+  reachable. Today: 23 rules (18 confirming, 1 tier-1 organism-class, 4 disconfirming) reaching ~13
   organism-identity values. This is the genuine bottleneck for realistic
   scenarios and — more to the point for this fork — for making the CF-vs-DS
   divergence *empirically* interesting. With so few conflicting rules the DS
   ignorance intervals barely get exercised.
 - **Engine capability (the mechanism).** The Rete network, conflict resolution,
-  and belief combination are *already* exercised by 18 rules. Adding rule #200
+  and belief combination are *already* exercised by 23 rules. Adding rule #200
   runs the **same code paths** — more coverage and scaling pressure, not new
   reasoning. A bigger flat rulebase alone does not make the engine reason
   differently.
@@ -205,6 +205,24 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    can't yet represent. High concept value, real scope: a deliberate increment, not
    a bolt-on. **Verify clinical specifics against a source (e.g. Wikipedia) before
    authoring — do not work from memory.**
+7. **WHY/HOW explanation & provenance facility** *(engine/bridge axis, not a corpus
+   cluster — logged 2026-07-29).* MYCIN's single most famous feature, which neomycin
+   has **not** reconstructed. Today a clinician can see *which* rules fired
+   (`/rule-trace`), the resulting `{bel, pl, ignorance}` (`/conclusions`), and
+   near-firing rules' beliefs (`/partial-matches`) — but (a) the per-rule **citations
+   are invisible**: they live only as source comments in `rulebase.lisp`, surfaced by
+   nothing, so the LLM never sees them; and (b) the belief **derivation is
+   LLM-reconstructed, not engine-authoritative** — the engine returns the final
+   interval, not "this = class 0.8 × rule 0.8, Dempster-combined from rules A,B," so
+   the narration could be subtly wrong. The increment: promote provenance from
+   comments to a machine-readable `:provenance` rule property (§4, §10.2) — genuine-
+   MYCIN / PAIP-subset / neomycin-extrapolation + citation — and add an explanation
+   payload (a `/why` endpoint, or provenance on `/conclusions`) returning the
+   authoritative **composition arithmetic AND the citations**, so "how did you arrive
+   at this belief?" becomes a first-class, trustworthy query the LLM narrates from real
+   data. On-brand for the fork (DS legibility) and the NEOMYCIN name (Clancey's explicit
+   strategy/explanation lineage). Strong candidate for the increment *after* the
+   enterobacteriaceae chain lands.
 
 *Deliberately deferred:* the full therapy-rule corpus (the therapy phase already
 owns that surface); anything requiring numeric lab reasoning beyond the existing

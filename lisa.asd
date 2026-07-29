@@ -141,17 +141,31 @@
       :serial t))
     :serial t)))
 
-;;; Dependency-free test suite. Run with (asdf:test-system :lisa) or
-;;; (asdf:load-system "lisa/test") followed by (lisa-test:run-all).
-(asdf:defsystem "lisa/test"
-  :description "Golden-master and belief-algebra test suite for Lisa (no external deps)."
+;;; Rulebase-INDEPENDENT test base: the harness plus the belief-algebra tests
+;;; (pure CF/DS algebra, no rulebase involved). Both lisa/test and neomycin/test
+;;; depend on this. The rulebase-DEPENDENT goldens (scenarios, rules) live in the
+;;; dependent system instead, so neomycin can validate its own canonical rulebase
+;;; (neomycin/rulebase.lisp) without inheriting Lisa's example goldens -- which
+;;; diverge once neomycin re-parents rules. See docs/chaining-belief-spike.md §7.1.
+(asdf:defsystem "lisa/test-base"
+  :description "Rulebase-independent test harness + belief-algebra suite (no external deps)."
   :depends-on ("lisa")
   :components
   ((:module "tests"
     :serial t
     :components ((:file "harness")
-                 (:file "belief-algebra")
-                 (:file "scenarios")
+                 (:file "belief-algebra")))))
+
+;;; Dependency-free test suite for Lisa proper: golden-master scenarios + per-rule
+;;; coverage against Lisa's own examples/mycin.lisp. Run with (asdf:test-system :lisa)
+;;; or (asdf:load-system "lisa/test") followed by (lisa-test:run-all).
+(asdf:defsystem "lisa/test"
+  :description "Golden-master and belief-algebra test suite for Lisa (no external deps)."
+  :depends-on ("lisa/test-base")
+  :components
+  ((:module "tests"
+    :serial t
+    :components ((:file "scenarios")
                  (:file "rules"))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
