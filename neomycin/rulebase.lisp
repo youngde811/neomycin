@@ -110,6 +110,9 @@
 (defclass morphology (param-mixin) ())
 (defclass aerobicity (param-mixin) ())
 (defclass growth-conformation (param-mixin) ())
+;; Biochemical discriminators for enterobacteriaceae species refinement (tier 2).
+(defclass lactose (param-mixin) ())     ; value = fermenter | non-fermenter
+(defclass indole (param-mixin) ())      ; value = positive | negative
 
 ;; Conclusion (organism level)
 (defclass organism-identity (param-mixin) ())
@@ -311,6 +314,32 @@
   =>
   (assert (organism-class (value :enterobacteriaceae) (of ?o))))
 
+;;; ------------------------------------------------------------------
+;;; Chained cluster, tier 2: refine the enterobacteriaceae class -> species.
+;;;
+;;; Species rules read the derived organism-class as a premise, so belief composes
+;;; THROUGH it: species belief = class belief (0.8) * this rule's belief. The raw
+;;; discriminators (lactose, indole) carry nil belief and only gate firing. Because
+;;; these rules depend on the class, they inherit its aerobic-gram-neg-rod premises.
+;;;
+;;; E. coli: lactose-fermenting AND indole-positive is the classic pair separating it
+;;; from its siblings -- Klebsiella (lactose+ but indole-NEGATIVE) and Salmonella
+;;; (lactose-NEGATIVE). E. coli is "the only major group of Enterobacteriaceae with
+;;; both lactose utilization and indole production" (IMViC pattern ++--).
+;;; Provenance: neomycin-extrapolation. The biochemistry is citable to clinical
+;;; microbiology (IMViC / API-20E; Microbe Online, Red Mountain Microbiology), NOT to
+;;; MYCIN. Conditional belief 0.8: strong but not certain (K. oxytoca is also
+;;; lactose+/indole+), composing to 0.8*0.8 = 0.64.
+;;; ------------------------------------------------------------------
+
+(defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli (:belief 0.8)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (lactose (value fermenter) (of ?o))
+  (indole (value positive) (of ?o))
+  =>
+  (assert (organism-identity (value :e-coli) (of ?o))))
+
 ;;; --- Ruling-out (disconfirming) rules ---
 ;;;
 ;;; These inject *negative* evidence: a contradictory Gram stain or oxygen
@@ -328,7 +357,7 @@
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella :bacteroides)))
+  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella :e-coli :bacteroides)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 

@@ -84,3 +84,32 @@
   (is (equal (collect-classes-scoped)
              (list (cons "enterobacteriaceae" *ctx-organism*)))
       "organism-class enterobacteriaceae should be scoped to the single organism"))
+
+;;; ------------------------------------------------------------------
+;;; Chained cluster, tier 2 (§3B) -- a species refined FROM the intermediate, with
+;;; belief composing THROUGH it, and its therapy susceptibility rolling UP to the
+;;; family (the species carries no KB entry of its own).
+;;; ------------------------------------------------------------------
+
+(deftest chain-tier2-e-coli-composes-through-class () ; 0.8*0.8 = 0.64
+  ;; Aerobic gram-neg rod fires organism-class :enterobacteriaceae (0.8); class +
+  ;; lactose-fermenter + indole-positive refines to E. coli (rule 0.8). The
+  ;; discriminators carry nil belief, so the composed species belief is 0.8*0.8 = 0.64
+  ;; -- belief flowing through the belief-valued intermediate, the §3B path.
+  (check-rule (lambda (o p) (declare (ignore p))
+                (af "gram" "neg" o) (af "morphology" "rod" o)
+                (af "aerobicity" "aerobic" o)
+                (af "lactose" "fermenter" o) (af "indole" "positive" o))
+              "e-coli" 0.64))
+
+(deftest chain-e-coli-inherits-family-susceptibility ()
+  ;; In the CANONICAL KB, :e-coli carries no sensitivities of its own; via the
+  ;; deffamily roll-up it inherits :enterobacteriaceae's. Meropenem probes it -- the
+  ;; species figure must equal the family figure exactly.
+  (let ((eco (therapy:kb-susceptibility therapy:*therapy-kb* :meropenem :e-coli))
+        (fam (therapy:kb-susceptibility therapy:*therapy-kb* :meropenem :enterobacteriaceae)))
+    (is (and eco fam) "both e-coli and enterobacteriaceae resolve a meropenem susceptibility")
+    (is (and (belief:ds-belief-p eco) (belief:ds-belief-p fam)
+             (= (belief:ds-belief-bel eco) (belief:ds-belief-bel fam))
+             (= (belief:ds-belief-pl eco) (belief:ds-belief-pl fam)))
+        "e-coli's meropenem susceptibility equals the enterobacteriaceae family figure (roll-up)")))
