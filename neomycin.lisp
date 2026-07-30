@@ -30,6 +30,6 @@
 (load "neomycin.asd")
 (load "lisa-bridge.asd")
 
-(asdf:load-system :neomycin :force t)
+(asdf:load-system :neomycin)
 
 (lisa-bridge:start)

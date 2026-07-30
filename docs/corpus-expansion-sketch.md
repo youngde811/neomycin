@@ -184,9 +184,24 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    coverage (urinary, csf, skin/soft-tissue, wound) with site-conditioned identity
    rules. Pure breadth (decision A), cheap, and directly widens realistic scenarios
    for the LLM driver.
-4. **More disconfirming rules.** The current 3 are the DS engine's whole workout.
-   Adding contradiction rules across the new species (§6) is the cheapest way to
-   keep ignorance intervals meaningful as breadth grows.
+4. **More disconfirming rules — esp. biochemical cross-disconfirmation among the
+   enterobacteriaceae siblings.** Adding contradiction rules across the new species
+   (§6) is the cheapest way to keep ignorance intervals meaningful as breadth grows.
+   The sibling discriminators are currently **confirming-only except urease** (the
+   lone cross-disconfirming rule, `urease-pos-argues-against-urease-negative-organism`,
+   from slice C1) — so two mutually-exclusive siblings can both sit at `pl 1.0`.
+   **Observed live in a clinician session 2026-07-30** (`sessions/session-20260730-171510.md`):
+   an aerobic gram-neg rod read lactose+/indole+ (E. coli, `bel 0.64`) and then red
+   pigment (Serratia, `bel 0.60`), leaving **both at plausibility 1.0** with neither
+   pulling the other down, even though one organism can't be both. Biologically the
+   discriminators *are* mutually informative: red pigment argues **against** E. coli
+   (E. coli makes no prodigiosin), and indole-positive argues **against** Serratia
+   (typically indole-negative). Reconstructing those as negative-belief rules — the
+   urease rule's pattern, generalized — would turn a contradictory biochemical into
+   real DS conflict (`pl` dropping below 1.0 on the loser) instead of silent
+   co-plausibility. Highest-fidelity, lowest-effort DS enrichment now that the family
+   has six species. (The engine handles it already; this is pure corpus authoring +
+   goldens.)
 5. **Host-factor modifiers.** Age, steroids, neutropenia, prosthetic material —
    patient-level `param-mixin`s that shift beliefs rather than name organisms.
    Good CF-vs-DS material (weak modifying evidence), low structural risk.
