@@ -78,24 +78,44 @@ and on what authority."**
 
 ## 4. Design
 
-### 4.1 Provenance representation (`:provenance` rule property)
+### 4.1 Provenance representation (`:provenance` rule property) — TWO AXES
 
-Promote the citation comments to a machine-readable property. Shape (a plist, read
-by nothing in the engine — pure metadata the bridge surfaces):
+Provenance has two distinct, complementary axes, and the schema records both
+(decision 2026-07-30, David):
+
+1. **Artifact lineage** (`:origin`) — *is this curated history or our addition?* Uses
+   the taxonomy from `corpus-expansion-sketch.md` §4: `:genuine-mycin` | `:paip-subset`
+   | `:neomycin-extrapolation`. Ground truth from git: the 18 rules present at Lisa
+   **v4.2.0** (the fork point's PAIP/EMYCIN MYCIN illustration) are `:paip-subset`;
+   only what neomycin added after the fork (tier-1 class rule, 4 biochemical species
+   rules, urease disconfirming rule) is `:neomycin-extrapolation`. None are
+   `:genuine-mycin` — claiming verbatim Shortliffe/Buchanan appendix rules would
+   overclaim.
+2. **Clinical evidence** (`:evidence`) — *what authoritative source verifies the
+   medical association?* A list of **real, verified** citations (CDC / NIH-NCBI
+   Bookshelf / WHO / IDSA / CLSI / standard clinical-microbiology references). This is
+   what makes an explanation credible to a clinician, and it is the axis David asked
+   for. Sources are researched and **adversarially verified**, never recalled — a
+   fabricated citation is worse than none.
+
+Critical honesty constraint — `:belief-basis`: the certainty-factor / DS **value**
+(0.4, 0.8, …) is a PAIP teaching figure or a neomycin schematic estimate; it is **not**
+derived from `:evidence`. `:evidence` verifies the *association*, not the *number*.
+`:belief-basis :illustrative` marks this explicitly so a real citation never launders
+an invented number. (Not-for-clinical-use is preserved throughout.)
 
 ```lisp
 (defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli
     (:belief 0.8
-     :provenance (:origin :neomycin-extrapolation
-                  :citation ("IMViC / API-20E" "Microbe Online; Red Mountain Microbiology")
+     :provenance (:origin :neomycin-extrapolation           ; artifact lineage
+                  :evidence ("<verified source 1>" "<verified source 2>")  ; clinical association
+                  :belief-basis :illustrative                ; the 0.8 is schematic, NOT from :evidence
                   :note "lactose+ AND indole+ is the classic E. coli pair; K. oxytoca also +/+, hence 0.8 not 1.0"))
   ...)
 ```
 
-`:origin` uses the taxonomy already fixed in `corpus-expansion-sketch.md` §4:
-`:genuine-mycin` | `:paip-subset` | `:neomycin-extrapolation`. This is the single
-source of truth for a rule's pedigree; the inline comments become redundant (kept or
-trimmed later).
+The inline citation comments become redundant once `:evidence` carries verified
+sources (trimmed in Slice B).
 
 ### 4.2 Derivation capture (record-on-fire)
 
