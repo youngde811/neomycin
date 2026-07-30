@@ -311,7 +311,11 @@
 ;;; published rule.
 ;;; ------------------------------------------------------------------
 
-(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (:belief 0.8)
+(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :citation "Buchanan & Shortliffe 1984 (MYCIN's organism class/genus context)"
+                  :note "Family-abstraction / chaining STRUCTURE is faithful to MYCIN's use of organism class; this specific rule is a neomycin reconstruction, not a verbatim published rule. 0.8 carried over from the retired one-hop enterobacteriaceae leaf."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
@@ -337,7 +341,11 @@
 ;;; lactose+/indole+), composing to 0.8*0.8 = 0.64.
 ;;; ------------------------------------------------------------------
 
-(defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli (:belief 0.8)
+(defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :citation ("IMViC / API-20E" "Microbe Online" "Red Mountain Microbiology")
+                  :note "lactose+ AND indole+ is the classic E. coli pair; K. oxytoca is also +/+, hence conditional 0.8 not 1.0. Biochemistry citable to clinical microbiology, NOT to MYCIN."))
   (organism (id ?o))
   (organism-class (value :enterobacteriaceae) (of ?o))
   (lactose (value fermenter) (of ?o))

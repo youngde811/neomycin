@@ -62,6 +62,15 @@
    (belief-factor :initarg :belief
                   :initform nil
                   :reader belief-factor)
+   ;; Machine-readable rule PROVENANCE (neomycin extension): a plist describing the
+   ;; rule's pedigree and authority -- (:origin :genuine-mycin | :paip-subset |
+   ;; :neomycin-extrapolation :citation ... :note ...). Pure metadata: the engine
+   ;; never reads it during inference; it exists so the explanation facility can
+   ;; surface a rule's justification (citations) instead of leaving it in source
+   ;; comments. Defaults NIL, so rules that declare no :provenance are unaffected.
+   (provenance :initarg :provenance
+               :initform nil
+               :reader rule-provenance)
    (active-dependencies :initform (make-hash-table :test #'equal)
                         :reader rule-active-dependencies)
    (engine :initarg :engine
@@ -156,12 +165,13 @@
                       (context-name (rule-context self))
                       (rule-short-name self))))))
                     
-(defun make-rule (name engine patterns actions 
-                  &key (doc-string nil) 
-                       (salience 0) 
+(defun make-rule (name engine patterns actions
+                  &key (doc-string nil)
+                       (salience 0)
                        (context (active-context))
                        (auto-focus nil)
                        (belief nil)
+                       (provenance nil)
                        (compiled-behavior nil))
   (flet ((make-rule-binding-set ()
            (delete-duplicates
@@ -176,6 +186,7 @@
        :behavior compiled-behavior
        :comment doc-string
        :belief belief
+       :provenance provenance
        :salience salience
        :context (if (null context)
                     (find-context (inference-engine) :initial-context)
@@ -192,6 +203,7 @@
                                   nil
                                 (context-name (rule-context rule)))
                     :compiled-behavior ,(rule-behavior rule)
+                    :provenance ,(rule-provenance rule)
                     :auto-focus ,(rule-auto-focus rule))))
     (with-inference-engine (engine)
       (apply #'make-rule

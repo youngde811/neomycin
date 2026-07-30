@@ -84,6 +84,7 @@
                      (:file "scenarios")
                      (:file "rules")
                      (:file "chain-tests")
+                     (:file "provenance-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))

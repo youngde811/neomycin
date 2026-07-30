@@ -106,6 +106,7 @@
           "RULE-CONTEXT"
           "RULE-DEFAULT-NAME"
           "RULE-NAME"
+          "RULE-PROVENANCE"
           "RULE-SALIENCE"
           "RULE-SHORT-NAME"
           "RULES"
