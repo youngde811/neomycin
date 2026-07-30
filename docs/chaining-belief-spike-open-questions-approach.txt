@@ -1,0 +1,14 @@
+
+These are my thoughts on the open questions (6) in the chaining-belief-spike.md doc.
+
+1. I favor introducing any necessary new discriminators, as long as we can obtain citation to preserve provenance. I
+could be persuaded to use what we have, however. Perhaps we begin with E. coli? But see (3) below.
+
+2. We should re-derive the conditional-on-family strengths, again for honesty/accuracy.
+
+3. Given a richer DS conflict possibility, I favor modeling the entire family uniformly.
+
+4. I'm ok with the hand-verify approach to verifying the composed species values.
+
+5. NB: with any additions such as we're now doing, we always favor our values: a) honesty; b) citable; c) employ
+solutions offering the most gain, while maintaining (a) and (b).

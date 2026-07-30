@@ -40,6 +40,31 @@
         (is (= 3 (length (treated rec))) "all three organisms are items to treat")
         (is (null (therapy:recommendation-uncovered rec)) "nothing left uncovered")))))
 
+;;; ------------------------------------------------------------------
+;;; KB family roll-up (chaining decision 4): a species with no sensitivity of its
+;;; own inherits its family's figure; a species-specific entry overrides it.
+;;; ------------------------------------------------------------------
+
+(deftest therapy-family-rollup-inherits-and-overrides ()
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :cef :dose "1g")
+    (therapy:add-sensitivity kb :enterobacteriaceae :cef 0.8)   ; family figure
+    (therapy:add-sensitivity kb :klebsiella :cef 0.6)           ; species-specific override
+    (therapy:add-family-member kb :e-coli :enterobacteriaceae)
+    (therapy:add-family-member kb :klebsiella :enterobacteriaceae)
+    ;; e-coli has no entry of its own -> inherits the family's 0.8
+    (is (= 0.8 (therapy:kb-susceptibility kb :cef :e-coli))
+        "e-coli inherits the enterobacteriaceae family susceptibility")
+    ;; klebsiella has its own entry -> that wins over the family (OR short-circuits)
+    (is (= 0.6 (therapy:kb-susceptibility kb :cef :klebsiella))
+        "a species-specific entry overrides the family figure")
+    ;; an unmapped organism with no entry -> nil (no roll-up)
+    (is (null (therapy:kb-susceptibility kb :cef :pseudomonas))
+        "an unmapped organism with no entry has no susceptibility")
+    ;; roll-up is per drug: family has no entry for :other -> nil even for a member
+    (is (null (therapy:kb-susceptibility kb :other :e-coli))
+        "roll-up yields nil when the family has no entry for that drug")))
+
 (deftest therapy-disjoint-coverage-two-drugs ()
   ;; No single drug covers both a gram-neg and a gram-pos -> 2-drug regimen.
   (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))

@@ -47,11 +47,15 @@ The system has two halves that talk over HTTP:
   observations into structured facts, calls Lisa's endpoints as tool-use
   invocations, and narrates the results with full rule-level traceability.
 
-The MYCIN rulebase currently has **18 rules** covering gram-stain morphology,
+The MYCIN rulebase currently has **23 rules** covering gram-stain morphology,
 site-of-culture context, host status (burn / immunocompromised /
-hospital-acquired), travel history, and WBC — including **three disconfirming
-rules** that argue *against* a hypothesis (a contradictory stain or oxygen
-requirement), which is what lets Dempster-Shafer's conflict handling produce
+hospital-acquired), travel history, WBC, and biochemical discriminators
+(lactose / indole / motility / urease / pigment) — including a **tier-1
+organism-class chain rule** (deriving the enterobacteriaceae *family*, from which
+Klebsiella, Salmonella, E. coli, Enterobacter, Serratia and Proteus are refined —
+the family is class-only, never a leaf identity) and **four disconfirming rules**
+that argue *against* a hypothesis (a contradictory stain, oxygen requirement, or
+urease result), which is what lets Dempster-Shafer's conflict handling produce
 plausibility below 1.0. See
 [`docs/clinician-scenarios.md`](clinician-scenarios.md) for the full annotated
 scenario catalog.
@@ -90,14 +94,16 @@ From the project root, in an SBCL REPL:
 
 ```lisp
 (load "lisa.asd")
-(asdf:load-system :lisa)
-
-(in-package :lisa-user)
-(load "examples/mycin.lisp")     ; loads classes, 18 rules, culture-* driver funcs
-
-(asdf:load-system :lisa-bridge)
+(load "lisa-bridge.asd")
+(load "neomycin.asd")
+(asdf:load-system :neomycin)     ; loads neomycin/rulebase.lisp (23 rules,
+                                 ; culture-* drivers) + the therapy system
 (lisa-bridge:start)              ; port 8090
 ```
+
+(Or just `(load "neomycin.lisp")`, the convenience loader that does exactly the
+above. Do **not** load Lisa's `examples/mycin.lisp` — that is Lisa-proper and lacks
+neomycin's chained enterobacteriaceae cluster.)
 
 You should see:
 
@@ -227,10 +233,11 @@ That's belief combination — two independent lines of evidence for the same
 hypothesis reinforcing each other via `combine-beliefs`.
 
 Also note the *ignorance widths* across the three hypotheses (0.20 / 0.24 /
-0.50). Klebsiella is a real hit on this evidence — the
-`aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella` rule (belief
-0.5) matches — but with only one rule supporting it and a moderate rule
-belief, DS honestly reports "50% supported, 50% still unresolved." That's
+0.60). Klebsiella is a real hit on this evidence — the
+`enterobacteriaceae-in-compromised-host-suggests-klebsiella` rule (belief 0.5)
+matches off the derived enterobacteriaceae *class* — but its belief composes
+through the family (0.8 × 0.5 = 0.40), so with a single supporting rule and a
+moderate belief, DS honestly reports "40% supported, 60% still unresolved." That's
 exactly the sort of nuance CF collapses into a single number.
 
 Ask Claude a follow-up: *"Why is pseudomonas at 0.76 and not 1.0?"* — it will

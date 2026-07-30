@@ -110,9 +110,25 @@
 (defclass morphology (param-mixin) ())
 (defclass aerobicity (param-mixin) ())
 (defclass growth-conformation (param-mixin) ())
+;; Biochemical discriminators for enterobacteriaceae species refinement (tier 2).
+(defclass lactose (param-mixin) ())     ; value = fermenter | non-fermenter
+(defclass indole (param-mixin) ())      ; value = positive | negative
+(defclass motility (param-mixin) ())    ; value = motile | non-motile | swarming
+(defclass urease (param-mixin) ())      ; value = positive | negative
+(defclass pigment (param-mixin) ())     ; value = red | none
 
 ;; Conclusion (organism level)
 (defclass organism-identity (param-mixin) ())
+
+;; Derived intermediate abstraction (organism level). Unlike organism-identity
+;; -- a leaf species -- organism-class names a taxonomic FAMILY and is designed
+;; to appear on BOTH sides of => : concluded by tier-1 evidence rules, and (in a
+;; later increment) read as a premise by tier-2 species-refinement rules. This is
+;; the one structurally novel piece of the chained cluster (corpus sketch §3B/§7):
+;; a param that is both a rule conclusion and a rule premise, so belief flows
+;; THROUGH a belief-valued intermediate -- the DS composition path nothing else in
+;; the corpus exercises yet.
+(defclass organism-class (param-mixin) ())
 
 ;;; ------------------------------------------------------------------
 ;;; Confirming rules (1-15). Each joins the organism to its culture and
@@ -155,13 +171,15 @@
   =>
   (assert (organism-identity (value :pseudomonas) (of ?o))))
 
-(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae (:belief 0.8)
-  (organism (id ?o))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
-  (aerobicity (value aerobic) (of ?o))
-  =>
-  (assert (organism-identity (value :enterobacteriaceae) (of ?o))))
+;; NOTE: the one-hop `aerobic-gram-neg-rod-suggests-enterobacteriaceae` leaf
+;; identity rule was RETIRED in slice C2. Enterobacteriaceae is now purely a
+;; taxonomic FAMILY -- concluded as an ORGANISM-CLASS (see the tier-1 class rule
+;; below), never as an ORGANISM-IDENTITY. The identity layer names only leaf
+;; SPECIES (E. coli, Klebsiella, Salmonella, ...); the family is carried to the
+;; therapy phase as a backstop item only when no member species clears the
+;; coverage gate (conclusions-for-solver, therapy/bridge.lisp). Keeping the leaf
+;; alongside the chain would have double-counted the same aerobic-gram-neg-rod
+;; evidence (a leaf identity AND a class, then again through the species).
 
 (defrule gram-pos-cocci-in-chains-suggests-streptococcus (:belief 0.7)
   (organism (id ?o))
@@ -181,11 +199,15 @@
   =>
   (assert (organism-identity (value :staphylococcus-aureus) (of ?o))))
 
-(defrule hospital-acquired-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.6)
+;; Tier-2 (chained): refines the enterobacteriaceae class -> klebsiella. The raw
+;; gram-neg-rod premises are replaced by organism-class (which already encodes
+;; aerobic gram-neg rod), so belief composes 0.8*0.6 through the intermediate and
+;; the aerobic requirement now rides in via the class -- faithful, as
+;; enterobacteriaceae are facultative. Re-parented from the one-hop leaf.
+(defrule hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella (:belief 0.6)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (hospital-acquired (value t) (of ?p))
   (compromised-host (value t) (of ?p))
   =>
@@ -201,12 +223,14 @@
   =>
   (assert (organism-identity (value :pseudomonas) (of ?o))))
 
-(defrule aerobic-gram-neg-rod-in-compromised-host-suggests-klebsiella (:belief 0.5)
+;; Tier-2 (chained): enterobacteriaceae class + compromised host -> klebsiella.
+;; Belief composes 0.8*0.5. (The old rule's explicit aerobic premise is subsumed
+;; by the class, so this is behaviour-equivalent on firing conditions, only the
+;; belief now flows through the intermediate.)
+(defrule enterobacteriaceae-in-compromised-host-suggests-klebsiella (:belief 0.5)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
-  (aerobicity (value aerobic) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
   (assert (organism-identity (value :klebsiella) (of ?o))))
@@ -221,11 +245,13 @@
   =>
   (assert (organism-identity (value :streptococcus-pneumoniae) (of ?o))))
 
-(defrule gram-neg-rod-with-tropical-travel-suggests-salmonella (:belief 0.65)
+;; Tier-2 (chained): enterobacteriaceae class + tropical travel -> salmonella.
+;; Belief composes 0.8*0.65. Re-parenting adds an aerobic requirement (via the
+;; class) the one-hop rule lacked -- faithful, salmonella is enterobacteriaceae.
+(defrule enterobacteriaceae-with-tropical-travel-suggests-salmonella (:belief 0.65)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (recent-travel (value tropical) (of ?p))
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))
@@ -241,12 +267,14 @@
   =>
   (assert (organism-identity (value :enterococcus) (of ?o))))
 
-(defrule gram-neg-rod-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
+;; Tier-2 (chained): enterobacteriaceae class + blood + low WBC -> salmonella.
+;; Belief composes 0.8*0.55. Re-parenting adds an aerobic requirement (via the
+;; class) the one-hop rule lacked -- faithful, salmonella is enterobacteriaceae.
+(defrule enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
   (white-blood-count (value low) (of ?p))
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))
@@ -260,6 +288,99 @@
   (infection-site (value abdominal) (of ?p))
   =>
   (assert (organism-identity (value :bacteroides) (of ?o))))
+
+;;; ------------------------------------------------------------------
+;;; Chained cluster, tier 1: evidence -> derived ORGANISM-CLASS.
+;;;
+;;; The corpus's first multi-hop inference (sketch §3B/§5.1). This tier concludes
+;;; a belief-valued FAMILY abstraction from raw evidence; a later tier will refine
+;;; class -> competing sibling species, so belief composes THROUGH the intermediate.
+;;;
+;;; Premises are those of the RETIRED aerobic-gram-neg-rod enterobacteriaceae leaf
+;;; rule (same evidence, same 0.8); the difference is the CONCLUSION target -- a
+;;; class, not a species. As of C2 this class rule is the SOLE consumer of that
+;;; evidence: the leaf identity rule has been retired, so there is no longer a
+;;; double path to enterobacteriaceae. 0.8 is carried over from the established
+;;; leaf rather than invented; family membership is arguably firmer than any
+;;; single species call, but the honest move is to reuse the corpus's existing
+;;; value and let it be tuned against tier-2 goldens.
+;;;
+;;; Provenance: neomycin-extrapolation. The family-abstraction / chaining STRUCTURE
+;;; is faithful to MYCIN's use of organism class/genus context (Buchanan &
+;;; Shortliffe 1984), but this specific rule is our reconstruction, not a verbatim
+;;; published rule.
+;;; ------------------------------------------------------------------
+
+(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (:belief 0.8)
+  (organism (id ?o))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  =>
+  (assert (organism-class (value :enterobacteriaceae) (of ?o))))
+
+;;; ------------------------------------------------------------------
+;;; Chained cluster, tier 2: refine the enterobacteriaceae class -> species.
+;;;
+;;; Species rules read the derived organism-class as a premise, so belief composes
+;;; THROUGH it: species belief = class belief (0.8) * this rule's belief. The raw
+;;; discriminators (lactose, indole) carry nil belief and only gate firing. Because
+;;; these rules depend on the class, they inherit its aerobic-gram-neg-rod premises.
+;;;
+;;; E. coli: lactose-fermenting AND indole-positive is the classic pair separating it
+;;; from its siblings -- Klebsiella (lactose+ but indole-NEGATIVE) and Salmonella
+;;; (lactose-NEGATIVE). E. coli is "the only major group of Enterobacteriaceae with
+;;; both lactose utilization and indole production" (IMViC pattern ++--).
+;;; Provenance: neomycin-extrapolation. The biochemistry is citable to clinical
+;;; microbiology (IMViC / API-20E; Microbe Online, Red Mountain Microbiology), NOT to
+;;; MYCIN. Conditional belief 0.8: strong but not certain (K. oxytoca is also
+;;; lactose+/indole+), composing to 0.8*0.8 = 0.64.
+;;; ------------------------------------------------------------------
+
+(defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli (:belief 0.8)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (lactose (value fermenter) (of ?o))
+  (indole (value positive) (of ?o))
+  =>
+  (assert (organism-identity (value :e-coli) (of ?o))))
+
+;; Enterobacter: lactose-fermenting, indole-NEGATIVE, and MOTILE -- the motility is
+;; what separates it from Klebsiella (lactose+/indole- but NON-motile). Belief 0.6
+;; (moderate: it shares lactose+/indole- with Klebsiella, so motility is the only
+;; discriminator; a near-tie by design). Composes to 0.8*0.6 = 0.48.
+;; Provenance: neomycin-extrapolation; biochemistry per NCBI Medical Microbiology
+;; ch. 26 (NBK8035): Enterobacter motile, Klebsiella non-motile.
+(defrule enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter (:belief 0.6)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (lactose (value fermenter) (of ?o))
+  (indole (value negative) (of ?o))
+  (motility (value motile) (of ?o))
+  =>
+  (assert (organism-identity (value :enterobacter) (of ?o))))
+
+;; Serratia (marcescens): RED PIGMENT (prodigiosin) is the distinctive marker.
+;; Belief 0.75 (distinctive but not universal -- many clinical isolates are
+;; non-pigmented). Composes to 0.8*0.75 = 0.60. Provenance: neomycin-extrapolation;
+;; prodigiosin per NCBI NBK8035 (Serratia "red pigment").
+(defrule enterobacteriaceae-red-pigment-suggests-serratia (:belief 0.75)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (pigment (value red) (of ?o))
+  =>
+  (assert (organism-identity (value :serratia) (of ?o))))
+
+;; Proteus: rapid UREASE and SWARMING motility -- both highly characteristic.
+;; Belief 0.8 (distinctive pair). Composes to 0.8*0.8 = 0.64. Provenance:
+;; neomycin-extrapolation; swarming + rapid urease (+ H2S) per NCBI NBK8035.
+(defrule enterobacteriaceae-urease-pos-swarming-suggests-proteus (:belief 0.8)
+  (organism (id ?o))
+  (organism-class (value :enterobacteriaceae) (of ?o))
+  (urease (value positive) (of ?o))
+  (motility (value swarming) (of ?o))
+  =>
+  (assert (organism-identity (value :proteus) (of ?o))))
 
 ;;; --- Ruling-out (disconfirming) rules ---
 ;;;
@@ -278,7 +399,10 @@
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(:pseudomonas :enterobacteriaceae :klebsiella :salmonella :bacteroides)))
+  ;; :enterobacteriaceae dropped from this list in C2 -- it is a family CLASS now,
+  ;; never an organism-identity, so it can never match here.
+  (test (member ?value '(:pseudomonas :klebsiella :salmonella
+                         :e-coli :enterobacter :serratia :proteus :bacteroides)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
@@ -299,6 +423,19 @@
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
+;; Biochemical disconfirmation among the enterobacteriaceae siblings: a positive
+;; urease argues AGAINST the urease-negative species (E. coli, Salmonella). This is
+;; what lets a contradictory biochemical finding pull a species' plausibility below
+;; 1.0 -- the DS-conflict material for near-tied siblings. Provenance:
+;; neomycin-extrapolation; E. coli/Salmonella urease-negative per NCBI NBK8035.
+(defrule urease-pos-argues-against-urease-negative-organism (:belief -0.7)
+  (organism (id ?o))
+  (urease (value positive) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:e-coli :salmonella)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
 ;;; --- Conclusion rule ---
 
 (defrule conclusion (:salience -10)
@@ -315,8 +452,10 @@
   "First PAIP scenario (pg. 555): aerobic gram-neg rod cultured from the blood of a
    seriously burned, immunocompromised patient. Evidence enters with the active
    belief system's default (full belief / no ignorance). Multiple rules fire on
-   overlapping evidence, producing competing pseudomonas, enterobacteriaceae and
-   klebsiella hypotheses that the belief system must combine."
+   overlapping evidence, producing competing pseudomonas and klebsiella species
+   hypotheses (the latter chained off the derived enterobacteriaceae CLASS) that
+   the belief system must combine. Enterobacteriaceae itself is an organism-CLASS
+   here, not a leaf identity (C2)."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -333,7 +472,8 @@
 
 (defun culture-1a (&key (runp t))
   "Hospital-acquired gram-neg infection in an immunocompromised patient.
-   Produces competing hypotheses: pseudomonas, klebsiella, enterobacteriaceae."
+   Produces competing species hypotheses pseudomonas and klebsiella (chained off
+   the derived enterobacteriaceae CLASS, which is not itself a leaf identity)."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -387,9 +527,10 @@
 
 (defun culture-multi (&key (runp t))
   "Two organisms in one culture, to exercise lineage scoping. o1 is an aerobic
-   gram-neg rod (=> enterobacteriaceae only); o2 is a gram-pos coccus in clumps
-   (=> staphylococcus only). Each identity must stay on its own organism -- the
-   flat rulebase would cross-contaminate via unscoped morphology/gram joins."
+   gram-neg rod (=> enterobacteriaceae CLASS only, no leaf identity after C2); o2
+   is a gram-pos coccus in clumps (=> staphylococcus identity only). Each
+   conclusion must stay on its own organism -- the flat rulebase would
+   cross-contaminate via unscoped morphology/gram joins."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))

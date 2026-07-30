@@ -17,13 +17,13 @@ The tempting framing — "more rules ⇒ the solver sees more cases" — bundles
 things that scale differently, and the distinction should drive what we build:
 
 - **Knowledge breadth (the corpus).** How much of MYCIN's differential space is
-  reachable. Today: 18 rules (15 confirming, 3 disconfirming) reaching ~10
+  reachable. Today: 23 rules (18 confirming, 1 tier-1 organism-class, 4 disconfirming) reaching ~13
   organism-identity values. This is the genuine bottleneck for realistic
   scenarios and — more to the point for this fork — for making the CF-vs-DS
   divergence *empirically* interesting. With so few conflicting rules the DS
   ignorance intervals barely get exercised.
 - **Engine capability (the mechanism).** The Rete network, conflict resolution,
-  and belief combination are *already* exercised by 18 rules. Adding rule #200
+  and belief combination are *already* exercised by 23 rules. Adding rule #200
   runs the **same code paths** — more coverage and scaling pressure, not new
   reasoning. A bigger flat rulebase alone does not make the engine reason
   differently.
@@ -184,9 +184,24 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    coverage (urinary, csf, skin/soft-tissue, wound) with site-conditioned identity
    rules. Pure breadth (decision A), cheap, and directly widens realistic scenarios
    for the LLM driver.
-4. **More disconfirming rules.** The current 3 are the DS engine's whole workout.
-   Adding contradiction rules across the new species (§6) is the cheapest way to
-   keep ignorance intervals meaningful as breadth grows.
+4. **More disconfirming rules — esp. biochemical cross-disconfirmation among the
+   enterobacteriaceae siblings.** Adding contradiction rules across the new species
+   (§6) is the cheapest way to keep ignorance intervals meaningful as breadth grows.
+   The sibling discriminators are currently **confirming-only except urease** (the
+   lone cross-disconfirming rule, `urease-pos-argues-against-urease-negative-organism`,
+   from slice C1) — so two mutually-exclusive siblings can both sit at `pl 1.0`.
+   **Observed live in a clinician session 2026-07-30** (`sessions/session-20260730-171510.md`):
+   an aerobic gram-neg rod read lactose+/indole+ (E. coli, `bel 0.64`) and then red
+   pigment (Serratia, `bel 0.60`), leaving **both at plausibility 1.0** with neither
+   pulling the other down, even though one organism can't be both. Biologically the
+   discriminators *are* mutually informative: red pigment argues **against** E. coli
+   (E. coli makes no prodigiosin), and indole-positive argues **against** Serratia
+   (typically indole-negative). Reconstructing those as negative-belief rules — the
+   urease rule's pattern, generalized — would turn a contradictory biochemical into
+   real DS conflict (`pl` dropping below 1.0 on the loser) instead of silent
+   co-plausibility. Highest-fidelity, lowest-effort DS enrichment now that the family
+   has six species. (The engine handles it already; this is pure corpus authoring +
+   goldens.)
 5. **Host-factor modifiers.** Age, steroids, neutropenia, prosthetic material —
    patient-level `param-mixin`s that shift beliefs rather than name organisms.
    Good CF-vs-DS material (weak modifying evidence), low structural risk.
@@ -205,6 +220,24 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    can't yet represent. High concept value, real scope: a deliberate increment, not
    a bolt-on. **Verify clinical specifics against a source (e.g. Wikipedia) before
    authoring — do not work from memory.**
+7. **WHY/HOW explanation & provenance facility** *(engine/bridge axis, not a corpus
+   cluster — logged 2026-07-29).* MYCIN's single most famous feature, which neomycin
+   has **not** reconstructed. Today a clinician can see *which* rules fired
+   (`/rule-trace`), the resulting `{bel, pl, ignorance}` (`/conclusions`), and
+   near-firing rules' beliefs (`/partial-matches`) — but (a) the per-rule **citations
+   are invisible**: they live only as source comments in `rulebase.lisp`, surfaced by
+   nothing, so the LLM never sees them; and (b) the belief **derivation is
+   LLM-reconstructed, not engine-authoritative** — the engine returns the final
+   interval, not "this = class 0.8 × rule 0.8, Dempster-combined from rules A,B," so
+   the narration could be subtly wrong. The increment: promote provenance from
+   comments to a machine-readable `:provenance` rule property (§4, §10.2) — genuine-
+   MYCIN / PAIP-subset / neomycin-extrapolation + citation — and add an explanation
+   payload (a `/why` endpoint, or provenance on `/conclusions`) returning the
+   authoritative **composition arithmetic AND the citations**, so "how did you arrive
+   at this belief?" becomes a first-class, trustworthy query the LLM narrates from real
+   data. On-brand for the fork (DS legibility) and the NEOMYCIN name (Clancey's explicit
+   strategy/explanation lineage). Strong candidate for the increment *after* the
+   enterobacteriaceae chain lands.
 
 *Deliberately deferred:* the full therapy-rule corpus (the therapy phase already
 owns that surface); anything requiring numeric lab reasoning beyond the existing
