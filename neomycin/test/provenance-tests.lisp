@@ -135,3 +135,36 @@
   (lisa:reset)
   (is (zerop (hash-table-count (lisa:rete-derivation-table (lisa:inference-engine))))
       "reset empties the derivation table"))
+
+;;; ------------------------------------------------------------------
+;;; Slice D -- the /why serializer (the whole Lisp path the /why handler runs,
+;;; minus HTTP; the curl smoke test bin/test-why.sh covers the wire).
+;;; ------------------------------------------------------------------
+
+(deftest why-serializer-renders-the-chained-derivation ()
+  ;; klebsiella's rendered derivation must carry the composition arithmetic, the
+  ;; rule's provenance (authoritative origin + verified evidence), and the recursive
+  ;; organism-class premise (its own nested derivation + belief) -- the multi-hop
+  ;; explanation the LLM narrates instead of reconstructing.
+  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (let* ((fact (lisa-bridge::find-organism-identity-fact :klebsiella))
+         (derivs (lisa:fact-derivation (lisa:inference-engine) fact))
+         (json (lisa-bridge::derivation-record->json (first derivs))))
+    (is (string= (gethash "rule" json)
+                 "enterobacteriaceae-in-compromised-host-suggests-klebsiella")
+        "the record names the short (descriptive) rule name")
+    (is (search "= 0.400" (gethash "composition" json))
+        "the composition states the composed 0.40 result")
+    (let ((prov (gethash "provenance" json)))
+      (is (and prov (string= (gethash "origin" prov) "paip-subset"))
+          "the klebsiella rule's origin surfaces as paip-subset")
+      (is (and prov (plusp (length (gethash "evidence" prov))))
+          "verified evidence is present and non-empty"))
+    (let* ((premises (gethash "premises" json))
+           (class-premise (find-if (lambda (p) (search "organism-class" (gethash "fact" p)))
+                                   premises)))
+      (is class-premise "the organism-class premise is rendered")
+      (is (and class-premise (gethash "belief" class-premise))
+          "the class premise carries its belief snapshot")
+      (is (and class-premise (gethash "derivation" class-premise))
+          "the class premise carries its OWN nested derivation (chain recurses)"))))
