@@ -13,8 +13,8 @@ annotated with:
 
 Together Scenarios 1–7 exercise most of the base directly; Scenarios 9–10 cover
 the biochemical enterobacteriaceae species (E. coli, Enterobacter, Serratia,
-Proteus) and the therapy family-backstop. Scenario 7 reaches the disconfirming
-rules. Two `clumps`-based gram-positive rules (staphylococcus, staph-aureus) and
+Proteus) and the therapy family-backstop; Scenario 11 exercises the WHY/HOW
+explanation facility. Scenario 7 reaches the disconfirming rules. Two `clumps`-based gram-positive rules (staphylococcus, staph-aureus) and
 several disconfirming rules are reachable only by the noted variations (see the
 coverage matrix). Critically, several cases produce situations where *multiple
 rules conclude the same organism* — which is where belief combination becomes
@@ -452,6 +452,42 @@ biochemistry.
 Claude should offer the discriminating tests (lactose, indole, motility, urease,
 pigment) that would let Scenario 9 refine the species — and note that once a species
 clears the gate, the recommendation narrows from family-level to species-level.
+
+---
+
+## Scenario 11 — "Why, and how confident?" (WHY/HOW explanation)
+
+*Not a new case: a follow-up any clinician asks. It exercises the **WHY/HOW facility**
+— the LLM answers from the engine's authoritative derivation (via `explain_conclusion`
+→ `/why`), not from its own recollection of the arithmetic or the literature.*
+
+Run Scenario 1 (the burn patient) to conclusion, then ask:
+
+> "Why Klebsiella, and how confident should I be? What's that based on?"
+
+Claude calls `explain_conclusion` with `{"organism": "klebsiella"}` and narrates the
+returned record — it must **not** recompute the number or recall a citation from memory:
+
+- **The arithmetic (quoted, engine-computed).** Klebsiella was refined from the derived
+  **enterobacteriaceae class**: `"0.800 (organism-class enterobacteriaceae) composed with
+  the 0.500 rule = 0.400"`. The class premise carries its **own** derivation — the
+  aerobic gram-negative rod evidence concluding the family at 0.8 — so Claude can explain
+  *why* Klebsiella runs lower than a raw rule: it composes **through** the family.
+- **The provenance (quoted, verified).** The Klebsiella rule's `evidence` cites NCBI
+  Bookshelf **NBK8035 / NBK519004** (`origin: paip-subset`); the class rule cites
+  **NBK8035 / NBK559296** (`origin: neomycin-extrapolation`). Claude cites these, and can
+  distinguish inherited MYCIN/PAIP heritage from this fork's own additions if asked.
+- **The honesty line.** Every rule carries `belief_basis: illustrative`. Claude must say
+  the **0.40 itself is a schematic teaching figure, not a measured probability** — the
+  citations verify the *association* (Klebsiella as an opportunistic Enterobacteriaceae),
+  never the number. This is the whole point of the facility: the explanation is queryable
+  ground truth, and its limits are stated, not blurred.
+
+Contrast with **Pseudomonas** in the same case: `explain_conclusion` returns **two**
+firings — `"rule belief 0.400 = 0.400"` then `"prior 0.400 combined with the 0.600 rule =
+0.760"` — so Claude explains belief **combination** from the engine's own before/after
+record. Try it under both belief systems: under DS each `belief_before`/`belief_after`
+is an interval, so the explanation shows ignorance narrowing/shifting per firing.
 
 ---
 
