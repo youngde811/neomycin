@@ -240,11 +240,16 @@ through the family (0.8 × 0.5 = 0.40), so with a single supporting rule and a
 moderate belief, DS honestly reports "40% supported, 60% still unresolved." That's
 exactly the sort of nuance CF collapses into a single number.
 
-Ask Claude a follow-up: *"Why is pseudomonas at 0.76 and not 1.0?"* — it will
-narrate the two rules and explain that DS is conservative: two moderate-belief
-rules combine to a higher-belief-but-still-not-certain result. You can also
-ask *"why is klebsiella's ignorance so wide?"* and it should point at the
-single-rule support with moderate rule belief.
+Ask Claude a follow-up: *"Why is pseudomonas at 0.76 and not 1.0?"* — it calls
+`explain_conclusion` and narrates the engine's **authoritative** derivation: two
+firings, `"rule belief 0.400 = 0.400"` then `"prior 0.400 combined with the 0.600
+rule = 0.760"` — the combination straight from the record, not recomputed. Ask
+*"and what's that based on?"* and it quotes each rule's verified `evidence` (NCBI
+Bookshelf / CDC citations) while flagging that the 0.76 itself is a schematic
+teaching figure (`belief_basis: illustrative`), never a measured probability. Try
+*"why Klebsiella specifically?"* — the explanation walks the chain (species ←
+enterobacteriaceae class ← evidence), showing why a chained belief runs lower. This
+is the WHY/HOW facility: Claude answers from queried ground truth, not memory.
 
 ### 2. Partial-matches drive the next question
 

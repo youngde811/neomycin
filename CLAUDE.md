@@ -111,6 +111,7 @@ examples/
 bin/
   test-culture-1.sh   — end-to-end identification bridge test (curl); run-mycin.sh is a legacy alias
   test-therapy.sh     — end-to-end therapy bridge test (curl)
+  test-why.sh         — end-to-end WHY/HOW explanation bridge test (curl): /why for a chained species
 ```
 
 ## Bridge Endpoints (port 8090)
@@ -123,6 +124,7 @@ bin/
 | `/conclusions` | GET | Get organism-identity results + belief factors |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
+| `/why` | GET/POST | Authoritative belief explanation for a concluded organism (`?organism=` or `{organism}`): the engine-recorded derivation — each firing's composition arithmetic, recursive chained premises (organism-class → species), and the rule's two-axis `:provenance` (origin + verified `evidence` citations + `belief_basis`) |
 | `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`) |
 | `/reset` | POST | Clear working memory and entity registry |
 
@@ -132,6 +134,7 @@ bin/
 # Start the bridge first (see Build & Load above), then:
 ./bin/test-culture-1.sh     # identification: culture-1 → pseudomonas + klebsiella
 ./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen with belief-valued susceptibilities
+./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (composition arithmetic + citations)
 ```
 
 Expected (identification): culture-1 produces pseudomonas (0.76) and klebsiella (0.40).
@@ -180,8 +183,9 @@ computation changes intentionally, re-capture and update the goldens in `tests/s
 
 Identification and therapy both run end to end:
 
-- **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
-- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (23 rules), uncertainty-mapping **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
+- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (23 rules), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
 - **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
 
 ### Running the Clinician Driver

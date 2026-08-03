@@ -26,7 +26,9 @@
 
 (in-package :lisa)
 
-(defmacro defrule (name (&key (salience 0) (context nil) (belief nil) (auto-focus nil)) &body body)
+(defmacro defrule (name (&key (salience 0) (context nil) (belief nil) (auto-focus nil)
+                              (provenance nil))
+                        &body body)
   (let ((rule-name (gensym)))
     `(let ((,rule-name ,@(if (consp name) `(,name) `(',name))))
        (redefine-defrule ,rule-name
@@ -34,6 +36,10 @@
                          :salience ,salience
                          :context ,context
                          :belief ,belief
+                         ;; PROVENANCE is literal metadata (a plist of keywords /
+                         ;; strings / nested lists), so it is quoted like BODY --
+                         ;; not evaluated the way BELIEF is.
+                         :provenance ',provenance
                          :auto-focus ,auto-focus))))
 
 (defun undefrule (rule-name)
