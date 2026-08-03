@@ -69,6 +69,20 @@
     }
   },
   {
+    "name": "explain_conclusion",
+    "description": "Retrieve the AUTHORITATIVE, engine-recorded derivation of a concluded organism's belief — how the number was actually built, and on what published authority. Returns, for the named organism identity, each rule firing that contributed (with that rule's own belief), the premises it matched (a derived premise such as the enterobacteriaceae organism-class carries its OWN nested derivation, so the multi-hop chain is included), the belief before/after each firing, a plain-language `composition` of the arithmetic (e.g. \"0.800 (organism-class enterobacteriaceae) composed with the 0.500 rule = 0.400\"), and each rule's `provenance`: its `origin` (paip-subset | neomycin-extrapolation), verified literature `evidence` (e.g. NCBI Bookshelf / CDC citations), and a `belief_basis`. Call this whenever the clinician asks WHY or HOW you reached a conclusion, or BEFORE you cite a belief figure or a source — then QUOTE the returned composition and evidence. Do NOT reconstruct the arithmetic or recall citations from memory; this endpoint is the ground truth. Requires that inference has already concluded the organism (run get_conclusions first). IMPORTANT: `belief_basis` is 'illustrative' — the certainty NUMBER is a schematic teaching value, while `evidence` verifies the clinical ASSOCIATION; never present the number itself as sourced.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organism": {
+          "type": "string",
+          "description": "The organism identity to explain, exactly as it appears in get_conclusions (e.g. 'klebsiella', 'e-coli', 'pseudomonas', 'serratia'). Must be a conclusion currently in working memory."
+        }
+      },
+      "required": ["organism"]
+    }
+  },
+  {
     "name": "get_partial_matches",
     "description": "Check which rules have some but not all conditions satisfied by current working memory. Returns rules that are 'close to firing' — showing which conditions are already met and which facts are still needed. Use this to determine what questions to ask the clinician next.",
     "input_schema": {

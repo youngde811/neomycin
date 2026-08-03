@@ -234,3 +234,151 @@ pattern.  Cross-pattern variable consistency is not checked here."
           (json-response response)))
     (error (e)
       (error-response (format nil "Partial match query failed: ~A" e) :status 500))))
+
+;;; ------------------------------------------------------------------
+;;; /why -- authoritative belief explanation (WHY/HOW facility).
+;;;
+;;; Returns, for a concluded organism identity, the ENGINE-RECORDED derivation of
+;;; its belief (LISA:FACT-DERIVATION, captured at fire time) rather than an
+;;; LLM-reconstructed one: every contributing firing with its rule, that rule's own
+;;; belief, the premises it matched (each with its belief snapshot), the
+;;; before/after belief bracketing the firing, a plain-language composition, and the
+;;; rule's machine-readable :provenance (origin + verified citations). A premise that
+;;; is itself a derived fact (e.g. the organism-class) carries its OWN derivation, so
+;;; the multi-hop chain is walked recursively. The LLM narrates from this; it no
+;;; longer recomputes the arithmetic or recalls the citations.
+;;; ------------------------------------------------------------------
+
+(defun find-organism-identity-fact (value-keyword)
+  "The organism-identity fact whose VALUE slot is VALUE-KEYWORD, or NIL."
+  (dolist (fact (lisa:get-fact-list (lisa:inference-engine)))
+    (when (and (eq (lisa:fact-name fact) 'lisa-user::organism-identity)
+               (eq (lisa:get-slot-value fact (intern "VALUE" :lisa-user)) value-keyword))
+      (return fact))))
+
+(defun belief-scalar (belief)
+  "Reduce BELIEF to a scalar for the composition string, through the active belief
+   system. NIL -> NIL; a raw number is itself; a structured belief reduces via
+   BELIEF:BELIEF->NUMBER. Used only for the human-readable arithmetic; the full
+   interval is preserved in the structured `belief` fields."
+  (cond ((null belief) nil)
+        ((realp belief) belief)
+        (t (ignore-errors (belief:belief->number belief:*belief-system* belief)))))
+
+(defun fact-short-desc (fact)
+  "A compact label like \"organism-class enterobacteriaceae\" or \"gram neg\"."
+  (let ((val (ignore-errors (lisa:get-slot-value fact (intern "VALUE" :lisa-user)))))
+    (if val
+        (format nil "~A ~A"
+                (string-downcase (symbol-name (lisa:fact-name fact)))
+                (string-downcase (princ-to-string val)))
+        (string-downcase (symbol-name (lisa:fact-name fact))))))
+
+(defun provenance->json (prov)
+  "Render a rule's :provenance plist as a JSON object (origin, evidence, belief_basis,
+   note); NIL if the rule declares none."
+  (when prov
+    (let ((ht (make-hash-table :test #'equal)))
+      (when (getf prov :origin)
+        (setf (gethash "origin" ht) (string-downcase (symbol-name (getf prov :origin)))))
+      (when (getf prov :evidence)
+        (setf (gethash "evidence" ht) (coerce (getf prov :evidence) 'vector)))
+      (when (getf prov :belief-basis)
+        (setf (gethash "belief_basis" ht) (string-downcase (symbol-name (getf prov :belief-basis)))))
+      (when (getf prov :note)
+        (setf (gethash "note" ht) (getf prov :note)))
+      ht)))
+
+(defun composition-string (rec)
+  "A plain-language, algebra-neutral statement of this firing's arithmetic, built
+   from the actual recorded numbers (reduced to scalars). The structured belief
+   fields keep the full interval; this is the narratable summary."
+  (let* ((rule-belief (lisa:derivation-record-rule-belief rec))
+         (before (lisa:derivation-record-belief-before rec))
+         (after (belief-scalar (lisa:derivation-record-belief-after rec)))
+         ;; premises that actually carry belief (a derived intermediate like the
+         ;; organism-class); raw nil-belief evidence only gates firing.
+         (carried (remove nil (lisa:derivation-record-premises rec) :key #'cdr)))
+    (cond
+      ((and (null before) carried)
+       (let ((p (first carried)))
+         (format nil "~,3F (~A) composed with the ~,3F rule = ~,3F"
+                 (belief-scalar (cdr p)) (fact-short-desc (car p)) rule-belief (or after 0))))
+      ((null before)
+       (format nil "rule belief ~,3F = ~,3F" rule-belief (or after 0)))
+      (t
+       (format nil "prior ~,3F combined with the ~,3F rule = ~,3F"
+               (belief-scalar before) rule-belief (or after 0))))))
+
+;; Mutually recursive: a derivation record renders its premises, and a derived
+;; premise renders its own derivation records.
+(declaim (ftype (function (t) t) derivation-record->json premise->json))
+
+(defun premise->json (premise)
+  "PREMISE is (fact . belief-snapshot). Render {fact, [belief], [derivation]}; the
+   nested `derivation` appears only when the premise is itself a rule-concluded fact
+   (walking the multi-hop chain)."
+  (let ((fact (car premise))
+        (belief (cdr premise))
+        (ht (make-hash-table :test #'equal)))
+    (setf (gethash "fact" ht) (fact-short-desc fact))
+    (when belief
+      (setf (gethash "belief" ht) (belief->json-value belief)))
+    (let ((sub (lisa:fact-derivation (lisa:inference-engine) fact)))
+      (when sub
+        (setf (gethash "derivation" ht)
+              (coerce (mapcar #'derivation-record->json sub) 'vector))))
+    ht))
+
+(defun derivation-record->json (rec)
+  "Render one firing: rule (short name), rule_belief, belief_before/after,
+   composition, premises, and the rule's provenance."
+  (let* ((rule-name (lisa:derivation-record-rule rec))
+         (rule (lisa:find-rule (lisa:inference-engine) rule-name))
+         (ht (make-hash-table :test #'equal)))
+    (setf (gethash "rule" ht)
+          (string-downcase (symbol-name (if rule (lisa:rule-short-name rule) rule-name))))
+    (setf (gethash "rule_belief" ht) (lisa:derivation-record-rule-belief rec))
+    (let ((before (lisa:derivation-record-belief-before rec)))
+      (when before
+        (setf (gethash "belief_before" ht) (belief->json-value before))))
+    (setf (gethash "belief_after" ht)
+          (belief->json-value (lisa:derivation-record-belief-after rec)))
+    (setf (gethash "composition" ht) (composition-string rec))
+    (setf (gethash "premises" ht)
+          (coerce (mapcar #'premise->json (lisa:derivation-record-premises rec)) 'vector))
+    (let ((prov (and rule (provenance->json (lisa:rule-provenance rule)))))
+      (when prov
+        (setf (gethash "provenance" ht) prov)))
+    ht))
+
+(hunchentoot:define-easy-handler (why-handler :uri "/why") ()
+  (handler-case
+      (let* ((body (ignore-errors (read-json-body)))
+             (organism (or (and body (gethash "organism" body))
+                           (hunchentoot:get-parameter "organism"))))
+        (unless (and organism (stringp organism) (plusp (length organism)))
+          (return-from why-handler
+            (error-response "An `organism` value is required (JSON body field or ?organism= query param).")))
+        (let* ((value-kw (intern (string-upcase organism) :keyword))
+               (fact (find-organism-identity-fact value-kw)))
+          (unless fact
+            (return-from why-handler
+              (error-response
+               (format nil "No organism-identity `~A` in working memory -- run inference first."
+                       (string-downcase organism))
+               :status 404)))
+          (let ((result (make-hash-table :test #'equal)))
+            (setf (gethash "organism" result) (string-downcase organism))
+            (let ((belief (belief:belief-factor fact)))
+              (when belief
+                (setf (gethash "belief" result) (belief->json-value belief))))
+            (setf (gethash "derivation" result)
+                  (coerce (mapcar #'derivation-record->json
+                                  (lisa:fact-derivation (lisa:inference-engine) fact))
+                          'vector))
+            (setf (gethash "belief_system" result)
+                  (belief:belief-system-name belief:*belief-system*))
+            (json-response result))))
+    (error (e)
+      (error-response (format nil "Explanation failed: ~A" e) :status 500))))

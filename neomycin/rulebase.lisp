@@ -135,7 +135,13 @@
 ;;; patient as needed, then scopes every premise to that lineage.
 ;;; ------------------------------------------------------------------
 
-(defrule gram-neg-rod-in-burn-patient-suggests-pseudomonas (:belief 0.4)
+(defrule gram-neg-rod-in-burn-patient-suggests-pseudomonas
+    (:belief 0.4
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326"
+                             "NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831")
+                  :belief-basis :illustrative
+                  :note "Pseudomonas aeruginosa is a leading cause of wound infection and frequently fatal bacteremia in patients with serious burns."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
@@ -145,7 +151,13 @@
   =>
   (assert (organism-identity (value :pseudomonas) (of ?o))))
 
-(defrule gram-pos-cocci-in-clumps-suggests-staphylococcus (:belief 0.7)
+(defrule gram-pos-cocci-in-clumps-suggests-staphylococcus
+    (:belief 0.7
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
+                             "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
+                  :belief-basis :illustrative
+                  :note "Gram-positive cocci in grape-like clusters (clumps) are morphologically characteristic of Staphylococcus."))
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (morphology (value coccus) (of ?o))
@@ -153,7 +165,13 @@
   =>
   (assert (organism-identity (value :staphylococcus) (of ?o))))
 
-(defrule anaerobic-gram-neg-rod-in-blood-suggests-bacteroides (:belief 0.9)
+(defrule anaerobic-gram-neg-rod-in-blood-suggests-bacteroides
+    (:belief 0.9
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Bacteroides Fragilis, NBK553032"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobic Gram-Negative Bacilli, Finegold), NBK8438")
+                  :belief-basis :illustrative
+                  :note "Anaerobic gram-negative rods from blood suggest Bacteroides; the B. fragilis group is the most common cause of anaerobic bacteremia."))
   (organism (id ?o) (culture ?c))
   (culture-site (value blood) (of ?c))
   (gram (value neg) (of ?o))
@@ -162,7 +180,13 @@
   =>
   (assert (organism-identity (value :bacteroides) (of ?o))))
 
-(defrule gram-neg-rod-in-compromised-host-suggests-pseudomonas (:belief 0.6)
+(defrule gram-neg-rod-in-compromised-host-suggests-pseudomonas
+    (:belief 0.6
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326")
+                  :belief-basis :illustrative
+                  :note "Pseudomonas aeruginosa is a major opportunistic pathogen of immunocompromised and hospitalized hosts."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -181,7 +205,13 @@
 ;; alongside the chain would have double-counted the same aerobic-gram-neg-rod
 ;; evidence (a leaf identity AND a class, then again through the species).
 
-(defrule gram-pos-cocci-in-chains-suggests-streptococcus (:belief 0.7)
+(defrule gram-pos-cocci-in-chains-suggests-streptococcus
+    (:belief 0.7
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf, Streptococcus pyogenes: Basic Biology to Clinical Manifestations (Laboratory Diagnosis), NBK343617")
+                  :belief-basis :illustrative
+                  :note "Gram-positive cocci in chains are morphologically characteristic of Streptococcus."))
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (morphology (value coccus) (of ?o))
@@ -189,7 +219,13 @@
   =>
   (assert (organism-identity (value :streptococcus) (of ?o))))
 
-(defrule hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus (:belief 0.8)
+(defrule hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus
+    (:belief 0.8
+     :provenance (:origin :paip-subset
+                  :evidence ("CDC Emerging Infectious Diseases 2007 (Klein et al.), MRSA hospitalizations & deaths, US 1999-2005 -- wwwnc.cdc.gov/eid/article/13/12/07-0629_article"
+                             "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
+                  :belief-basis :illustrative
+                  :note "Staphylococcus aureus is a leading cause of hospital-acquired infection, including nosocomial bacteremia."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value pos) (of ?o))
@@ -204,7 +240,13 @@
 ;; aerobic gram-neg rod), so belief composes 0.8*0.6 through the intermediate and
 ;; the aerobic requirement now rides in via the class -- faithful, as
 ;; enterobacteriaceae are facultative. Re-parented from the one-hop leaf.
-(defrule hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella (:belief 0.6)
+(defrule hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella
+    (:belief 0.6
+     :provenance (:origin :paip-subset
+                  :evidence ("ASM Clinical Microbiology Reviews 1998 (Podschun & Ullmann), Klebsiella spp. as Nosocomial Pathogens, doi:10.1128/CMR.11.4.589 (PMC88898)"
+                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004")
+                  :belief-basis :illustrative
+                  :note "Klebsiella pneumoniae is a leading nosocomial pathogen, disproportionately affecting immunocompromised inpatients."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (organism-class (value :enterobacteriaceae) (of ?o))
@@ -213,7 +255,13 @@
   =>
   (assert (organism-identity (value :klebsiella) (of ?o))))
 
-(defrule hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas (:belief 0.7)
+(defrule hospital-acquired-aerobic-gram-neg-rod-suggests-pseudomonas
+    (:belief 0.7
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326")
+                  :belief-basis :illustrative
+                  :note "Pseudomonas aeruginosa is a leading nosocomial aerobic gram-negative rod pathogen (ventilator-associated pneumonia, catheter/bloodstream infection)."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -227,7 +275,13 @@
 ;; Belief composes 0.8*0.5. (The old rule's explicit aerobic premise is subsumed
 ;; by the class, so this is behaviour-equivalent on firing conditions, only the
 ;; belief now flows through the intermediate.)
-(defrule enterobacteriaceae-in-compromised-host-suggests-klebsiella (:belief 0.5)
+(defrule enterobacteriaceae-in-compromised-host-suggests-klebsiella
+    (:belief 0.5
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Escherichia, Klebsiella, Enterobacter, Serratia, Citrobacter, Proteus), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004")
+                  :belief-basis :illustrative
+                  :note "Klebsiella, an Enterobacteriaceae, is an opportunistic pathogen in immunocompromised hosts."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (organism-class (value :enterobacteriaceae) (of ?o))
@@ -235,7 +289,13 @@
   =>
   (assert (organism-identity (value :klebsiella) (of ?o))))
 
-(defrule respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae (:belief 0.75)
+(defrule respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae
+    (:belief 0.75
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Streptococcus pneumoniae, NBK470537"
+                             "NCBI Bookshelf / StatPearls, Community-Acquired Pneumonia, NBK430749")
+                  :belief-basis :illustrative
+                  :note "Streptococcus pneumoniae is a leading cause of community-acquired pneumonia and lower respiratory tract infection."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value pos) (of ?o))
@@ -248,7 +308,13 @@
 ;; Tier-2 (chained): enterobacteriaceae class + tropical travel -> salmonella.
 ;; Belief composes 0.8*0.65. Re-parenting adds an aerobic requirement (via the
 ;; class) the one-hop rule lacked -- faithful, salmonella is enterobacteriaceae.
-(defrule enterobacteriaceae-with-tropical-travel-suggests-salmonella (:belief 0.65)
+(defrule enterobacteriaceae-with-tropical-travel-suggests-salmonella
+    (:belief 0.65
+     :provenance (:origin :paip-subset
+                  :evidence ("CDC Yellow Book 2026, Typhoid & Paratyphoid Fever, NBK620886"
+                             "NCBI Bookshelf / StatPearls, Typhoid Fever, NBK557513")
+                  :belief-basis :illustrative
+                  :note "Enteric (typhoid/paratyphoid) fever from Salmonella Typhi/Paratyphi is strongly associated with travel to endemic regions, especially South Asia."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (organism-class (value :enterobacteriaceae) (of ?o))
@@ -256,7 +322,13 @@
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))
 
-(defrule gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus (:belief 0.7)
+(defrule gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus
+    (:belief 0.7
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Vancomycin-Resistant Enterococci, NBK513233"
+                             "Frontiers in Microbiology 2016 (Gilmore et al.), Global Emergence of Enterococci as Nosocomial Pathogens, PMC4880559")
+                  :belief-basis :illustrative
+                  :note "Gram-positive cocci in chains/pairs from blood in hospitalized/compromised patients suggest Enterococcus."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
@@ -270,7 +342,12 @@
 ;; Tier-2 (chained): enterobacteriaceae class + blood + low WBC -> salmonella.
 ;; Belief composes 0.8*0.55. Re-parenting adds an aerobic requirement (via the
 ;; class) the one-hop rule lacked -- faithful, salmonella is enterobacteriaceae.
-(defrule enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella (:belief 0.55)
+(defrule enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella
+    (:belief 0.55
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Typhoid Fever, NBK557513")
+                  :belief-basis :illustrative
+                  :note "Typhoidal Salmonella bacteremia characteristically shows a normal-to-low WBC (leukopenia/neutropenia in ~15-25%) rather than the leukocytosis of pyogenic infection."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
@@ -279,7 +356,14 @@
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))
 
-(defrule anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides (:belief 0.8)
+(defrule anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides
+    (:belief 0.8
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Bacteroides Fragilis, NBK553032"
+                             "NCBI Bookshelf / StatPearls, Anaerobic Infections, NBK482349"
+                             "IDSA/SIS, Complicated Intra-abdominal Infection guideline (Solomkin et al.), Clin Infect Dis 2010;50(2):133")
+                  :belief-basis :illustrative
+                  :note "Bacteroides fragilis group anaerobes are predominant in intra-abdominal infections, typically polymicrobial after a breach of the gut barrier."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -305,13 +389,18 @@
 ;;; single species call, but the honest move is to reuse the corpus's existing
 ;;; value and let it be tuned against tier-2 goldens.
 ;;;
-;;; Provenance: neomycin-extrapolation. The family-abstraction / chaining STRUCTURE
-;;; is faithful to MYCIN's use of organism class/genus context (Buchanan &
-;;; Shortliffe 1984), but this specific rule is our reconstruction, not a verbatim
-;;; published rule.
+;;; Origin and authoritative sources now live in the rule's machine-readable
+;;; :provenance (queryable via the WHY/HOW facility): :origin :neomycin-extrapolation,
+;;; the family-abstraction/chaining structure following MYCIN's organism class context.
 ;;; ------------------------------------------------------------------
 
-(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (:belief 0.8)
+(defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Enterobacter Infections, NBK559296")
+                  :belief-basis :illustrative
+                  :note "Enterobacteriaceae are facultatively anaerobic gram-negative rods that grow aerobically -- the family-level abstraction. The class/genus-context chaining structure follows MYCIN (Buchanan & Shortliffe 1984); this rule is a neomycin reconstruction. 0.8 carried over from the retired one-hop enterobacteriaceae leaf."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
@@ -330,14 +419,18 @@
 ;;; E. coli: lactose-fermenting AND indole-positive is the classic pair separating it
 ;;; from its siblings -- Klebsiella (lactose+ but indole-NEGATIVE) and Salmonella
 ;;; (lactose-NEGATIVE). E. coli is "the only major group of Enterobacteriaceae with
-;;; both lactose utilization and indole production" (IMViC pattern ++--).
-;;; Provenance: neomycin-extrapolation. The biochemistry is citable to clinical
-;;; microbiology (IMViC / API-20E; Microbe Online, Red Mountain Microbiology), NOT to
-;;; MYCIN. Conditional belief 0.8: strong but not certain (K. oxytoca is also
-;;; lactose+/indole+), composing to 0.8*0.8 = 0.64.
+;;; both lactose utilization and indole production" (IMViC pattern ++--). Conditional
+;;; belief 0.8: strong but not certain (K. oxytoca is also lactose+/indole+), composing
+;;; to 0.8*0.8 = 0.64. Authoritative sources live in the rule's :provenance :evidence.
 ;;; ------------------------------------------------------------------
 
-(defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli (:belief 0.8)
+(defrule enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298"
+                             "J Clin Microbiol (indole-positive vs indole-negative Klebsiella identification), PMC1594763")
+                  :belief-basis :illustrative
+                  :note "E. coli is characteristically lactose-fermenting and indole-positive, distinguishing it from indole-negative Klebsiella and lactose-negative Salmonella (K. oxytoca is also +/+, hence conditional 0.8)."))
   (organism (id ?o))
   (organism-class (value :enterobacteriaceae) (of ?o))
   (lactose (value fermenter) (of ?o))
@@ -349,9 +442,14 @@
 ;; what separates it from Klebsiella (lactose+/indole- but NON-motile). Belief 0.6
 ;; (moderate: it shares lactose+/indole- with Klebsiella, so motility is the only
 ;; discriminator; a near-tie by design). Composes to 0.8*0.6 = 0.48.
-;; Provenance: neomycin-extrapolation; biochemistry per NCBI Medical Microbiology
-;; ch. 26 (NBK8035): Enterobacter motile, Klebsiella non-motile.
-(defrule enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter (:belief 0.6)
+;; (Enterobacter motile, Klebsiella non-motile; authoritative sources in :provenance.)
+(defrule enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter
+    (:belief 0.6
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Enterobacter Infections, NBK559296"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035")
+                  :belief-basis :illustrative
+                  :note "Among lactose-positive, indole-negative Enterobacteriaceae, motility distinguishes motile Enterobacter from non-motile Klebsiella."))
   (organism (id ?o))
   (organism-class (value :enterobacteriaceae) (of ?o))
   (lactose (value fermenter) (of ?o))
@@ -362,9 +460,14 @@
 
 ;; Serratia (marcescens): RED PIGMENT (prodigiosin) is the distinctive marker.
 ;; Belief 0.75 (distinctive but not universal -- many clinical isolates are
-;; non-pigmented). Composes to 0.8*0.75 = 0.60. Provenance: neomycin-extrapolation;
-;; prodigiosin per NCBI NBK8035 (Serratia "red pigment").
-(defrule enterobacteriaceae-red-pigment-suggests-serratia (:belief 0.75)
+;; non-pigmented). Composes to 0.8*0.75 = 0.60. (Sources in :provenance :evidence.)
+(defrule enterobacteriaceae-red-pigment-suggests-serratia
+    (:belief 0.75
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("Scientific Reports 2024, Serratia marcescens prodigiosin red pigment, PMC11291754 (doi:10.1038/s41598-024-68747-3)"
+                             "Microbiology (Mikrobiologiya) 2015, Pigmentation of Serratia marcescens and prodigiosin, PMID 25916146")
+                  :belief-basis :illustrative
+                  :note "Serratia marcescens produces the characteristic red pigment prodigiosin (many clinical isolates are non-pigmented, hence 0.75)."))
   (organism (id ?o))
   (organism-class (value :enterobacteriaceae) (of ?o))
   (pigment (value red) (of ?o))
@@ -372,9 +475,14 @@
   (assert (organism-identity (value :serratia) (of ?o))))
 
 ;; Proteus: rapid UREASE and SWARMING motility -- both highly characteristic.
-;; Belief 0.8 (distinctive pair). Composes to 0.8*0.8 = 0.64. Provenance:
-;; neomycin-extrapolation; swarming + rapid urease (+ H2S) per NCBI NBK8035.
-(defrule enterobacteriaceae-urease-pos-swarming-suggests-proteus (:belief 0.8)
+;; Belief 0.8 (distinctive pair). Composes to 0.8*0.8 = 0.64. (Sources in :provenance.)
+(defrule enterobacteriaceae-urease-pos-swarming-suggests-proteus
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017"
+                             "Nature Reviews Microbiology 2012 (Armbruster & Mobley), Proteus mirabilis lifestyle, doi:10.1038/nrmicro2890 (PMC3621030)")
+                  :belief-basis :illustrative
+                  :note "Proteus species show characteristic swarming motility and rapid, strong urease activity."))
   (organism (id ?o))
   (organism-class (value :enterobacteriaceae) (of ?o))
   (urease (value positive) (of ?o))
@@ -395,7 +503,13 @@
 ;;; plausibility drops below 1.0 -- an ambiguous stain becomes a widened, lowered
 ;;; interval. Under certainty factors it simply combines as a negative CF.
 
-(defrule gram-pos-stain-argues-against-gram-neg-organism (:belief -0.7)
+(defrule gram-pos-stain-argues-against-gram-neg-organism
+    (:belief -0.7
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Gram Staining, NBK562156"
+                             "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
+                  :belief-basis :illustrative
+                  :note "A gram-positive stain (thick peptidoglycan wall) is evidence against a gram-negative organism; the two Gram classes are mutually exclusive by cell-wall structure."))
   (organism (id ?o))
   (gram (value pos) (of ?o))
   (organism-identity (value ?value) (of ?o))
@@ -406,7 +520,13 @@
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
-(defrule gram-neg-stain-argues-against-gram-pos-organism (:belief -0.7)
+(defrule gram-neg-stain-argues-against-gram-pos-organism
+    (:belief -0.7
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf / StatPearls, Gram Staining, NBK562156"
+                             "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
+                  :belief-basis :illustrative
+                  :note "A gram-negative stain result is evidence against a gram-positive organism; the Gram stain partitions bacteria into two mutually exclusive cell-wall categories."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (organism-identity (value ?value) (of ?o))
@@ -415,7 +535,13 @@
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
-(defrule aerobic-growth-argues-against-anaerobe (:belief -0.8)
+(defrule aerobic-growth-argues-against-anaerobe
+    (:belief -0.8
+     :provenance (:origin :paip-subset
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobes: General Characteristics), NBK7638"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobic Gram-Negative Bacilli, Finegold), NBK8438")
+                  :belief-basis :illustrative
+                  :note "Documented aerobic growth argues against an obligate anaerobe such as Bacteroides, which cannot grow in the presence of oxygen."))
   (organism (id ?o))
   (aerobicity (value aerobic) (of ?o))
   (organism-identity (value ?value) (of ?o))
@@ -426,9 +552,15 @@
 ;; Biochemical disconfirmation among the enterobacteriaceae siblings: a positive
 ;; urease argues AGAINST the urease-negative species (E. coli, Salmonella). This is
 ;; what lets a contradictory biochemical finding pull a species' plausibility below
-;; 1.0 -- the DS-conflict material for near-tied siblings. Provenance:
-;; neomycin-extrapolation; E. coli/Salmonella urease-negative per NCBI NBK8035.
-(defrule urease-pos-argues-against-urease-negative-organism (:belief -0.7)
+;; 1.0 -- the DS-conflict material for near-tied siblings. (Authoritative sources in
+;; the rule's :provenance :evidence.)
+(defrule urease-pos-argues-against-urease-negative-organism
+    (:belief -0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017")
+                  :belief-basis :illustrative
+                  :note "Proteus is rapidly urease-positive while E. coli and Salmonella are characteristically urease-negative, so a positive urease argues against E. coli/Salmonella and toward Proteus (rare urease-positive Salmonella exist, hence -0.7 not absolute)."))
   (organism (id ?o))
   (urease (value positive) (of ?o))
   (organism-identity (value ?value) (of ?o))

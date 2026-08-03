@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.3.0"
+  :version "0.4.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -84,6 +84,7 @@
                      (:file "scenarios")
                      (:file "rules")
                      (:file "chain-tests")
+                     (:file "provenance-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))
@@ -92,7 +93,7 @@
                (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :neomycin0.1.0 *features*)
+  (pushnew :neomycin0.4.0 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*

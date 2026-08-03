@@ -43,6 +43,15 @@
               :reader rete-meta-data)
    (dependency-table :initform (make-hash-table :test #'equal)
                      :accessor rete-dependency-table)
+   ;; DERIVATION-TABLE (neomycin extension for the WHY/HOW facility): maps a
+   ;; rule-CONCLUDED fact to the ordered list of firings that built its belief --
+   ;; the authoritative record of "how did this belief get this value." Populated
+   ;; at ADJUST-BELIEF time and cleared with the facts (FORGET-ALL-FACTS). Keyed by
+   ;; fact object (EQ): duplicate conclusions reuse the same fact instance, so
+   ;; successive firings accumulate onto one derivation list. Pure metadata -- it
+   ;; never affects inference.
+   (derivation-table :initform (make-hash-table :test #'eq)
+                     :accessor rete-derivation-table)
    (contexts :initform (make-hash-table :test #'equal)
              :reader rete-contexts)
    (focus-stack :initform (list)
@@ -135,7 +144,10 @@
 
 (defun forget-all-facts (rete)
   (clrhash (rete-fact-table rete))
-  (clrhash (fact-id-table rete)))
+  (clrhash (fact-id-table rete))
+  ;; Derivations belong to facts, so they die with them (each reset starts a fresh
+  ;; consultation with an empty derivation record).
+  (clrhash (rete-derivation-table rete)))
 
 (defun get-fact-list (rete)
   (delete-duplicates
@@ -210,18 +222,53 @@
                (belief:normalize-belief belief:*belief-system* belief-factor)
                belief-factor))))
 
+;;; ------------------------------------------------------------------
+;;; Belief DERIVATION capture (neomycin WHY/HOW facility). One record per firing
+;;; that contributed to a rule-concluded fact's belief; the ordered list of them
+;;; for a fact is its authoritative derivation. See docs/why-how-provenance-design.md.
+;;; ------------------------------------------------------------------
+
+(defstruct (derivation-record (:constructor %make-derivation-record))
+  "One firing that contributed to a concluded fact's belief. RULE is the qualified
+   rule name (resolve provenance with FIND-RULE); RULE-BELIEF is that rule's own
+   :belief; PREMISES is a list of (premise-fact . belief-snapshot) captured at fire
+   time (the fact object lets a reader recurse into a derived premise's own
+   derivation); BELIEF-BEFORE / BELIEF-AFTER bracket this firing's contribution
+   (BELIEF-BEFORE is NIL on the first firing, so combination across firings is
+   visible)."
+  rule rule-belief premises belief-before belief-after)
+
+(defun record-derivation (rete fact rule premises belief-before belief-after)
+  "Append a DERIVATION-RECORD for the conclusion FACT under the derivation table.
+   Prepended (O(1)); FACT-DERIVATION reverses to firing order on read."
+  (push (%make-derivation-record
+         :rule (rule-name rule)
+         :rule-belief (belief-factor rule)
+         :premises (mapcar #'(lambda (p) (cons p (belief-factor p))) premises)
+         :belief-before belief-before
+         :belief-after belief-after)
+        (gethash fact (rete-derivation-table rete))))
+
+(defun fact-derivation (rete fact)
+  "The ordered list of DERIVATION-RECORDs for FACT, earliest firing first, or NIL if
+   FACT was asserted as raw evidence rather than concluded by a rule."
+  (reverse (gethash fact (rete-derivation-table rete))))
+
 (defmethod adjust-belief (rete fact (belief-factor t))
-  (declare (ignore rete))
   (when (in-rule-firing-p)
-    (let ((rule-belief (belief-factor (active-rule)))
-          ;; Exclude the conclusion fact itself from the premise list. When a
-          ;; rule matches the very fact it re-asserts (e.g. a disconfirming rule
-          ;; that guards on an already-present hypothesis), that fact's prior
-          ;; belief is not premise *evidence* and must not drive the combined
-          ;; strength — otherwise ruling-out force would track how strongly the
-          ;; hypothesis is already held instead of the contradicting observation.
-          (facts (remove fact (token-make-fact-list *active-tokens*) :test #'eq)))
-      (setf (belief-factor fact) (belief:adjust-belief facts rule-belief (belief-factor fact))))))
+    (let* ((rule (active-rule))
+           ;; Exclude the conclusion fact itself from the premise list. When a
+           ;; rule matches the very fact it re-asserts (e.g. a disconfirming rule
+           ;; that guards on an already-present hypothesis), that fact's prior
+           ;; belief is not premise *evidence* and must not drive the combined
+           ;; strength — otherwise ruling-out force would track how strongly the
+           ;; hypothesis is already held instead of the contradicting observation.
+           (premises (remove fact (token-make-fact-list *active-tokens*) :test #'eq))
+           (belief-before (belief-factor fact)))
+      (setf (belief-factor fact)
+            (belief:adjust-belief premises (belief-factor rule) (belief-factor fact)))
+      ;; Record what the engine ACTUALLY did (authoritative, not recomputed later).
+      (record-derivation rete fact rule premises belief-before (belief-factor fact)))))
 
 (defmethod assert-fact ((self rete) fact &key belief)
   (let ((duplicate (duplicate-fact-p self fact)))

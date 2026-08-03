@@ -1,6 +1,6 @@
 # neomycin
 
-**neomycin 0.2.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
+**neomycin 0.4.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
 
 > **Not the antibiotic.** The name is an homage to William Clancey's *NEOMYCIN*,
 > his 1980s re-representation of MYCIN that separated diagnostic *strategy* from
@@ -46,9 +46,17 @@ express that; keeping both is what makes the comparison worth publishing.
 ## Status
 
 Early, but both halves of a consultation now run end to end. On the
-**identification** side: an 18-rule MYCIN subset (neomycin's own
+**identification** side: a 23-rule MYCIN subset (neomycin's own
 `neomycin/rulebase.lisp`), the pluggable belief protocol (DS default, CF
 retained), the HTTP bridge, and the Claude driver.
+
+The rulebase includes a **chained enterobacteriaceae cluster** — the corpus's
+first multi-hop inference. An aerobic gram-negative rod derives the *family* as an
+intermediate `organism-class`, from which sibling species (E. coli, Klebsiella,
+Salmonella, Enterobacter, Serratia, Proteus) are refined by biochemical
+discriminators, so a species' belief **composes through** the family (e.g. E. coli
+`0.64 = 0.8 × 0.8`). The family is never a leaf identity; on the therapy side it is
+covered empirically only as a *backstop*, when no member species is pinned down.
 
 The **therapy-recommendation phase** now exists too, and it reuses the same
 strategy/knowledge split. A deterministic greedy weighted **set-cover solver**
@@ -68,7 +76,21 @@ curated figure — so local resistance pulls coverage *down* and solid local dat
 [`docs/antibiogram-overlay-design.md`](docs/antibiogram-overlay-design.md) and
 Scenario 8 in [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md).
 
-Still ahead: scaling the rule corpus, drug–drug interaction constraints, and an
+A **WHY/HOW explanation & provenance** facility reconstructs MYCIN's signature
+capability. Every rule carries machine-readable provenance — its lineage (inherited
+PAIP/EMYCIN heritage vs. this fork's own additions) and **adversarially-verified**
+clinical citations (NCBI Bookshelf, CDC, IDSA) — and the engine records each
+conclusion's belief *derivation* as it fires. A **`/why` endpoint** composes the two
+into an authoritative, recursive explanation: the composition arithmetic behind a
+belief, walked back through the chain, with citations — so the LLM narrates *why* a
+belief has its value and *on what authority* from **queried ground truth, not
+memory**. The certainty numbers stay explicitly marked *illustrative*: the citations
+verify the clinical association, never the value itself. See
+[`docs/why-how-provenance-design.md`](docs/why-how-provenance-design.md) and Scenario
+11 in [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md).
+
+Still ahead: scaling the rule corpus (including biochemical cross-disconfirmation
+among the enterobacteriaceae siblings), drug–drug interaction constraints, and an
 exact-solver oracle for the greedy one.
 
 ## Provenance and license
