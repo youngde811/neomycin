@@ -47,16 +47,20 @@ The system has two halves that talk over HTTP:
   observations into structured facts, calls Lisa's endpoints as tool-use
   invocations, and narrates the results with full rule-level traceability.
 
-The MYCIN rulebase currently has **23 rules** covering gram-stain morphology,
+The MYCIN rulebase currently has **27 rules** covering gram-stain morphology,
 site-of-culture context, host status (burn / immunocompromised /
 hospital-acquired), travel history, WBC, and biochemical discriminators
 (lactose / indole / motility / urease / pigment) — including a **tier-1
 organism-class chain rule** (deriving the enterobacteriaceae *family*, from which
 Klebsiella, Salmonella, E. coli, Enterobacter, Serratia and Proteus are refined —
-the family is class-only, never a leaf identity) and **four disconfirming rules**
+the family is class-only, never a leaf identity) and **eight disconfirming rules**
 that argue *against* a hypothesis (a contradictory stain, oxygen requirement, or
-urease result), which is what lets Dempster-Shafer's conflict handling produce
-plausibility below 1.0. See
+biochemical marker), which is what lets Dempster-Shafer's conflict handling produce
+plausibility below 1.0. Five of those are **biochemical cross-disconfirmation
+among the enterobacteriaceae siblings** — e.g. red pigment argues against a
+non-Serratia call, a positive indole against the indole-negative species — so a
+contradictory pair of readings pulls *both* implicated siblings below plausibility
+1.0 rather than leaving mutually-exclusive siblings co-plausible. See
 [`docs/clinician-scenarios.md`](clinician-scenarios.md) for the full annotated
 scenario catalog.
 
@@ -96,7 +100,7 @@ From the project root, in an SBCL REPL:
 (load "lisa.asd")
 (load "lisa-bridge.asd")
 (load "neomycin.asd")
-(asdf:load-system :neomycin)     ; loads neomycin/rulebase.lisp (23 rules,
+(asdf:load-system :neomycin)     ; loads neomycin/rulebase.lisp (27 rules,
                                  ; culture-* drivers) + the therapy system
 (lisa-bridge:start)              ; port 8090
 ```

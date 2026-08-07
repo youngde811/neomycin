@@ -201,28 +201,80 @@
         (check-ds (run-facts :dempster-shafer builder) species expected 1.0)))))
 
 ;;; ------------------------------------------------------------------
+;;; Biochemical CROSS-DISCONFIRMATION among the siblings, in isolation.
+;;; Each of the four cross-disconfirming rules is fired against a SINGLE live
+;;; sibling identity established by an independent (non-contradicting) path, then a
+;;; contradicting biochemical marker is asserted; CHECK-DISCONFIRMS verifies the
+;;; identity is still present but its belief fell below the confirming value and its
+;;; DS plausibility dropped below 1.0 (the ruling-out rule fired). No competing
+;;; sibling is present, so only the rule under test can disconfirm. (Companion to
+;;; the gram/aerobic disconfirming isolation tests in rules.lisp.)
+;;; ------------------------------------------------------------------
+
+(deftest rule-red-pigment-argues-against-non-serratia ()
+  ;; Proteus established by urease+/swarming (0.8*0.8 = 0.64); red pigment (essentially
+  ;; Serratia-specific) then argues against it (-0.8).
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                       (af "urease" "positive" o) (af "motility" "swarming" o)
+                       (af "pigment" "red" o))
+                     "proteus" 0.64))
+
+(deftest rule-indole-pos-argues-against-indole-negative-species ()
+  ;; Serratia established by red pigment (0.8*0.75 = 0.60); a positive indole then
+  ;; argues against the characteristically indole-negative Serratia (-0.6).
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                       (af "pigment" "red" o)
+                       (af "indole" "positive" o))
+                     "serratia" 0.60))
+
+(deftest rule-lactose-fermenter-argues-against-non-fermenters ()
+  ;; Proteus established by urease+/swarming (0.64); lactose fermentation then argues
+  ;; against the non-fermenter Proteus (-0.7).
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                       (af "urease" "positive" o) (af "motility" "swarming" o)
+                       (af "lactose" "fermenter" o))
+                     "proteus" 0.64))
+
+(deftest rule-lactose-non-fermenter-argues-against-fermenters ()
+  ;; Klebsiella established by compromised-host (0.8*0.5 = 0.40) -- a context path, not
+  ;; biochemistry, so it can coexist with a lactose reading; a non-fermenting lactose
+  ;; reading then argues against the strong fermenter Klebsiella (-0.6).
+  (check-disconfirms (lambda (o p)
+                       (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                       (af "compromised-host" "t" p)
+                       (af "lactose" "non-fermenter" o))
+                     "klebsiella" 0.40))
+
+;;; ------------------------------------------------------------------
 ;;; Two near-tied siblings + a discriminating biochemical -> DS CONFLICT.
 ;;;
-;;; This is the sibling-cluster analogue of culture-2's ambiguous-stain conflict, and
-;;; the reason the urease disconfirming rule was added in C1. Construct an organism the
-;;; biochemistry pulls two ways: lactose+/indole+ refines E. coli (0.8*0.8 = 0.64), while
-;;; urease+/swarming refines Proteus (0.8*0.8 = 0.64) -- two siblings TIED at 0.64 out of
-;;; the shared class. But E. coli is a urease-NEGATIVE species, so the same urease+ reading
-;;; fires `urease-pos-argues-against-urease-negative-organism` (-0.7) against E. coli only.
+;;; This is the sibling-cluster analogue of culture-2's ambiguous-stain conflict. Construct
+;;; an organism the biochemistry pulls two ways: lactose+/indole+ refines E. coli
+;;; (0.8*0.8 = 0.64), while urease+/swarming refines Proteus (0.8*0.8 = 0.64) -- two
+;;; siblings TIED at 0.64 out of the shared class. The reading is internally contradictory
+;;; for BOTH: E. coli is urease-NEGATIVE, so urease+ fires
+;;; `urease-pos-argues-against-urease-negative-organism` (-0.7) against it; Proteus is a
+;;; lactose NON-fermenter, so the same lactose+ that confirmed E. coli fires
+;;; `lactose-fermenter-argues-against-non-fermenters` (-0.7) against Proteus. Each sibling
+;;; is disconfirmed by exactly the marker that confirmed the OTHER.
 ;;;
-;;; Under DS this is genuine conflict (K = 0.64*0.7 = 0.448): E. coli's mass renormalizes to
-;;; bel 0.348 and -- the fingerprint -- its PLAUSIBILITY drops to 0.543, below 1.0. Proteus,
-;;; untouched by any disconfirming rule, stays [0.64, 1.0]. The tie is broken by the
-;;; discriminator, and DS shows HOW (a lowered ceiling), not just that a number fell.
-;;; CF collapses the same conflict to a single scalar: E. coli to -0.167 (a negative CF,
-;;; "evidence against"), losing the bel/pl structure DS preserves. (Biologically an isolate
-;;; is not both E. coli and Proteus; like culture-2 this case exists to exercise the belief
-;;; algebra on the cluster, not to model a real organism.)
+;;; Under DS this is genuine conflict on both (K = 0.64*0.7 = 0.448 each): both masses
+;;; renormalize to bel 0.348 and -- the fingerprint -- PLAUSIBILITY drops to 0.543, below
+;;; 1.0. DS shows HOW the biochemistry fails to fit either cleanly (a lowered ceiling on
+;;; each), not just that a number fell; the symmetric contradiction leaves neither as a
+;;; false winner. CF collapses each conflict to the same single scalar, -0.167 (a negative
+;;; CF, "evidence against"), losing the bel/pl structure DS preserves. (Biologically an
+;;; isolate is not both E. coli and Proteus; like culture-2 this case exists to exercise
+;;; the belief algebra on the cluster, not to model a real organism.)
 ;;; ------------------------------------------------------------------
 
 (defun run-sibling-conflict (system)
   "Aerobic gram-neg rod that reads lactose+/indole+ (E. coli) AND urease+/swarming
-   (Proteus): the urease+ additionally disconfirms the urease-negative E. coli."
+   (Proteus): urease+ disconfirms the urease-negative E. coli, and lactose+ disconfirms
+   the non-fermenter Proteus -- a symmetric double-conflict."
   (run-facts system
              (lambda (o p) (declare (ignore p))
                (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
@@ -230,29 +282,141 @@
                (af "urease" "positive" o) (af "motility" "swarming" o))))
 
 (deftest chain-sibling-urease-conflict-cf ()
-  ;; CF collapses the conflict: E. coli's 0.64 confirming CF combines with the -0.7
-  ;; disconfirming CF to a single negative number; Proteus is untouched at 0.64.
+  ;; CF collapses the conflict: each sibling's 0.64 confirming CF combines with a -0.7
+  ;; disconfirming CF (E. coli by urease+, Proteus by lactose+) to the same single
+  ;; negative number -- the contradiction implicates both equally.
   (let ((c (run-sibling-conflict :certainty-factors)))
-    (check-cf c "proteus" 0.64)
+    (check-cf c "proteus" -0.16667)
     (check-cf c "e-coli" -0.16667)))
 
 (deftest chain-sibling-urease-conflict-ds ()
-  ;; DS keeps the conflict legible: Proteus clean at [0.64, 1.0]; E. coli renormalized
-  ;; to bel 0.348 with plausibility 0.543 -- a ceiling below 1.0 is the conflict's
-  ;; fingerprint (K = 0.448).
+  ;; DS keeps the conflict legible: BOTH siblings renormalize to bel 0.348 with
+  ;; plausibility 0.543 -- a ceiling below 1.0 is the conflict's fingerprint
+  ;; (K = 0.448 each). E. coli is disconfirmed by urease+ (it is urease-negative) and
+  ;; Proteus by lactose+ (it is a non-fermenter): a symmetric double-conflict.
   (let ((c (run-sibling-conflict :dempster-shafer)))
-    (check-ds c "proteus" 0.64 1.0)
+    (check-ds c "proteus" 0.34783 0.54348)
     (check-ds c "e-coli" 0.34783 0.54348)))
 
-(deftest chain-sibling-conflict-drops-only-the-disconfirmed-plausibility ()
-  ;; The behavioral property behind the goldens: the discriminating urease+ pulls the
-  ;; urease-negative sibling's plausibility below 1.0 while leaving the other sibling's
-  ;; at 1.0 -- DS localizes the conflict to the hypothesis the evidence argues against.
+(deftest chain-sibling-conflict-pulls-both-contradicted-siblings-below-1 ()
+  ;; The behavioral property behind the goldens: this reading is biochemically
+  ;; contradictory for BOTH candidates (E. coli should not be urease+, Proteus should
+  ;; not be a lactose fermenter), so each discriminating marker pulls the sibling it
+  ;; argues against below plausibility 1.0. DS localizes the conflict to exactly the
+  ;; contradicted hypotheses -- here both -- and, the contradiction being symmetric,
+  ;; leaves them at equal (lowered) intervals rather than crowning a false winner.
   (let ((c (run-sibling-conflict :dempster-shafer)))
     (is (< (belief:ds-belief-pl (belief-of c "e-coli")) 1.0)
         "urease+ should drop E. coli's plausibility below 1.0 (it is urease-negative)")
-    (is (approx= (belief:ds-belief-pl (belief-of c "proteus")) 1.0)
-        "Proteus plausibility stays 1.0 -- no rule argues against it")
-    (is (> (belief:ds-belief-bel (belief-of c "proteus"))
-           (belief:ds-belief-bel (belief-of c "e-coli")))
-        "the tie breaks in Proteus's favor once E. coli absorbs the urease conflict")))
+    (is (< (belief:ds-belief-pl (belief-of c "proteus")) 1.0)
+        "lactose+ should drop Proteus's plausibility below 1.0 (it is a non-fermenter)")
+    (is (approx= (belief:ds-belief-bel (belief-of c "proteus"))
+                 (belief:ds-belief-bel (belief-of c "e-coli")))
+        "the contradiction is symmetric -- neither sibling wins the tie")))
+
+;;; ------------------------------------------------------------------
+;;; The OBSERVED session gap, now closed: lactose+/indole+ AND red pigment.
+;;;
+;;; This is the exact reading from the 2026-07-30 clinician session (corpus-sketch
+;;; §5 cand. 4): an aerobic gram-neg rod read lactose+/indole+ (E. coli, 0.64) and
+;;; red pigment (Serratia, 0.60), and BOTH sat at plausibility 1.0 -- the engine
+;;; could not express that one organism cannot be both. With the cross-disconfirming
+;;; rules the red pigment (Serratia-specific) fires -0.8 against E. coli, and the
+;;; indole+ fires -0.6 against the indole-negative Serratia. Each sibling is
+;;; disconfirmed by the marker that confirmed the OTHER, so BOTH plausibilities now
+;;; fall below 1.0 -- the honest "the biochemistry doesn't cleanly fit either" the
+;;; flat pl 1.0 could not give. The magnitudes differ (-0.8 vs -0.6), so unlike the
+;;; urease case this conflict is ASYMMETRIC: E. coli is pulled down harder.
+;;; ------------------------------------------------------------------
+
+(defun run-red-pigment-conflict (system)
+  "Aerobic gram-neg rod reading lactose+/indole+ (E. coli, 0.64) AND red pigment
+   (Serratia, 0.60): red pigment disconfirms E. coli (-0.8), indole+ disconfirms
+   Serratia (-0.6). The reconstruction of the observed session gap."
+  (run-facts system
+             (lambda (o p) (declare (ignore p))
+               (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+               (af "lactose" "fermenter" o) (af "indole" "positive" o)
+               (af "pigment" "red" o))))
+
+(deftest chain-sibling-red-pigment-conflict-cf ()
+  ;; CF collapses each conflict to a scalar. E. coli 0.64 (+) with -0.8: -0.4444.
+  ;; Serratia 0.60 (+) with -0.6: exact cancellation to 0.0.
+  (let ((c (run-red-pigment-conflict :certainty-factors)))
+    (check-cf c "e-coli" -0.44444)
+    (check-cf c "serratia" 0.0)))
+
+(deftest chain-sibling-red-pigment-conflict-ds ()
+  ;; DS keeps both conflicts legible with the asymmetry visible in the intervals:
+  ;; E. coli renormalizes to [0.2623, 0.4098] (K = 0.64*0.8 = 0.512), Serratia to
+  ;; [0.375, 0.625] (K = 0.60*0.6 = 0.36) -- the more-specific red pigment bites harder.
+  (let ((c (run-red-pigment-conflict :dempster-shafer)))
+    (check-ds c "e-coli"   0.26230 0.40984)
+    (check-ds c "serratia" 0.375   0.625)))
+
+(deftest chain-sibling-red-pigment-drops-both-plausibilities ()
+  ;; The behavioral property the session gap demanded: a contradictory pair of
+  ;; biochemical readings pulls BOTH siblings' plausibility below 1.0 (neither stays
+  ;; co-plausible at 1.0), and -- the magnitudes differing -- E. coli (hit by the
+  ;; Serratia-specific pigment, -0.8) ends up below Serratia (hit by indole, -0.6).
+  (let ((c (run-red-pigment-conflict :dempster-shafer)))
+    (is (< (belief:ds-belief-pl (belief-of c "e-coli")) 1.0)
+        "red pigment should drop E. coli's plausibility below 1.0")
+    (is (< (belief:ds-belief-pl (belief-of c "serratia")) 1.0)
+        "indole+ should drop Serratia's plausibility below 1.0")
+    (is (< (belief:ds-belief-bel (belief-of c "e-coli"))
+           (belief:ds-belief-bel (belief-of c "serratia")))
+        "the -0.8 pigment bites harder than the -0.6 indole: E. coli falls further")))
+
+;;; ------------------------------------------------------------------
+;;; A CONTEXT-chained sibling meets a contradicting biochemical (open-Q3).
+;;;
+;;; Salmonella and Klebsiella are chained off host/travel context, not biochemistry,
+;;; so they rarely co-fire WITH a biochemical species -- but when a context call meets
+;;; a contradicting biochemical reading the cross-disconfirmation still applies. Here
+;;; tropical travel suggests Salmonella (0.8*0.65 = 0.52), then a lactose-fermenter
+;;; reading -- Salmonella is a classic non-fermenter -- fires
+;;; `lactose-fermenter-argues-against-non-fermenters` (-0.7) against it.
+;;; ------------------------------------------------------------------
+
+(defun run-salmonella-lactose-conflict (system)
+  "Tropical-travel Salmonella (0.52) meeting a contradicting lactose-fermenter reading
+   (-0.7): a context-chained call disconfirmed by biochemistry."
+  (run-facts system
+             (lambda (o p)
+               (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+               (af "recent-travel" "tropical" p)
+               (af "lactose" "fermenter" o))))
+
+(deftest chain-context-salmonella-lactose-conflict-cf ()
+  ;; Salmonella 0.52 (+) combined with the -0.7 non-fermenter disconfirmation: -0.375.
+  (let ((c (run-salmonella-lactose-conflict :certainty-factors)))
+    (check-cf c "salmonella" -0.375)))
+
+(deftest chain-context-salmonella-lactose-conflict-ds ()
+  ;; DS: Salmonella renormalizes to [0.2453, 0.4717] (K = 0.52*0.7 = 0.364) -- a
+  ;; context-suggested call whose plausibility the biochemistry pulls below 1.0.
+  (let ((c (run-salmonella-lactose-conflict :dempster-shafer)))
+    (check-ds c "salmonella" 0.24528 0.47170)))
+
+(deftest chain-biochemistry-adjudicates-context-vs-biochemical-sibling ()
+  ;; Restores the asymmetric-localization demonstration: travel suggests Salmonella
+  ;; (0.52) while lactose+/indole+ confirm E. coli (0.64). The lactose+ (and indole+)
+  ;; argue against the non-fermenter Salmonella, but NOTHING argues against E. coli, so
+  ;; DS localizes the conflict to Salmonella alone -- E. coli stays clean at [0.64, 1.0]
+  ;; while Salmonella's plausibility falls below 1.0. The biochemistry adjudicates
+  ;; between the context call and the biochemical call.
+  (let ((c (run-facts :dempster-shafer
+                      (lambda (o p)
+                        (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
+                        (af "recent-travel" "tropical" p)
+                        (af "lactose" "fermenter" o) (af "indole" "positive" o)))))
+    (is (approx= (belief:ds-belief-pl (belief-of c "e-coli")) 1.0)
+        "E. coli stays clean at plausibility 1.0 -- no rule argues against it")
+    (is (approx= (belief:ds-belief-bel (belief-of c "e-coli")) 0.64)
+        "E. coli belief stays at its confirmed 0.64")
+    (is (< (belief:ds-belief-pl (belief-of c "salmonella")) 1.0)
+        "the lactose+ reading drops the non-fermenter Salmonella's plausibility below 1.0")
+    (is (> (belief:ds-belief-bel (belief-of c "e-coli"))
+           (belief:ds-belief-bel (belief-of c "salmonella")))
+        "the biochemistry favors the biochemical E. coli over the context-suggested Salmonella")))

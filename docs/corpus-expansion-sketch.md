@@ -17,13 +17,13 @@ The tempting framing — "more rules ⇒ the solver sees more cases" — bundles
 things that scale differently, and the distinction should drive what we build:
 
 - **Knowledge breadth (the corpus).** How much of MYCIN's differential space is
-  reachable. Today: 23 rules (18 confirming, 1 tier-1 organism-class, 4 disconfirming) reaching ~13
+  reachable. Today: 27 rules (18 confirming, 1 tier-1 organism-class, 8 disconfirming) reaching ~13
   organism-identity values. This is the genuine bottleneck for realistic
   scenarios and — more to the point for this fork — for making the CF-vs-DS
   divergence *empirically* interesting. With so few conflicting rules the DS
   ignorance intervals barely get exercised.
 - **Engine capability (the mechanism).** The Rete network, conflict resolution,
-  and belief combination are *already* exercised by 23 rules. Adding rule #200
+  and belief combination are *already* exercised by 27 rules. Adding rule #200
   runs the **same code paths** — more coverage and scaling pressure, not new
   reasoning. A bigger flat rulebase alone does not make the engine reason
   differently.
@@ -185,7 +185,14 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    rules. Pure breadth (decision A), cheap, and directly widens realistic scenarios
    for the LLM driver.
 4. **More disconfirming rules — esp. biochemical cross-disconfirmation among the
-   enterobacteriaceae siblings.** Adding contradiction rules across the new species
+   enterobacteriaceae siblings.** ✅ **DELIVERED** (`feature/sibling-cross-disconfirmation`,
+   design `docs/sibling-cross-disconfirmation-design.md`): four new cross-disconfirming
+   rules (red pigment −0.8, indole+ −0.6, lactose-fermenter −0.7, lactose-non-fermenter
+   −0.6) generalize the urease pattern, so the observed session case now pulls **both**
+   E. coli and Serratia below `pl 1.0` (E. coli [0.26, 0.41], Serratia [0.375, 0.625]).
+   Original sketch retained below for context.
+
+   Adding contradiction rules across the new species
    (§6) is the cheapest way to keep ignorance intervals meaningful as breadth grows.
    The sibling discriminators are currently **confirming-only except urease** (the
    lone cross-disconfirming rule, `urease-pos-argues-against-urease-negative-organism`,
