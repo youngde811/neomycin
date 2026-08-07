@@ -139,12 +139,15 @@
                 (af "motility" "motile" o))
               "enterobacter" 0.48))
 
-(deftest chain-tier2-serratia-composes-through-class () ; 0.8*0.75 = 0.60
-  ;; Red pigment (prodigiosin) -> Serratia. Composed 0.8*0.75 = 0.60.
+(deftest chain-tier2-serratia-composes-through-class () ; 0.8 * grounded(47,50)
+  ;; Red pigment (prodigiosin) -> Serratia. The Serratia rule belief is now
+  ;; FREQUENCY-GROUNDED (grounded 47 50) = 47/52 ≈ 0.9038, so the composed belief is
+  ;; 0.8 * 0.9038 ≈ 0.7231 (was 0.60 under the old illustrative 0.75). Derived from the
+  ;; same GROUNDED helper the rule uses -- single source of truth.
   (check-rule (lambda (o p) (declare (ignore p))
                 (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
                 (af "pigment" "red" o))
-              "serratia" 0.60))
+              "serratia" (* 0.8 (lisa-user::grounded 47 50))))
 
 (deftest chain-tier2-proteus-composes-through-class () ; 0.8*0.8 = 0.64
   ;; Urease+ and swarming -> Proteus. Composed 0.8*0.8 = 0.64.
@@ -180,7 +183,7 @@
                  (list "enterobacter" 0.6 (lambda (o p) (declare (ignore p))
                                             (af "lactose" "fermenter" o) (af "indole" "negative" o)
                                             (af "motility" "motile" o)))
-                 (list "serratia"    0.75 (lambda (o p) (declare (ignore p))
+                 (list "serratia"    (lisa-user::grounded 47 50) (lambda (o p) (declare (ignore p)) ; frequency-grounded, not 0.75
                                             (af "pigment" "red" o)))
                  (list "proteus"     0.8  (lambda (o p) (declare (ignore p))
                                             (af "urease" "positive" o) (af "motility" "swarming" o)))
@@ -221,13 +224,13 @@
                      "proteus" 0.64))
 
 (deftest rule-indole-pos-argues-against-indole-negative-species ()
-  ;; Serratia established by red pigment (0.8*0.75 = 0.60); a positive indole then
-  ;; argues against the characteristically indole-negative Serratia (-0.6).
+  ;; Serratia established by red pigment (0.8 * grounded(47,50) ≈ 0.7231); a positive
+  ;; indole then argues against the characteristically indole-negative Serratia (-0.6).
   (check-disconfirms (lambda (o p) (declare (ignore p))
                        (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
                        (af "pigment" "red" o)
                        (af "indole" "positive" o))
-                     "serratia" 0.60))
+                     "serratia" (* 0.8 (lisa-user::grounded 47 50))))
 
 (deftest rule-lactose-fermenter-argues-against-non-fermenters ()
   ;; Proteus established by urease+/swarming (0.64); lactose fermentation then argues
@@ -319,20 +322,21 @@
 ;;;
 ;;; This is the exact reading from the 2026-07-30 clinician session (corpus-sketch
 ;;; §5 cand. 4): an aerobic gram-neg rod read lactose+/indole+ (E. coli, 0.64) and
-;;; red pigment (Serratia, 0.60), and BOTH sat at plausibility 1.0 -- the engine
-;;; could not express that one organism cannot be both. With the cross-disconfirming
-;;; rules the red pigment (Serratia-specific) fires -0.8 against E. coli, and the
-;;; indole+ fires -0.6 against the indole-negative Serratia. Each sibling is
+;;; red pigment (Serratia, grounded ≈ 0.7231), and BOTH sat at plausibility 1.0 -- the
+;;; engine could not express that one organism cannot be both. With the cross-
+;;; disconfirming rules the red pigment (Serratia-specific) fires -0.8 against E. coli,
+;;; and the indole+ fires -0.6 against the indole-negative Serratia. Each sibling is
 ;;; disconfirmed by the marker that confirmed the OTHER, so BOTH plausibilities now
 ;;; fall below 1.0 -- the honest "the biochemistry doesn't cleanly fit either" the
-;;; flat pl 1.0 could not give. The magnitudes differ (-0.8 vs -0.6), so unlike the
-;;; urease case this conflict is ASYMMETRIC: E. coli is pulled down harder.
+;;; flat pl 1.0 could not give. The conflict is ASYMMETRIC (E. coli pulled down
+;;; harder): the -0.8 pigment bites deeper than the -0.6 indole, and E. coli also
+;;; starts lower (0.64) than the frequency-grounded Serratia (≈ 0.7231).
 ;;; ------------------------------------------------------------------
 
 (defun run-red-pigment-conflict (system)
   "Aerobic gram-neg rod reading lactose+/indole+ (E. coli, 0.64) AND red pigment
-   (Serratia, 0.60): red pigment disconfirms E. coli (-0.8), indole+ disconfirms
-   Serratia (-0.6). The reconstruction of the observed session gap."
+   (Serratia, grounded ≈ 0.7231): red pigment disconfirms E. coli (-0.8), indole+
+   disconfirms Serratia (-0.6). The reconstruction of the observed session gap."
   (run-facts system
              (lambda (o p) (declare (ignore p))
                (af "gram" "neg" o) (af "morphology" "rod" o) (af "aerobicity" "aerobic" o)
@@ -341,24 +345,28 @@
 
 (deftest chain-sibling-red-pigment-conflict-cf ()
   ;; CF collapses each conflict to a scalar. E. coli 0.64 (+) with -0.8: -0.4444.
-  ;; Serratia 0.60 (+) with -0.6: exact cancellation to 0.0.
+  ;; Serratia's confirm is now frequency-grounded (0.8 * grounded(47,50) ≈ 0.7231);
+  ;; combined with indole's -0.6 that gives (0.7231-0.6)/(1-0.6) ≈ 0.3077 (was 0.0
+  ;; under the old illustrative 0.60 -- the higher grounded confirm no longer cancels).
   (let ((c (run-red-pigment-conflict :certainty-factors)))
     (check-cf c "e-coli" -0.44444)
-    (check-cf c "serratia" 0.0)))
+    (check-cf c "serratia" 0.30769)))
 
 (deftest chain-sibling-red-pigment-conflict-ds ()
-  ;; DS keeps both conflicts legible with the asymmetry visible in the intervals:
-  ;; E. coli renormalizes to [0.2623, 0.4098] (K = 0.64*0.8 = 0.512), Serratia to
-  ;; [0.375, 0.625] (K = 0.60*0.6 = 0.36) -- the more-specific red pigment bites harder.
+  ;; DS keeps both conflicts legible. E. coli renormalizes to [0.2623, 0.4098]
+  ;; (K = 0.64*0.8 = 0.512). Serratia, now confirmed at the grounded ≈ 0.7231,
+  ;; renormalizes to [0.5109, 0.7065] (K = 0.7231*0.6 ≈ 0.4339) -- grounding lifted it
+  ;; well clear of E. coli, and the more-specific -0.8 pigment still bites E. coli harder.
   (let ((c (run-red-pigment-conflict :dempster-shafer)))
     (check-ds c "e-coli"   0.26230 0.40984)
-    (check-ds c "serratia" 0.375   0.625)))
+    (check-ds c "serratia" 0.51087 0.70652)))
 
 (deftest chain-sibling-red-pigment-drops-both-plausibilities ()
   ;; The behavioral property the session gap demanded: a contradictory pair of
   ;; biochemical readings pulls BOTH siblings' plausibility below 1.0 (neither stays
-  ;; co-plausible at 1.0), and -- the magnitudes differing -- E. coli (hit by the
-  ;; Serratia-specific pigment, -0.8) ends up below Serratia (hit by indole, -0.6).
+  ;; co-plausible at 1.0), and E. coli (hit by the Serratia-specific pigment, -0.8, and
+  ;; starting lower at 0.64) ends up below the grounded Serratia (0.7231, hit by the
+  ;; milder indole -0.6) -- both the magnitude and the grounding push the same way.
   (let ((c (run-red-pigment-conflict :dempster-shafer)))
     (is (< (belief:ds-belief-pl (belief-of c "e-coli")) 1.0)
         "red pigment should drop E. coli's plausibility below 1.0")

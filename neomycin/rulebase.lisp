@@ -65,6 +65,41 @@
 (setf lisa::*allow-duplicate-facts* nil)
 
 ;;; ------------------------------------------------------------------
+;;; Frequency-grounded rule beliefs (LIGHT) -- docs/ds-grounded-beliefs-design.md.
+;;; Where a rule belief can be read off stratified observation counts rather than
+;;; hand-picked, GROUNDED turns (susceptible, tested) into the point belief the rule
+;;; carries: the Imprecise Dirichlet Model's conservative lower expectation s/(n+σ)
+;;; (σ=2, matching the antibiogram's counts->interval bel). This is the LIGHT collapse
+;;; -- the scalar flows through the existing belief pipeline unchanged. The full
+;;; [bel, pl] interval (sample-size-legible width on the belief itself) is the
+;;; deferred FULL option (design §5); until then the sample size lives in the rule's
+;;; :provenance :grounding, and its :belief-basis is :frequency-derived (never
+;;; :illustrative). NOT FOR CLINICAL USE: any counts here are schematic, not real
+;;; surveillance.
+;;; ------------------------------------------------------------------
+
+(defparameter *grounding-sigma* 2.0
+  "IDM concentration σ for frequency-grounded rule beliefs; matches the antibiogram's
+   *antibiogram-concentration* (Walley's classic default). A policy knob, not a
+   clinical constant.")
+
+(defun grounded (susceptible tested &optional (sigma *grounding-sigma*))
+  "The IDM lower expectation s/(n+σ) -- the conservative, finite-sample-aware point
+   belief for a frequency-grounded rule (LIGHT; design §5). Equals the bel bound of
+   the antibiogram's COUNTS->INTERVAL, so LIGHT->FULL is additive (FULL only reveals
+   the upper bound). SUSCEPTIBLE of TESTED observations matched the rule's pattern and
+   were the concluded identity."
+  ;; NB: in package :lisa-user, bare ASSERT is LISA's fact-assertion macro, so the
+  ;; ordinary sanity checks must call CL:ASSERT explicitly.
+  (check-type susceptible (integer 0))
+  (check-type tested (integer 0))
+  (cl:assert (<= susceptible tested) (susceptible tested)
+             "Grounding authoring error: susceptible (~D) cannot exceed tested (~D)."
+             susceptible tested)
+  (cl:assert (plusp sigma) (sigma) "Grounding σ must be positive; got ~S." sigma)
+  (coerce (/ susceptible (+ tested sigma)) 'single-float))
+
+;;; ------------------------------------------------------------------
 ;;; Context tree: patient -> culture -> organism (asserted as facts).
 ;;; Identity is carried by the ID slot (a plain value), and the parent
 ;;; link names the parent's ID.
@@ -461,13 +496,18 @@
 ;; Serratia (marcescens): RED PIGMENT (prodigiosin) is the distinctive marker.
 ;; Belief 0.75 (distinctive but not universal -- many clinical isolates are
 ;; non-pigmented). Composes to 0.8*0.75 = 0.60. (Sources in :provenance :evidence.)
+;; FREQUENCY-GROUNDED (LIGHT, design §5): belief is the IDM point s/(n+σ) = 47/52,
+;; read off schematic stratified counts, not a hand-picked illustrative figure. This
+;; is the first grounded rule; its :belief-basis is :frequency-derived.
 (defrule enterobacteriaceae-red-pigment-suggests-serratia
-    (:belief 0.75
+    (:belief (grounded 47 50)
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("Scientific Reports 2024, Serratia marcescens prodigiosin red pigment, PMC11291754 (doi:10.1038/s41598-024-68747-3)"
                              "Microbiology (Mikrobiologiya) 2015, Pigmentation of Serratia marcescens and prodigiosin, PMID 25916146")
-                  :belief-basis :illustrative
-                  :note "Serratia marcescens produces the characteristic red pigment prodigiosin (many clinical isolates are non-pigmented, hence 0.75)."))
+                  :belief-basis :frequency-derived
+                  :grounding (:susceptible 47 :tested 50 :sigma 2.0
+                              :source "Schematic stratified counts (NOT real surveillance): among enterobacteriaceae showing red pigment, the fraction that are Serratia. Prodigiosin is essentially Serratia-specific, so P(Serratia | red pigment) runs high.")
+                  :note "Concludes P(Serratia | red pigment): given red pigment (prodigiosin, essentially Serratia-specific among enterobacteriaceae), Serratia is highly likely. Grounded to s/(n+σ) = 47/52 ≈ 0.90. (The earlier illustrative 0.75 reflected P(pigment | Serratia) -- that many Serratia are non-pigmented -- the wrong conditional for a rule that fires ON red pigment.)"))
   (organism (id ?o))
   (organism-class (value :enterobacteriaceae) (of ?o))
   (pigment (value red) (of ?o))

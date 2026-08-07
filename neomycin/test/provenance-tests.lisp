@@ -55,11 +55,61 @@
         (is (and (consp (getf prov :evidence))
                  (every #'stringp (getf prov :evidence)))
             (format nil "~A: :evidence must be a non-empty list of source strings" short))
-        ;; The honesty flag: the belief VALUE is illustrative, never sourced from :evidence.
-        (is (eq (getf prov :belief-basis) :illustrative)
-            (format nil "~A: :belief-basis must be :illustrative" short))
+        ;; The honesty flag: the belief VALUE is either an illustrative teaching figure
+        ;; (never sourced from :evidence) OR :frequency-derived -- read off stratified
+        ;; observation counts (docs/ds-grounded-beliefs-design.md). A :frequency-derived
+        ;; rule must carry a well-formed :grounding plist recording those counts.
+        (let ((basis (getf prov :belief-basis)))
+          (is (member basis '(:illustrative :frequency-derived))
+              (format nil "~A: :belief-basis must be :illustrative or :frequency-derived, got ~S"
+                      short basis))
+          (when (eq basis :frequency-derived)
+            (let* ((g (getf prov :grounding))
+                   (s (getf g :susceptible))
+                   (n (getf g :tested)))
+              (is (and (consp g)
+                       (integerp s) (integerp n) (<= 0 s n)
+                       (stringp (getf g :source)))
+                  (format nil "~A: :frequency-derived requires a well-formed :grounding ~
+                               (:susceptible s :tested n (0<=s<=n) :source <string>), got ~S"
+                          short g)))))
         (is (stringp (getf prov :note))
             (format nil "~A: :note must be a string" short))))))
+
+;;; ------------------------------------------------------------------
+;;; Frequency-grounded rule beliefs (LIGHT) -- docs/ds-grounded-beliefs-design.md.
+;;; The belief on a grounded rule is read off stratified counts via GROUNDED (the IDM
+;;; lower expectation s/(n+σ)), not hand-picked, and its provenance says so.
+;;; ------------------------------------------------------------------
+
+(defun rule-belief-of (name)
+  "The scalar :belief declared on rule NAME (a LISA-USER symbol), or NIL."
+  (let ((rule (lisa:find-rule (lisa:inference-engine) name)))
+    (and rule (belief:belief-factor rule))))
+
+(deftest grounded-helper-is-idm-lower-expectation ()
+  ;; GROUNDED computes the IDM lower expectation s/(n+σ), σ=2 -- the LIGHT point belief
+  ;; and the bel bound of the antibiogram's counts->interval (so LIGHT->FULL is additive).
+  (is (approx= (lisa-user::grounded 47 50) (/ 47.0 52.0))
+      "grounded(47,50) should be 47/(50+2) = 47/52")
+  (is (approx= (lisa-user::grounded 0 0) 0.0)
+      "grounded(0,0) is vacuous -> 0.0")
+  (is (approx= (lisa-user::grounded 10 10) (/ 10.0 12.0))
+      "grounded(10,10) = 10/12: even all-positive counts stay below 1.0 (finite-sample humility)"))
+
+(deftest red-pigment-serratia-belief-is-frequency-grounded ()
+  ;; The first grounded rule: :belief-basis :frequency-derived (not :illustrative), the
+  ;; stratified counts recorded in :grounding, and the rule's actual baked-in belief
+  ;; equals grounded(counts) -- provenance and belief are a single source of truth.
+  (let* ((prov (rule-provenance-of 'lisa-user::enterobacteriaceae-red-pigment-suggests-serratia))
+         (g (getf prov :grounding)))
+    (is (eq (getf prov :belief-basis) :frequency-derived)
+        "red-pigment->Serratia must be :frequency-derived")
+    (is (and (= (getf g :susceptible) 47) (= (getf g :tested) 50))
+        "its :grounding must record the 47/50 stratified counts")
+    (is (approx= (rule-belief-of 'lisa-user::enterobacteriaceae-red-pigment-suggests-serratia)
+                 (lisa-user::grounded (getf g :susceptible) (getf g :tested)))
+        "the rule's baked-in belief must equal grounded(susceptible, tested)")))
 
 ;;; ------------------------------------------------------------------
 ;;; Slice C -- belief DERIVATION capture (the rete derivation-table).

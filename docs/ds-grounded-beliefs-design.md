@@ -1,8 +1,14 @@
 # Frequency-grounded identification beliefs — design & slice plan
 
-> Status: **DESIGN — awaiting David's review before any code.** Opens the feature
-> (branch `feature/ds-grounded-beliefs`). Reopens, with a concrete need now in hand,
-> the idea deferred in `susceptibility-belief-design.md §8` ("Rules → native DS").
+> Status: **IN PROGRESS (staged, LIGHT track).** Opens the feature (branch
+> `feature/ds-grounded-beliefs`). Reopens, with a concrete need now in hand, the idea
+> deferred in `susceptibility-belief-design.md §8` ("Rules → native DS").
+>
+> **Review decisions (Q1–4, §8):** (1) **staged** — LIGHT now, FULL behind the Slice C
+> gate; (2) first rule **red-pigment → Serratia**; (3) mechanism **authoring-time bake**
+> (`:belief (grounded s n)`), so grounding a rule changes its number and re-captures its
+> goldens — the swappable-overlay's "default corpus pristine" does NOT apply; (4) point
+> estimate **s/(n+σ)** (IDM lower bound, σ=2), so LIGHT→FULL is additive.
 >
 > **⚠️ NOT FOR CLINICAL USE.** Any counts introduced here are schematic research
 > artifacts, never real surveillance, and never a basis for prescribing.
@@ -93,12 +99,14 @@ point `bel`, i.e. `s/n`). This asymmetry is the crux of the light-vs-full choice
 
 ### Option LIGHT — grounded scalar + honest provenance (no engine change)
 
-Derive the rule's **scalar** belief as the interval's **point estimate** `s/n` (what CF
-would use anyway), and record the grounding in a new two-axis provenance value
-`:belief-basis :frequency-derived` carrying `{n_tested, source}` (and optionally the
-full `[bel, pl]` for display). The scalar flows through the **existing** pipeline
-unchanged — `normalize-belief`/`weaken-belief` map `s/n` to `[s/n, 1.0]` under DS,
-compose it with premises, and CF uses `s/n` directly.
+Derive the rule's **scalar** belief as the IDM lower expectation **`s/(n+σ)`** (σ=2)
+— the `bel` bound of `counts->interval`, chosen so LIGHT→FULL is *additive* (FULL only
+reveals the upper bound; the committed belief does not jump) — and record the grounding
+in a new provenance value `:belief-basis :frequency-derived` carrying `{susceptible,
+tested, sigma, source}`. The scalar flows through the **existing** pipeline unchanged —
+`normalize-belief`/`weaken-belief` map `s/(n+σ)` to `[s/(n+σ), 1.0]` under DS, compose
+it with premises, and CF uses `s/(n+σ)` directly. (Implemented as `grounded` in
+`neomycin/rulebase.lisp`; used at authoring time: `:belief (grounded 47 50)`.)
 
 - **Cost:** corpus + provenance only. Zero engine change. No CF/DS break. Ships a
   defensible number and an honest, queryable "grounded in N observations, source …"
@@ -158,16 +166,28 @@ mechanism (authoring-time helper vs post-load rule re-definition).
 ## 7. Slice plan (each green + committed separately)
 
 - **Slice 0 — this doc.**
-- **Slice A — LIGHT grounding, one rule, end to end.** Add the opt-in grounded-data
-  file + a `counts->point` helper (reuse `counts->interval`, take `bel`); ground **one**
-  biochemical discriminator's belief from schematic stratified counts; add the
-  `:belief-basis :frequency-derived` provenance value + `{n_tested, source}`. Tests: the
-  grounded scalar equals `s/n`; provenance is well-formed (extend the invariant to
-  accept the new basis); default corpus (no overlay) unchanged. Prove `/why` narrates
-  the grounding.
+- **Slice A — LIGHT grounding, one rule, end to end. ✅ DONE.** Added the `grounded`
+  helper (`s/(n+σ)`, σ=2) in `rulebase.lisp`; grounded **red-pigment → Serratia** from
+  schematic stratified counts (47/50); added the `:belief-basis :frequency-derived`
+  provenance value + `:grounding {susceptible, tested, sigma, source}`. Tests: `grounded`
+  is the IDM lower expectation; the rule's baked-in belief equals `grounded(47,50)`; the
+  provenance invariant now accepts `:frequency-derived` and validates `:grounding`. Because
+  the mechanism is authoring-time bake, the Serratia goldens **re-captured** (compose
+  0.60 → ≈0.7231; the red-pigment conflict CF 0.0 → 0.3077, DS [0.375,0.625] →
+  [0.5109,0.7065]) — hand-verified, engine-confirmed. 530/126 green. (Grounding surfaced
+  that the old illustrative 0.75 encoded the wrong conditional — `P(pigment|Serratia)`,
+  sensitivity — for a rule that fires *on* pigment; the grounded `P(Serratia|pigment)`
+  runs higher.) `/why` narration of the grounding is Slice B.
 - **Slice B — LIGHT grounding, the biochemical cluster + narration.** Extend to the
   remaining groundable discriminators; teach `system-prompt.md` to narrate a grounded
-  belief ("observed in N isolates") distinctly from an illustrative one; docs sync.
+  belief ("the observed frequency in N isolates", `s/(n+σ)`) distinctly from an
+  illustrative one. **Docs re-capture from Slice A's Serratia change** (do not miss):
+  `clinician-scenarios.md` Scenario 9 (Serratia composed 0.60 → ≈0.7231; the
+  cross-disconfirmation table Serratia [0.375,0.625] → [0.5109,0.7065]) and the
+  **`demo-runsheet.md` cheat-sheet** Serratia kicker row (bel 0.375 → 0.5109, pl 0.625 →
+  0.7065; E. coli row unchanged; qualitative "both < pl 1.0 / E. coli falls further"
+  still holds). The runsheet lives on `develop`, so this matters once the feature merges
+  — before next month's demo.
 - **Slice C — DECISION GATE on FULL.** Written evaluation (is diagnostic-side width
   worth the protocol change?); if yes, a scoped engine-axis design for interval-valued
   rule beliefs (generalize `protocol.lisp:93-98`; define interval-compose-with-premises
