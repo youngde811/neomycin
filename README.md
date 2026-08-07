@@ -1,6 +1,6 @@
 # neomycin
 
-**neomycin 0.4.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
+**neomycin 0.5.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
 
 > **Not the antibiotic.** The name is an homage to William Clancey's *NEOMYCIN*,
 > his 1980s re-representation of MYCIN that separated diagnostic *strategy* from
