@@ -1,6 +1,6 @@
 # Clinician Scenarios for the MYCIN Rulebase
 
-A curated set of vignettes for driving the 23-rule neomycin MYCIN rulebase
+A curated set of vignettes for driving the 27-rule neomycin MYCIN rulebase
 (`neomycin/rulebase.lisp` — **not** Lisa's `examples/mycin.lisp`) through the
 Claude driver (`src/llm/claude/driver.py`) and the HTTP bridge. Each scenario is
 written the way a clinician might present a case at the bedside, and each is
@@ -14,7 +14,8 @@ annotated with:
 Together Scenarios 1–7 exercise most of the base directly; Scenarios 9–10 cover
 the biochemical enterobacteriaceae species (E. coli, Enterobacter, Serratia,
 Proteus) and the therapy family-backstop; Scenario 11 exercises the WHY/HOW
-explanation facility. Scenario 7 reaches the disconfirming rules. Two `clumps`-based gram-positive rules (staphylococcus, staph-aureus) and
+explanation facility, and Scenario 12 the **frequency-grounded** belief (a rule number
+read off observation counts rather than an illustrative figure). Scenario 7 reaches the disconfirming rules. Two `clumps`-based gram-positive rules (staphylococcus, staph-aureus) and
 several disconfirming rules are reachable only by the noted variations (see the
 coverage matrix). Critically, several cases produce situations where *multiple
 rules conclude the same organism* — which is where belief combination becomes
@@ -33,6 +34,24 @@ as a **backstop** when no member species was pinned down (Scenario 10).
 susceptibility count is folded into the curated figures — local data promoting a
 provisional agent and, in the other direction, exposing local resistance the
 reference would miss.
+
+## Contents
+
+- [How to Run](#how-to-run)
+- [Scenario 1 — PAIP culture-1 baseline](#scenario-1--paip-culture-1-baseline)
+- [Scenario 2 — Hospital-acquired immunocompromised gram-negative](#scenario-2--hospital-acquired-immunocompromised-gram-negative)
+- [Scenario 3 — Respiratory strep in an immunocompromised patient](#scenario-3--respiratory-strep-in-an-immunocompromised-patient)
+- [Scenario 4 — Tropical traveler with gram-negative rod](#scenario-4--tropical-traveler-with-gram-negative-rod)
+- [Scenario 5 — Sepsis with low WBC](#scenario-5--sepsis-with-low-wbc)
+- [Scenario 6 — Abdominal anaerobe](#scenario-6--abdominal-anaerobe)
+- [Scenario 7 — Ambiguous gram stain](#scenario-7--ambiguous-gram-stain)
+- [Scenario 8 — When the local antibiogram changes the answer (therapy overlay)](#scenario-8--when-the-local-antibiogram-changes-the-answer-therapy-overlay)
+- [Scenario 9 — Resolving the enterobacteriaceae species (biochemistry)](#scenario-9--resolving-the-enterobacteriaceae-species-biochemistry)
+- [Scenario 10 — Family backstop when the species won't resolve (therapy)](#scenario-10--family-backstop-when-the-species-wont-resolve-therapy)
+- [Scenario 11 — "Why, and how confident?" (WHY/HOW explanation)](#scenario-11--why-and-how-confident-whyhow-explanation)
+- [Scenario 12 — "Where does that number come from?" (frequency-grounded belief)](#scenario-12--where-does-that-number-come-from-frequency-grounded-belief)
+- [Rule Coverage Matrix](#rule-coverage-matrix)
+- [Notes for Investigators](#notes-for-investigators)
 
 ## How to Run
 
@@ -413,8 +432,11 @@ each composes through the same 0.8 class):
 | Discriminators | Rule | Species | Composed belief |
 |---|---|---|---|
 | lactose+ / indole− / motile | `…motile-lactose-pos-indole-neg-suggests-enterobacter` (0.6) | Enterobacter | 0.48 |
-| red pigment | `…red-pigment-suggests-serratia` (0.75) | Serratia | 0.60 |
+| red pigment | `…red-pigment-suggests-serratia` (grounded ≈0.90) | Serratia | ≈0.72 |
 | urease+ / swarming | `…urease-pos-swarming-suggests-proteus` (0.8) | Proteus | 0.64 |
+
+The Serratia rule belief is **frequency-grounded** (`P(Serratia | red pigment)` read off
+schematic counts, ≈0.90), not an illustrative figure like the others — see **Scenario 12**.
 
 Motility is what separates Enterobacter from non-motile Klebsiella (both
 lactose+/indole−). A **urease-positive** result additionally fires the disconfirming
@@ -430,7 +452,7 @@ down.** Add a **red pigment** reading to the lactose+/indole+ case above:
 > indole positive, **and a red pigment on the plate**."
 
 Now two siblings are confirmed — E. coli (lactose+/indole+, 0.64) and Serratia (red
-pigment, 0.60) — but one organism cannot be both, and the biochemistry says so:
+pigment, grounded ≈0.72) — but one organism cannot be both, and the biochemistry says so:
 
 - **`red-pigment-argues-against-non-serratia`** (−0.8) fires against E. coli
   (prodigiosin is essentially Serratia-specific).
@@ -444,10 +466,11 @@ fit either" that a flat `pl 1.0` on both could not express:
 | Species | confirmed | disconfirmed by | CF | DS `bel` | DS `pl` |
 |---|---|---|---|---|---|
 | E. coli | 0.64 (lactose+/indole+) | red pigment (−0.8) | −0.44 | 0.26 | 0.41 |
-| Serratia | 0.60 (red pigment) | indole+ (−0.6) | 0.00 | 0.375 | 0.625 |
+| Serratia | ≈0.72 (red pigment, grounded) | indole+ (−0.6) | 0.31 | 0.51 | 0.71 |
 
-The conflict is **asymmetric**: the more-specific pigment (−0.8) bites harder than the
-indole (−0.6), so E. coli ends up *below* Serratia. Ask `/why` on either and the engine
+The conflict is **asymmetric**: E. coli ends up *below* Serratia on two counts — the
+more-specific pigment (−0.8) bites harder than the indole (−0.6), *and* E. coli starts
+lower (0.64) than the frequency-grounded Serratia (≈0.72). Ask `/why` on either and the engine
 shows which finding pulled it down, with citations. This is the reconstruction of a live
 clinician session where both siblings sat at `pl 1.0` and the engine could not voice the
 contradiction. (Symmetrically, `lactose-fermenter-argues-against-non-fermenters` (−0.7)
@@ -523,6 +546,50 @@ is an interval, so the explanation shows ignorance narrowing/shifting per firing
 
 ---
 
+## Scenario 12 — "Where does that number come from?" (frequency-grounded belief)
+
+*Another follow-up, and the counterpoint to Scenario 11. Most rule beliefs are
+**illustrative** — schematic teaching figures, and the engine says so. A few are
+**frequency-grounded**: the number is a conditional frequency read off stratified
+observation counts, and `/why` narrates it differently.*
+
+Run Scenario 9's **Serratia** variation (an aerobic gram-negative rod in the
+enterobacteriaceae class with a **red pigment** reading) to conclusion — Serratia comes
+back at ≈0.72 — then ask:
+
+> "Serratia at 0.72 — where does that number actually come from? Is it measured?"
+
+Claude calls `explain_conclusion` and finds the red-pigment rule's provenance carries
+`belief_basis: frequency-derived` (not `illustrative`), with a `grounding` record:
+
+- **The number is a frequency, and Claude may say so.** The rule belief is
+  `grounded(47, 50) = 47/(50+σ) = 47/52 ≈ 0.90` (σ=2) — the fraction of red-pigmented
+  enterobacteriaceae isolates that were Serratia, as a conservative, finite-sample point
+  estimate (the IDM lower expectation, the same reduction the antibiogram's
+  `counts→interval` uses). Composed through the 0.8 class it reaches the ≈0.72 in
+  `/conclusions`.
+- **Grounded, not measured-in-this-patient.** The honesty line *shifts*: for a
+  `frequency-derived` belief Claude says the number **is** an observed conditional
+  frequency (over `n = 50` isolates), not merely a schematic figure — but those counts are
+  **illustrative surveillance, NOT real data**, and never a basis for prescribing.
+  (Contrast Scenario 11's Klebsiella, `illustrative`: there the 0.40 is *not* a frequency
+  at all — the citation backs the *association*, never the number.)
+- **The correction grounding surfaced.** The rule concludes `P(Serratia | red pigment)` —
+  *given* red pigment, how likely is Serratia? High, because prodigiosin is essentially
+  Serratia-specific. The earlier illustrative 0.75 reflected the **opposite** conditional,
+  `P(pigment | Serratia)` — that many Serratia are non-pigmented — which is irrelevant to a
+  rule that fires *on* pigment. Grounding both raised the number (≈0.75 → ≈0.90) and fixed
+  *which question it answers*.
+
+Under DS, a `frequency-derived` belief today collapses to the interval's lower bound as a
+scalar (so plausibility still tops out at 1.0); a planned increment may let the rule carry
+the **full** `[bel, pl]` so the sample size becomes legible as interval *width* on the
+belief itself. This scenario is where "the number is schematic" honestly becomes "the
+number is a frequency over N observations" — for exactly the rules where that is true, and
+no others. Design: `docs/ds-grounded-beliefs-design.md`. **NOT FOR CLINICAL USE.**
+
+---
+
 ## Rule Coverage Matrix
 
 | Rule | Scenarios that exercise it |
@@ -542,7 +609,7 @@ is an interval, so the explanation shows ignorance narrowing/shifting per firing
 | enterobacteriaceae-in-blood-with-low-wbc-suggests-salmonella (tier-2) | 5 |
 | enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli (tier-2) | 9 |
 | enterobacteriaceae-motile-lactose-pos-indole-neg-suggests-enterobacter (tier-2) | 9 (variation) |
-| enterobacteriaceae-red-pigment-suggests-serratia (tier-2) | 9 (variation) |
+| enterobacteriaceae-red-pigment-suggests-serratia (tier-2) | 9 (variation), 12 (frequency-grounded) |
 | enterobacteriaceae-urease-pos-swarming-suggests-proteus (tier-2) | 9 (variation) |
 | aerobic-gram-neg-rod-suggests-enterobacteriaceae-class (tier-1) | 1, 2, 4, 5, 8, 9, 10 |
 | anaerobic-gram-neg-rod-in-abdomen-suggests-bacteroides | 6 |
