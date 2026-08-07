@@ -53,7 +53,7 @@ gram-neg rod); they do nothing on their own.
 
 ## Rules in the System
 
-The inference engine contains these 23 diagnostic rules. Rule names are clinically descriptive — when narrating conclusions or discussing partial matches, quote them verbatim rather than paraphrasing. One cluster is *chained*: an intermediate **organism-class** (a taxonomic family) is derived first, and sibling species are refined from it (see "Chained intermediate" below), so those species' beliefs compose through the family. Enterobacteriaceae is that family — it is an **organism-class**, never a leaf identity, so conclusions name specific species (E. coli, Klebsiella, Salmonella, Enterobacter, Serratia, Proteus), not "Enterobacteriaceae" itself.
+The inference engine contains these 27 diagnostic rules. Rule names are clinically descriptive — when narrating conclusions or discussing partial matches, quote them verbatim rather than paraphrasing. One cluster is *chained*: an intermediate **organism-class** (a taxonomic family) is derived first, and sibling species are refined from it (see "Chained intermediate" below), so those species' beliefs compose through the family. Enterobacteriaceae is that family — it is an **organism-class**, never a leaf identity, so conclusions name specific species (E. coli, Klebsiella, Salmonella, Enterobacter, Serratia, Proteus), not "Enterobacteriaceae" itself.
 
 **Original PAIP-derived rules:**
 
@@ -102,6 +102,13 @@ These carry a *negative* belief — they argue *against* a hypothesis rather tha
 - **gram-neg-stain-argues-against-gram-pos-organism** (belief −0.7): A gram-negative reading is evidence against a gram-positive organism hypothesis (staphylococcus, staphylococcus-aureus, streptococcus, streptococcus-pneumoniae, enterococcus)
 - **aerobic-growth-argues-against-anaerobe** (belief −0.8): Aerobic growth is evidence against a strict anaerobe (bacteroides)
 - **urease-pos-argues-against-urease-negative-organism** (belief −0.7): A positive urease is evidence against the urease-negative enterobacteriaceae species (e-coli, salmonella) — the finding that lets a contradictory biochemical result pull a near-tied sibling's plausibility below 1.0
+
+**Biochemical cross-disconfirmation among the enterobacteriaceae siblings.** These are the same shape as the urease rule — a discriminating biochemical marker that argues *against* the sibling species it is inconsistent with. Together they let a contradictory pair of readings pull *both* implicated siblings below `pl 1.0` (e.g. lactose+/indole+ **and** red pigment: the pigment argues against E. coli while the indole+ argues against Serratia — neither stays co-plausible at 1.0). When one fires, name the marker: "the red pigment argues against E. coli, which is why its plausibility fell below 1.0."
+
+- **red-pigment-argues-against-non-serratia** (belief −0.8): Red pigment (prodigiosin) is essentially Serratia-specific, so it argues against every other sibling (e-coli, klebsiella, salmonella, enterobacter, proteus)
+- **indole-pos-argues-against-indole-negative-species** (belief −0.6): A positive indole argues against the characteristically indole-negative siblings (klebsiella, enterobacter, salmonella, serratia). *Proteus is deliberately excluded* — P. mirabilis is indole−, P. vulgaris indole+, so the marker is ambiguous for the genus
+- **lactose-fermenter-argues-against-non-fermenters** (belief −0.7): Lactose fermentation argues against the classic non-fermenters (salmonella, proteus)
+- **lactose-non-fermenter-argues-against-fermenters** (belief −0.6): A non-fermenting lactose reading argues against the strong fermenters (e-coli, klebsiella, enterobacter). *Serratia is excluded* — it is a slow/variable lactose reactor
 
 ## Belief Output Format
 

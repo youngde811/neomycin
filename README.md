@@ -46,7 +46,7 @@ express that; keeping both is what makes the comparison worth publishing.
 ## Status
 
 Early, but both halves of a consultation now run end to end. On the
-**identification** side: a 23-rule MYCIN subset (neomycin's own
+**identification** side: a 27-rule MYCIN subset (neomycin's own
 `neomycin/rulebase.lisp`), the pluggable belief protocol (DS default, CF
 retained), the HTTP bridge, and the Claude driver.
 
@@ -89,9 +89,10 @@ verify the clinical association, never the value itself. See
 [`docs/why-how-provenance-design.md`](docs/why-how-provenance-design.md) and Scenario
 11 in [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md).
 
-Still ahead: scaling the rule corpus (including biochemical cross-disconfirmation
-among the enterobacteriaceae siblings), drug–drug interaction constraints, and an
-exact-solver oracle for the greedy one.
+Still ahead: scaling the rule corpus further, drug–drug interaction constraints, and
+an exact-solver oracle for the greedy one. (Biochemical cross-disconfirmation among
+the enterobacteriaceae siblings — a contradictory reading pulling both implicated
+siblings below `pl 1.0` — has now landed.)
 
 ## Provenance and license
 

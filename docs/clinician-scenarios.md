@@ -423,6 +423,38 @@ Salmonella — so in a case with two near-tied siblings, a contradictory urease 
 urease-negative one's *plausibility below 1.0*: the DS-conflict fingerprint applied to
 biochemistry.
 
+**Cross-disconfirmation variation — contradictory biochemistry pulls both siblings
+down.** Add a **red pigment** reading to the lactose+/indole+ case above:
+
+> "Aerobic gram-negative rods, urine culture. Biochemicals: lactose fermenter,
+> indole positive, **and a red pigment on the plate**."
+
+Now two siblings are confirmed — E. coli (lactose+/indole+, 0.64) and Serratia (red
+pigment, 0.60) — but one organism cannot be both, and the biochemistry says so:
+
+- **`red-pigment-argues-against-non-serratia`** (−0.8) fires against E. coli
+  (prodigiosin is essentially Serratia-specific).
+- **`indole-pos-argues-against-indole-negative-species`** (−0.6) fires against
+  Serratia (which is characteristically indole-negative).
+
+Each sibling is disconfirmed by exactly the marker that confirmed the *other*, so
+**both plausibilities fall below 1.0** — the honest "the biochemistry doesn't cleanly
+fit either" that a flat `pl 1.0` on both could not express:
+
+| Species | confirmed | disconfirmed by | CF | DS `bel` | DS `pl` |
+|---|---|---|---|---|---|
+| E. coli | 0.64 (lactose+/indole+) | red pigment (−0.8) | −0.44 | 0.26 | 0.41 |
+| Serratia | 0.60 (red pigment) | indole+ (−0.6) | 0.00 | 0.375 | 0.625 |
+
+The conflict is **asymmetric**: the more-specific pigment (−0.8) bites harder than the
+indole (−0.6), so E. coli ends up *below* Serratia. Ask `/why` on either and the engine
+shows which finding pulled it down, with citations. This is the reconstruction of a live
+clinician session where both siblings sat at `pl 1.0` and the engine could not voice the
+contradiction. (Symmetrically, `lactose-fermenter-argues-against-non-fermenters` (−0.7)
+and its non-fermenter complement (−0.6) do the same for the Salmonella/Proteus axis — a
+context-suggested Salmonella meeting a lactose+ reading is pulled below 1.0 while a
+biochemically-confirmed E. coli stays clean.)
+
 ---
 
 ## Scenario 10 — Family backstop when the species won't resolve (therapy)
@@ -518,6 +550,10 @@ is an interval, so the explanation shows ignorance narrowing/shifting per firing
 | gram-neg-stain-argues-against-gram-pos-organism | (needs a gram-neg reading alongside a live gram-positive hypothesis) |
 | aerobic-growth-argues-against-anaerobe | (needs an aerobic result contradicting a prior bacteroides hypothesis) |
 | urease-pos-argues-against-urease-negative-organism | 9 (with two siblings and a urease+ reading) |
+| red-pigment-argues-against-non-serratia | 9 (cross-disconfirmation variation) |
+| indole-pos-argues-against-indole-negative-species | 9 (cross-disconfirmation variation) |
+| lactose-fermenter-argues-against-non-fermenters | 9 (context Salmonella meeting a lactose+ reading) |
+| lactose-non-fermenter-argues-against-fermenters | (needs a non-fermenter reading against a live fermenter hypothesis) |
 
 *Scenario 6 fires this rule only if a blood culture is also asserted.
 
@@ -526,11 +562,12 @@ rule is gone (C2) — the tier-1 **class** rule now covers that evidence path, a
 family reaches therapy only as a species (Scenarios 1/2/4/5/8/9) or as a backstop
 (Scenario 10).
 
-The four disconfirming rules carry negative beliefs and fire only when a
+The eight disconfirming rules carry negative beliefs and fire only when a
 contradictory finding meets a live hypothesis. Scenario 7 exercises the gram-stain
-one directly; the urease one is reachable in Scenario 9's two-sibling variation; the
-other two need a scenario where the oxygen requirement or stain flips against an
-already-supported organism.
+one directly; the five **biochemical** ones (urease, red pigment, indole, and the two
+lactose rules) are reachable in Scenario 9's two-sibling and cross-disconfirmation
+variations; the aerobic-vs-anaerobe one needs a scenario where the oxygen requirement
+flips against an already-supported organism.
 
 ---
 

@@ -1,7 +1,10 @@
 # Biochemical cross-disconfirmation among the enterobacteriaceae siblings — design & slice plan
 
-> Status: **DESIGN — awaiting David's review before any code.** Opens the feature
-> (branch `feature/sibling-cross-disconfirmation`). Logged as
+> Status: **DELIVERED** (branch `feature/sibling-cross-disconfirmation`). Review
+> decisions: include rule 4 (yes), magnitudes −0.6/−0.7 with red pigment at −0.8
+> (prodigiosin is the most exclusive marker), one targeted Salmonella/Klebsiella
+> golden. Slice A = the four rules + isolation tests (+ the forced urease-scenario
+> re-capture); Slice B = the conflict goldens; Slice C = docs sync. Logged as
 > `corpus-expansion-sketch.md` §5 candidate 4.
 
 ## 1. Why (the gap, observed live)
