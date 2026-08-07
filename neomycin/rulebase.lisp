@@ -568,6 +568,76 @@
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
+;; Red pigment (prodigiosin) is essentially Serratia-specific, so it argues AGAINST
+;; every OTHER sibling: seeing it makes a non-Serratia call unlikely. -0.8 -- the most
+;; exclusive of the biochemical markers (prodigiosin has no counterpart in the other
+;; genera). Closes half the observed session gap (red pigment now pulls E. coli down).
+(defrule red-pigment-argues-against-non-serratia
+    (:belief -0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "Scientific Reports 2024, Serratia marcescens prodigiosin red pigment, PMC11291754 (doi:10.1038/s41598-024-68747-3)")
+                  :belief-basis :illustrative
+                  :note "The red pigment prodigiosin is essentially specific to Serratia marcescens among the Enterobacteriaceae, so its presence argues against E. coli, Klebsiella, Salmonella, Enterobacter, and Proteus."))
+  (organism (id ?o))
+  (pigment (value red) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:e-coli :klebsiella :salmonella :enterobacter :proteus)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; A positive indole argues AGAINST the characteristically indole-negative siblings
+;; (Klebsiella, Enterobacter, Salmonella, Serratia). Proteus is deliberately EXCLUDED:
+;; P. mirabilis is indole- but P. vulgaris is indole+, so the marker is ambiguous for
+;; the genus (honest scoping). -0.6 -- clean but not absolute. Closes the other half of
+;; the observed session gap (indole+ now pulls Serratia down).
+(defrule indole-pos-argues-against-indole-negative-species
+    (:belief -0.6
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "J Clin Microbiol (indole-positive vs indole-negative Klebsiella identification), PMC1594763")
+                  :belief-basis :illustrative
+                  :note "Klebsiella, Enterobacter, Salmonella, and Serratia are characteristically indole-negative, so a positive indole argues against them. Proteus is excluded because P. mirabilis is indole-negative while P. vulgaris is indole-positive (ambiguous for the genus)."))
+  (organism (id ?o))
+  (indole (value positive) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:klebsiella :enterobacter :salmonella :serratia)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; Lactose fermentation argues AGAINST the classic non-fermenters, Salmonella and
+;; Proteus -- the standard teaching discriminator (MacConkey lactose reaction). -0.7.
+(defrule lactose-fermenter-argues-against-non-fermenters
+    (:belief -0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017")
+                  :belief-basis :illustrative
+                  :note "Salmonella and Proteus are characteristically non-lactose-fermenters, so lactose fermentation argues against them -- the classic MacConkey teaching discriminator."))
+  (organism (id ?o))
+  (lactose (value fermenter) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:salmonella :proteus)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; The symmetric complement: NON-fermentation of lactose argues AGAINST the strong
+;; fermenters (E. coli, Klebsiella, Enterobacter). Serratia is EXCLUDED -- it is a
+;; slow/variable lactose reactor, so the marker is not clean for it (honest). -0.6.
+(defrule lactose-non-fermenter-argues-against-fermenters
+    (:belief -0.6
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298")
+                  :belief-basis :illustrative
+                  :note "E. coli, Klebsiella, and Enterobacter are strong lactose fermenters, so a non-fermenting reading argues against them. Serratia is excluded because it is a slow/variable lactose reactor (the marker is not clean for it)."))
+  (organism (id ?o))
+  (lactose (value non-fermenter) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:e-coli :klebsiella :enterobacter)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
 ;;; --- Conclusion rule ---
 
 (defrule conclusion (:salience -10)
