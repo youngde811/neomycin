@@ -66,9 +66,11 @@ and emits `{bel, pl, ignorance}` payloads under DS.
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rulebase.lisp       — THE canonical MYCIN rulebase: 23 rules (18 confirming — 10 leaf
+  rulebase.lisp       — THE canonical MYCIN rulebase: 27 rules (18 confirming — 10 leaf
                         identities + 8 tier-2 chained enterobacteriaceae species — plus 1
-                        tier-1 organism-class chain rule + 4 disconfirming), keyword
+                        tier-1 organism-class chain rule + 8 disconfirming, of which 5 are
+                        biochemical cross-disconfirmation among the enterobacteriaceae
+                        siblings), keyword
                         vocabulary, culture-1/1a/2/3/multi demo drivers. Enterobacteriaceae
                         is a class-only family (no leaf identity); its species (E. coli,
                         Klebsiella, Salmonella, Enterobacter, Serratia, Proteus) chain off
@@ -184,7 +186,7 @@ computation changes intentionally, re-capture and update the goldens in `tests/s
 Identification and therapy both run end to end:
 
 - **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
-- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (23 rules), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (27 rules), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
 - **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
 - **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
 
