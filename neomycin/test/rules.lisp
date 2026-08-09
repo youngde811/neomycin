@@ -125,6 +125,16 @@
                 (af "white-blood-count" "low" p))
               "salmonella" 0.44))
 
+(deftest rule-neutropenia-aerobic-gram-neg-rod-pseudomonas () ; 0.5
+  ;; Host-factor modifier (slice D). One-hop, NOT chained: Pseudomonas is not an
+  ;; enterobacteriaceae, so it cannot refine from the class the same premises derive.
+  ;; The class is derived here too but reaches no species without discriminators.
+  (check-rule (lambda (o p)
+                (af "gram" "neg" o) (af "morphology" "rod" o)
+                (af "aerobicity" "aerobic" o)
+                (af "neutropenia" "t" p))
+              "pseudomonas" 0.5))
+
 (deftest rule-anaerobic-gram-neg-rod-abdomen-bacteroides () ; 0.8
   (check-rule (lambda (o p)
                 (af "gram" "neg" o) (af "morphology" "rod" o)

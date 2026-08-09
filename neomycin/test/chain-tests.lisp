@@ -663,3 +663,58 @@
                        (af "sorbitol" "fermenter" o) (af "arabinose" "non-fermenter" o)
                        (af "arabinose" "fermenter" o))
                      "enterococcus-faecalis" 0.56))
+
+;;; ------------------------------------------------------------------
+;;; HOST-FACTOR modifiers over the gram-positive classes (slice D; sketch §5.5).
+;;;
+;;; These compose through a genus class exactly like the biochemical species rules,
+;;; so the same class-belief * rule-belief law applies. What differs is their role:
+;;; they add an independent mass to a hypothesis the morphology already raises,
+;;; rather than discriminating between siblings. (The one-hop neutropenia ->
+;;; Pseudomonas modifier lives in rules.lisp, since Pseudomonas is not an
+;;; enterobacteriaceae and so cannot chain from the class its premises derive.)
+;;; ------------------------------------------------------------------
+
+(deftest chain-host-factor-iv-drug-use-staph-aureus () ; 0.7*0.55 = 0.385
+  ;; No coagulase asserted, so the biochemical S. aureus rule stays silent and this
+  ;; clinical prior fires alone -- deliberately usable before the biochemistry is back.
+  (check-rule (lambda (o p)
+                (af "gram" "pos" o) (af "morphology" "coccus" o)
+                (af "growth-conformation" "clumps" o)
+                (af "iv-drug-use" "t" p))
+              "staphylococcus-aureus" 0.385))
+
+(deftest chain-host-factor-neonate-strep-agalactiae () ; 0.7*0.7 = 0.49
+  ;; Beta hemolysis with NO bacitracin reading: neither group A nor group B
+  ;; biochemical rule can fire, so the host factor is isolated.
+  (check-rule (lambda (o p)
+                (af "gram" "pos" o) (af "morphology" "coccus" o)
+                (af "growth-conformation" "chains" o)
+                (af "hemolysis" "beta" o)
+                (af "age-group" "neonate" p))
+              "streptococcus-agalactiae" 0.49))
+
+(deftest chain-host-factor-urinary-staph-saprophyticus () ; 0.7*0.65 = 0.455
+  ;; Coagulase-negative also raises the S. epidermidis default, but that is a
+  ;; DIFFERENT identity; no novobiocin is asserted, so S. saprophyticus is reached
+  ;; by this host-factor rule alone.
+  (check-rule (lambda (o p)
+                (af "gram" "pos" o) (af "morphology" "coccus" o)
+                (af "growth-conformation" "clumps" o)
+                (af "coagulase" "negative" o)
+                (af "infection-site" "urinary" p))
+              "staphylococcus-saprophyticus" 0.455))
+
+(deftest chain-host-factor-prosthetic-epidermidis-combines () ; 0.385 combine 0.42 = 0.6433
+  ;; NOT an isolation, and cannot be one: this rule's premises are a superset of the
+  ;; plain coagulase-negative rule's, so both necessarily fire off the shared class --
+  ;; the biochemical default (0.7*0.55 = 0.385) and the device host factor
+  ;; (0.7*0.6 = 0.42) -- and their masses combine to 0.6433. Same situation as
+  ;; rule-hospital-compromised-klebsiella-combines on the gram-negative side, and a
+  ;; direct demonstration that a host factor ADDS evidence rather than replacing it.
+  (check-rule (lambda (o p)
+                (af "gram" "pos" o) (af "morphology" "coccus" o)
+                (af "growth-conformation" "clumps" o)
+                (af "coagulase" "negative" o)
+                (af "prosthetic-material" "t" p))
+              "staphylococcus-epidermidis" 0.6433))

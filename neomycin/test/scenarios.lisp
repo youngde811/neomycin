@@ -62,6 +62,16 @@
     (check-cf c "streptococcus-pyogenes" 0.595)
     (check-cf c "streptococcus-pneumoniae" -0.473684)))
 
+(deftest cf-culture-5 ()
+  ;; Host factor REINFORCING a biochemical call rather than contradicting it: the
+  ;; biochemical path (beta + bacitracin-resistant, 0.49) and the host-factor path
+  ;; (neonate + beta-hemolytic, 0.49) both reach S. agalactiae and combine to
+  ;; 0.49 + 0.49 - 0.49*0.49 = 0.7399. No conflict, so CF and DS agree exactly --
+  ;; the deliberate counterpart to culture-4, where two paths reached mutually
+  ;; exclusive species and the algebras diverged.
+  (let ((c (run-scenario 'lisa-user::culture-5 :certainty-factors)))
+    (check-cf c "streptococcus-agalactiae" 0.7399)))
+
 ;;; ------------------------------------------------------------------
 ;;; Dempster-Shafer
 ;;; ------------------------------------------------------------------
@@ -109,6 +119,13 @@
   (let ((c (run-scenario 'lisa-user::culture-4 :dempster-shafer)))
     (check-ds c "streptococcus-pyogenes" 0.595 1.00)
     (check-ds c "streptococcus-pneumoniae" 0.216495 0.412371)))
+
+(deftest ds-culture-5 ()
+  ;; Confirmatory regime: nothing argues against S. agalactiae, so plausibility stays
+  ;; at 1.0 and DS-bel equals the CF number. Two independent masses ADD rather than
+  ;; conflict -- which is what distinguishes a host factor from a discriminator.
+  (let ((c (run-scenario 'lisa-user::culture-5 :dempster-shafer)))
+    (check-ds c "streptococcus-agalactiae" 0.7399 1.00)))
 
 ;;; ------------------------------------------------------------------
 ;;; Behavioral properties (the reasoning content, not just the numbers)
