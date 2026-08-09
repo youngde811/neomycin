@@ -42,9 +42,23 @@
   :components
   ((:module neomycin
     :components
-      ((:file "rulebase")
+      (;; The rulebase was one 1300-line file through v0.5.0. The gram-positive
+       ;; increment took it past the ~40-rule threshold the corpus sketch (§7)
+       ;; predicted would make a single file unreviewable, so it is split by cluster.
+       ;; context.lisp defines every class the rule files are written against and so
+       ;; must load first; everything else depends on it and is otherwise independent.
+       (:module "rules"
+        :components
+          ((:file "context")
+           (:file "identity-gram-neg" :depends-on ("context"))
+           (:file "chain-enterobacteriaceae" :depends-on ("context"))
+           (:file "chain-gram-pos" :depends-on ("context"))
+           (:file "host-factors" :depends-on ("context"))
+           (:file "disconfirming" :depends-on ("context"))
+           (:file "conclusion" :depends-on ("context"))
+           (:file "drivers" :depends-on ("context"))))
        (:module "therapy"
-        :depends-on ("rulebase")
+        :depends-on ("rules")
         :components
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
@@ -84,6 +98,7 @@
                      (:file "scenarios")
                      (:file "rules")
                      (:file "chain-tests")
+                     (:file "property-tests")
                      (:file "provenance-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
@@ -107,4 +122,4 @@
                relative-path))
 
 (setf (logical-pathname-translations "neomycin")
-      `(("rulebase;*.*" ,(make-neomycin-path "neomycin/"))))
+      `(("rulebase;*.*" ,(make-neomycin-path "neomycin/rules/"))))
