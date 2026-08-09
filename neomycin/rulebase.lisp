@@ -900,6 +900,147 @@
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
+;;; ------------------------------------------------------------------
+;;; Cross-disconfirmation among the GRAM-POSITIVE siblings (slice C;
+;;; docs/gram-positive-cluster-design.md §3.4).
+;;;
+;;; Same pattern as the enterobacteriaceae cross-disconfirming rules, but with
+;;; stronger negative beliefs, because these discriminators partition CLEANLY where
+;;; the enterobacteriaceae biochemicals overlap: hemolysis is a three-way partition
+;;; and coagulase a two-way one, so a contradictory reading is close to decisive
+;;; rather than merely suggestive. Without these, mutually exclusive siblings both
+;;; sit at pl 1.0 -- the gap culture-4 exists to display.
+;;; ------------------------------------------------------------------
+
+;; Coagulase is the defining split within the staphylococci, so a NEGATIVE coagulase
+;; is strong evidence against S. aureus. -0.85.
+(defrule coagulase-neg-argues-against-staph-aureus
+    (:belief -0.85
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
+                             "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
+                  :belief-basis :illustrative
+                  :note "S. aureus is by definition the coagulase-positive staphylococcus, so a negative coagulase argues strongly against it."))
+  (organism (id ?o))
+  (coagulase (value negative) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:staphylococcus-aureus)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; The symmetric complement: a POSITIVE coagulase argues against the
+;; coagulase-negative staphylococci. -0.85.
+(defrule coagulase-pos-argues-against-coagulase-negative-staph
+    (:belief -0.85
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240"
+                             "NCBI Bookshelf / StatPearls, Staphylococcus saprophyticus Infection, NBK482367")
+                  :belief-basis :illustrative
+                  :note "S. epidermidis and S. saprophyticus are coagulase-NEGATIVE staphylococci, so a positive coagulase argues against them and toward S. aureus."))
+  (organism (id ?o))
+  (coagulase (value positive) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:staphylococcus-epidermidis :staphylococcus-saprophyticus)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; Catalase-negative argues against the whole staphylococcus genus -- the textbook
+;; staph-vs-strep split, entering as a disconfirmer rather than a tier-1 premise so
+;; that scenarios which never run it are unaffected. -0.7.
+(defrule catalase-neg-argues-against-staphylococci
+    (:belief -0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448")
+                  :belief-basis :illustrative
+                  :note "Staphylococci are catalase-POSITIVE while streptococci and enterococci are catalase-negative, so a negative catalase argues against any staphylococcal species."))
+  (organism (id ?o))
+  (catalase (value negative) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:staphylococcus-aureus :staphylococcus-epidermidis
+                         :staphylococcus-saprophyticus)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; Hemolysis is a clean three-way partition, so a BETA reading argues against the
+;; species that are characteristically alpha-hemolytic. -0.75.
+(defrule beta-hemolysis-argues-against-non-beta-streptococci
+    (:belief -0.75
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf / StatPearls, Streptococcus pneumoniae, NBK470537")
+                  :belief-basis :illustrative
+                  :note "Streptococci are partitioned by hemolysis into beta (complete), alpha (green/partial) and gamma (none). S. pneumoniae and the viridans group are ALPHA-hemolytic, so a beta reading argues against them."))
+  (organism (id ?o))
+  (hemolysis (value beta) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:streptococcus-pneumoniae :streptococcus-viridans)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; The reciprocal: an ALPHA reading argues against the beta-hemolytic species. -0.75.
+(defrule alpha-hemolysis-argues-against-beta-hemolytic-streptococci
+    (:belief -0.75
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf / StatPearls, Group B Streptococcus and Pregnancy, NBK482443")
+                  :belief-basis :illustrative
+                  :note "S. pyogenes (group A) and S. agalactiae (group B) are BETA-hemolytic, so an alpha-hemolytic reading argues against them."))
+  (organism (id ?o))
+  (hemolysis (value alpha) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:streptococcus-pyogenes :streptococcus-agalactiae)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; Optochin sensitivity is what separates the pneumococcus from the rest of the
+;; alpha-hemolytic streptococci, so a SENSITIVE result argues against viridans. -0.7.
+(defrule optochin-sensitive-argues-against-viridans
+    (:belief -0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611")
+                  :belief-basis :illustrative
+                  :note "The viridans group is defined among alpha-hemolytic streptococci by optochin RESISTANCE, so an optochin-sensitive result argues against it and toward S. pneumoniae."))
+  (organism (id ?o))
+  (optochin (value sensitive) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:streptococcus-viridans)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; A NEGATIVE bile-esculin argues against the enterococci. The mildest of this group
+;; at -0.6: some non-enterococcal group D streptococci are also bile-esculin positive,
+;; so the test is a better ruling-in than ruling-out marker.
+(defrule bile-esculin-neg-argues-against-enterococci
+    (:belief -0.6
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("J Clin Microbiol, Presumptive Identification of Group D Streptococci: the Bile-Esculin Test, PMC376909"
+                             "J Clin Microbiol, Comparison of Several Laboratory Media for Presumptive Identification of Enterococci and Group D Streptococci, PMC379740")
+                  :belief-basis :illustrative
+                  :note "Enterococci hydrolyze esculin in the presence of bile, so a negative bile-esculin argues against them. Held to -0.6 because the test is shared with the non-enterococcal group D streptococci, making it a stronger ruling-IN than ruling-out marker."))
+  (organism (id ?o))
+  (bile-esculin (value negative) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:enterococcus-faecalis :enterococcus-faecium)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
+;; Arabinose fermentation argues against E. faecalis, which characteristically does
+;; NOT ferment it. -0.7, matching the conservative belief on the confirming pair --
+;; the same contested-source caveat applies (see the species rules above).
+(defrule arabinose-pos-argues-against-e-faecalis
+    (:belief -0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("Carriage of multidrug resistant Enterococcus faecium and Enterococcus faecalis among apparently healthy humans, PMC5476817")
+                  :belief-basis :illustrative
+                  :note "E. faecalis characteristically does not ferment arabinose while E. faecium does, so arabinose fermentation argues against E. faecalis. CONTESTED, as for the confirming rules: the biochemical key in PMC91588 does not treat arabinose as discriminating between these species -- hence -0.7 rather than something stronger."))
+  (organism (id ?o))
+  (arabinose (value fermenter) (of ?o))
+  (organism-identity (value ?value) (of ?o))
+  (test (member ?value '(:enterococcus-faecalis)))
+  =>
+  (assert (organism-identity (value ?value) (of ?o))))
+
 ;;; --- Conclusion rule ---
 
 (defrule conclusion (:salience -10)

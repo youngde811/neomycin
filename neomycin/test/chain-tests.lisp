@@ -1,12 +1,17 @@
 ;; This file is part of neomycin, a research reconstruction of MYCIN/EMYCIN.
 ;; MIT License. Copyright (c) 2000 David Young.
 
-;; Description: Chained-cluster tests (corpus sketch §3B/§5.1). The enterobacteriaceae
-;; family is reconstructed as a multi-hop cluster: evidence -> derived ORGANISM-CLASS
-;; (tier 1) -> competing sibling species (tier 2, a later increment). This file
-;; covers TIER 1 in isolation -- the first corpus inference that concludes a
-;; belief-valued INTERMEDIATE abstraction, the DS composition path nothing else
-;; exercises yet. These tests are neomycin-only (organism-class exists only in
+;; Description: Chained-cluster tests (corpus sketch §3B/§5.1). A cluster is a
+;; multi-hop reconstruction: evidence -> derived ORGANISM-CLASS (tier 1) -> competing
+;; sibling species (tier 2) -> cross-disconfirmation among those siblings. There are
+;; now FOUR classes across three clusters: enterobacteriaceae (the original), and the
+;; gram-positive staphylococcus / streptococcus / enterococcus genera added by
+;; docs/gram-positive-cluster-design.md.
+;;
+;; This file covers all three layers: each class rule in isolation; the composition
+;; law (species belief = class belief * rule belief) stated once per cluster over
+;; every isolatable tier-2 rule; and each cross-disconfirming rule fired against a
+;; single live sibling. These tests are neomycin-only (organism-class exists only in
 ;; neomycin/rulebase.lisp, never in Lisa's examples/mycin.lisp), so they live in
 ;; the neomycin/test system rather than the shared lisa/test rule suite.
 
@@ -557,3 +562,104 @@
     (is (> (belief:ds-belief-bel (belief-of c "e-coli"))
            (belief:ds-belief-bel (belief-of c "salmonella")))
         "the biochemistry favors the biochemical E. coli over the context-suggested Salmonella")))
+;;; ------------------------------------------------------------------
+;;; CROSS-DISCONFIRMATION among the GRAM-POSITIVE siblings, in isolation (slice C).
+;;;
+;;; Same method as the enterobacteriaceae section above: establish ONE sibling by an
+;;; independent path, then assert the contradicting marker and verify the identity
+;;; survives with a lowered belief and DS plausibility below 1.0.
+;;;
+;;; Where a discriminator is the sibling's ONLY confirming route (coagulase for the
+;;; CoNS species, hemolysis for S. pyogenes, optochin for viridans, arabinose for
+;;; E. faecalis), the test asserts BOTH readings of that marker -- the ambiguous-result
+;;; pattern culture-2 established for the Gram stain. That is the honest way to load a
+;;; contradiction onto a hypothesis whose only support is the marker now being
+;;; contradicted.
+;;; ------------------------------------------------------------------
+
+(deftest rule-coagulase-neg-argues-against-staph-aureus ()
+  ;; S. aureus established by the CLINICAL hospital-acquired path (0.7*0.8 = 0.56),
+  ;; so the coagulase reading is genuinely independent evidence; a negative then
+  ;; argues against it (-0.85).
+  (check-disconfirms (lambda (o p)
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "clumps" o)
+                       (af "hospital-acquired" "t" p)
+                       (af "coagulase" "negative" o))
+                     "staphylococcus-aureus" 0.56))
+
+(deftest rule-coagulase-pos-argues-against-coagulase-negative-staph ()
+  ;; S. epidermidis established by coagulase-negative (0.7*0.55 = 0.385); an
+  ;; ambiguous/contradictory positive coagulase then argues against it (-0.85).
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "clumps" o)
+                       (af "coagulase" "negative" o)
+                       (af "coagulase" "positive" o))
+                     "staphylococcus-epidermidis" 0.385))
+
+(deftest rule-catalase-neg-argues-against-staphylococci ()
+  ;; S. aureus established clinically (0.56); a catalase-negative reading argues
+  ;; against the whole genus (-0.7). This is the tier-1 discriminator doing its work
+  ;; from the disconfirming side, which is why it is not a class premise.
+  (check-disconfirms (lambda (o p)
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "clumps" o)
+                       (af "hospital-acquired" "t" p)
+                       (af "catalase" "negative" o))
+                     "staphylococcus-aureus" 0.56))
+
+(deftest rule-beta-hemolysis-argues-against-non-beta-streptococci ()
+  ;; S. pneumoniae established by the respiratory site (0.7*0.75 = 0.525); a BETA
+  ;; hemolysis reading argues against the alpha-hemolytic pneumococcus (-0.75).
+  ;; This is culture-4's mechanism, isolated.
+  (check-disconfirms (lambda (o p)
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "chains" o)
+                       (af "infection-site" "respiratory" p)
+                       (af "hemolysis" "beta" o))
+                     "streptococcus-pneumoniae" 0.525))
+
+(deftest rule-alpha-hemolysis-argues-against-beta-hemolytic-streptococci ()
+  ;; S. pyogenes established by beta + bacitracin-sensitive (0.7*0.85 = 0.595); a
+  ;; contradictory alpha reading then argues against it (-0.75).
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "chains" o)
+                       (af "hemolysis" "beta" o) (af "bacitracin" "sensitive" o)
+                       (af "hemolysis" "alpha" o))
+                     "streptococcus-pyogenes" 0.595))
+
+(deftest rule-optochin-sensitive-argues-against-viridans ()
+  ;; Viridans established by alpha + optochin-resistant (0.7*0.65 = 0.455); a
+  ;; contradictory optochin-sensitive reading argues against it (-0.7).
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "chains" o)
+                       (af "hemolysis" "alpha" o) (af "optochin" "resistant" o)
+                       (af "optochin" "sensitive" o))
+                     "streptococcus-viridans" 0.455))
+
+(deftest rule-bile-esculin-neg-argues-against-enterococci ()
+  ;; E. faecalis established through the enterococcus class (0.8*0.7 = 0.56); a
+  ;; contradictory bile-esculin-negative reading argues against it (-0.6), the
+  ;; mildest of the gram-positive disconfirmers.
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "chains" o)
+                       (af "bile-esculin" "positive" o) (af "salt-tolerance" "tolerant" o)
+                       (af "sorbitol" "fermenter" o) (af "arabinose" "non-fermenter" o)
+                       (af "bile-esculin" "negative" o))
+                     "enterococcus-faecalis" 0.56))
+
+(deftest rule-arabinose-pos-argues-against-e-faecalis ()
+  ;; E. faecalis established by the sorbitol+/arabinose- pair (0.56); a contradictory
+  ;; arabinose-fermenter reading argues against it (-0.7). Sorbitol stays positive, so
+  ;; the E. faecium rule does not fire and only the rule under test can disconfirm.
+  (check-disconfirms (lambda (o p) (declare (ignore p))
+                       (af "gram" "pos" o) (af "morphology" "coccus" o)
+                       (af "growth-conformation" "chains" o)
+                       (af "bile-esculin" "positive" o) (af "salt-tolerance" "tolerant" o)
+                       (af "sorbitol" "fermenter" o) (af "arabinose" "non-fermenter" o)
+                       (af "arabinose" "fermenter" o))
+                     "enterococcus-faecalis" 0.56))

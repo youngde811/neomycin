@@ -50,11 +50,17 @@
 
 (deftest cf-culture-4 ()
   ;; Gram-positive differential: two rules refine the same streptococcus class along
-  ;; different axes -- biochemical (beta + bacitracin-sensitive -> S. pyogenes) and
-  ;; clinical (respiratory site -> S. pneumoniae).
+  ;; different axes -- biochemical (beta + bacitracin-sensitive -> S. pyogenes, 0.595)
+  ;; and clinical (respiratory site -> S. pneumoniae, 0.525). Slice C's beta-hemolysis
+  ;; rule then argues against the alpha-hemolytic pneumococcus at -0.75.
+  ;;
+  ;; Under CF the pneumococcus collapses to a single NEGATIVE number:
+  ;; (0.525 - 0.75) / (1 - 0.525) = -0.473684. That reads as "disbelieved" and stops
+  ;; there -- it cannot distinguish evidence-against from room-left-over. Compare
+  ;; ds-culture-4, where the same evidence yields a bounded interval.
   (let ((c (run-scenario 'lisa-user::culture-4 :certainty-factors)))
-    (check-cf c "streptococcus-pyogenes" 0.595)     ; 0.7*0.85
-    (check-cf c "streptococcus-pneumoniae" 0.525))) ; 0.7*0.75
+    (check-cf c "streptococcus-pyogenes" 0.595)
+    (check-cf c "streptococcus-pneumoniae" -0.473684)))
 
 ;;; ------------------------------------------------------------------
 ;;; Dempster-Shafer
@@ -85,14 +91,24 @@
     (check-absent c "enterococcus")))    ; slice A: genus CLASS, not a leaf identity
 
 (deftest ds-culture-4 ()
-  ;; Both siblings sit at plausibility 1.0 here even though a BETA-hemolytic organism
-  ;; cannot be the alpha-hemolytic S. pneumoniae -- nothing argues against either yet.
-  ;; This is the pre-cross-disconfirmation gap, the same one observed live on the
-  ;; enterobacteriaceae siblings before v0.5.0; slice C is what closes it, and this
-  ;; golden is the before-picture that makes the change visible.
+  ;; The slice C payoff, and the sharpest CF-vs-DS contrast in the corpus.
+  ;;
+  ;; A beta-hemolytic organism cannot be the alpha-hemolytic S. pneumoniae. Before
+  ;; slice C both siblings sat at pl 1.0 with neither pulling the other down -- the
+  ;; gap observed live on the enterobacteriaceae siblings before v0.5.0. Now the
+  ;; beta-hemolysis rule (-0.75) meets the respiratory-site confirmation (0.525) and
+  ;; Dempster produces real conflict: K = 0.525*0.75 = 0.39375, so
+  ;;   bel = 0.13125/0.60625 = 0.216495,  pl = 1 - 0.35625/0.60625 = 0.412371.
+  ;;
+  ;; The interval says two things CF's single -0.473684 cannot: some belief survives
+  ;; (the respiratory site genuinely did suggest pneumococcus) AND the ceiling has
+  ;; dropped to 0.41 (the hemolysis caps how plausible it can now be).
+  ;;
+  ;; Conflict stays LOCALIZED: nothing argues against S. pyogenes, so it holds clean
+  ;; at [0.595, 1.0] rather than being dragged down alongside its sibling.
   (let ((c (run-scenario 'lisa-user::culture-4 :dempster-shafer)))
     (check-ds c "streptococcus-pyogenes" 0.595 1.00)
-    (check-ds c "streptococcus-pneumoniae" 0.525 1.00)))
+    (check-ds c "streptococcus-pneumoniae" 0.216495 0.412371)))
 
 ;;; ------------------------------------------------------------------
 ;;; Behavioral properties (the reasoning content, not just the numbers)
