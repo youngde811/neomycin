@@ -104,6 +104,12 @@
 (defclass recent-travel (param-mixin) ())
 (defclass white-blood-count (param-mixin) ())
 (defclass infection-site (param-mixin) ())
+;; Host factors (sketch §5.5): patient-level context that SHIFTS belief on
+;; hypotheses other rules raise, rather than naming an organism from morphology.
+(defclass neutropenia (param-mixin) ())         ; value = t
+(defclass prosthetic-material (param-mixin) ()) ; value = t
+(defclass iv-drug-use (param-mixin) ())         ; value = t
+(defclass age-group (param-mixin) ())           ; value = neonate | infant | adult | elderly
 
 ;; Organism-level parameters
 (defclass gram (param-mixin) ())
@@ -116,6 +122,22 @@
 (defclass motility (param-mixin) ())    ; value = motile | non-motile | swarming
 (defclass urease (param-mixin) ())      ; value = positive | negative
 (defclass pigment (param-mixin) ())     ; value = red | none
+
+;; Discriminators for the gram-POSITIVE COCCUS clusters (docs/gram-positive-cluster-
+;; design.md §2). Catalase splits the staphylococci from the streptococci/enterococci;
+;; coagulase and novobiocin refine the staphylococci; hemolysis, optochin and
+;; bacitracin refine the streptococci; bile-esculin + salt tolerance recognize the
+;; enterococci, which arabinose/sorbitol then split into species.
+(defclass catalase (param-mixin) ())       ; value = positive | negative
+(defclass coagulase (param-mixin) ())      ; value = positive | negative
+(defclass hemolysis (param-mixin) ())      ; value = alpha | beta | gamma
+(defclass optochin (param-mixin) ())       ; value = sensitive | resistant
+(defclass bacitracin (param-mixin) ())     ; value = sensitive | resistant
+(defclass novobiocin (param-mixin) ())     ; value = sensitive | resistant
+(defclass bile-esculin (param-mixin) ())   ; value = positive | negative
+(defclass salt-tolerance (param-mixin) ()) ; value = tolerant | intolerant (6.5% NaCl)
+(defclass arabinose (param-mixin) ())      ; value = fermenter | non-fermenter
+(defclass sorbitol (param-mixin) ())       ; value = fermenter | non-fermenter
 
 ;; Conclusion (organism level)
 (defclass organism-identity (param-mixin) ())
@@ -151,19 +173,14 @@
   =>
   (assert (organism-identity (value :pseudomonas) (of ?o))))
 
-(defrule gram-pos-cocci-in-clumps-suggests-staphylococcus
-    (:belief 0.7
-     :provenance (:origin :paip-subset
-                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
-                             "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
-                  :belief-basis :illustrative
-                  :note "Gram-positive cocci in grape-like clusters (clumps) are morphologically characteristic of Staphylococcus."))
-  (organism (id ?o))
-  (gram (value pos) (of ?o))
-  (morphology (value coccus) (of ?o))
-  (growth-conformation (value clumps) (of ?o))
-  =>
-  (assert (organism-identity (value :staphylococcus) (of ?o))))
+;; NOTE: the one-hop `gram-pos-cocci-in-clumps-suggests-staphylococcus` leaf identity
+;; rule was RETIRED in slice A of the gram-positive cluster. Staphylococcus is a
+;; GENUS, not a species -- exactly the defect C2 fixed for enterobacteriaceae. It is
+;; now concluded as an ORGANISM-CLASS (see the tier-1 class rules below), never as an
+;; ORGANISM-IDENTITY; the identity layer names only leaf SPECIES (S. aureus,
+;; S. epidermidis, S. saprophyticus). Keeping the leaf alongside the chain would have
+;; double-counted the same clumps evidence (a leaf identity AND a class, then again
+;; through the species).
 
 (defrule anaerobic-gram-neg-rod-in-blood-suggests-bacteroides
     (:belief 0.9
@@ -205,19 +222,11 @@
 ;; alongside the chain would have double-counted the same aerobic-gram-neg-rod
 ;; evidence (a leaf identity AND a class, then again through the species).
 
-(defrule gram-pos-cocci-in-chains-suggests-streptococcus
-    (:belief 0.7
-     :provenance (:origin :paip-subset
-                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
-                             "NCBI Bookshelf, Streptococcus pyogenes: Basic Biology to Clinical Manifestations (Laboratory Diagnosis), NBK343617")
-                  :belief-basis :illustrative
-                  :note "Gram-positive cocci in chains are morphologically characteristic of Streptococcus."))
-  (organism (id ?o))
-  (gram (value pos) (of ?o))
-  (morphology (value coccus) (of ?o))
-  (growth-conformation (value chains) (of ?o))
-  =>
-  (assert (organism-identity (value :streptococcus) (of ?o))))
+;; NOTE: the one-hop `gram-pos-cocci-in-chains-suggests-streptococcus` leaf identity
+;; rule was RETIRED in slice A, for the same reason as the staphylococcus leaf above:
+;; Streptococcus is a GENUS. It is now an ORGANISM-CLASS, refined to leaf SPECIES
+;; (S. pyogenes, S. agalactiae, S. pneumoniae, viridans) by hemolysis + optochin /
+;; bacitracin.
 
 (defrule hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus
     (:belief 0.8
@@ -322,6 +331,12 @@
   =>
   (assert (organism-identity (value :salmonella) (of ?o))))
 
+;; RE-POINTED in slice A: this rule used to conclude an :enterococcus leaf IDENTITY.
+;; Enterococcus is a GENUS, so it now concludes the ORGANISM-CLASS instead, giving the
+;; enterococcus class a second, CLINICAL evidence path alongside the biochemical one
+;; below -- the same two-paths-to-one-conclusion shape klebsiella and salmonella
+;; already have. Keeping this path matters because it reaches the class in scenarios
+;; that never run a bile-esculin or salt-tolerance test.
 (defrule gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus
     (:belief 0.7
      :provenance (:origin :paip-subset
@@ -337,7 +352,7 @@
   (growth-conformation (value chains) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (organism-identity (value :enterococcus) (of ?o))))
+  (assert (organism-class (value :enterococcus) (of ?o))))
 
 ;; Tier-2 (chained): enterobacteriaceae class + blood + low WBC -> salmonella.
 ;; Belief composes 0.8*0.55. Re-parenting adds an aerobic requirement (via the
@@ -407,6 +422,71 @@
   (aerobicity (value aerobic) (of ?o))
   =>
   (assert (organism-class (value :enterobacteriaceae) (of ?o))))
+
+;;; ------------------------------------------------------------------
+;;; Tier 1 for the GRAM-POSITIVE COCCI (docs/gram-positive-cluster-design.md §3.1).
+;;;
+;;; Three more belief-valued intermediates, built on the enterobacteriaceae template.
+;;; The staphylococcus and streptococcus rules take the premises AND the 0.7 belief of
+;;; the leaf rules they replace, exactly as the enterobacteriaceae class rule carried
+;;; 0.8 over from its retired leaf -- so the class conclusion is not a new claim, just
+;;; the old one aimed at the right level of the taxonomy.
+;;;
+;;; CATALASE is deliberately NOT a premise here even though it is the textbook
+;;; staph-vs-strep discriminator: making it mandatory would silently stop every
+;;; existing scenario (none of which assert it) from reaching a gram-positive
+;;; conclusion at all. It earns its keep as a DISCONFIRMING rule instead, which is
+;;; where it does real DS work.
+;;; ------------------------------------------------------------------
+
+(defrule gram-pos-cocci-in-clumps-suggests-staphylococcus-class
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
+                             "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
+                  :belief-basis :illustrative
+                  :note "Gram-positive cocci in grape-like clusters (clumps) are morphologically characteristic of the genus Staphylococcus, which is catalase-positive and subdivides into coagulase-positive (S. aureus) and coagulase-negative (S. epidermidis, S. saprophyticus) species. The genus/species chaining structure follows MYCIN (Buchanan & Shortliffe 1984); this rule is a neomycin reconstruction. 0.7 carried over from the retired one-hop staphylococcus leaf."))
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value clumps) (of ?o))
+  =>
+  (assert (organism-class (value :staphylococcus) (of ?o))))
+
+(defrule gram-pos-cocci-in-chains-suggests-streptococcus-class
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
+                  :belief-basis :illustrative
+                  :note "Gram-positive cocci in chains are morphologically characteristic of the genus Streptococcus, which is catalase-negative and subdivides by hemolysis (beta/alpha/gamma) and disc tests. The genus/species chaining structure follows MYCIN (Buchanan & Shortliffe 1984); this rule is a neomycin reconstruction. 0.7 carried over from the retired one-hop streptococcus leaf."))
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value chains) (of ?o))
+  =>
+  (assert (organism-class (value :streptococcus) (of ?o))))
+
+;; Enterococcus gets its OWN tier-1 class rather than sitting under streptococcus.
+;; Bile-esculin positivity alone does not separate enterococci from the
+;; non-enterococcal group D streptococci -- growth in 6.5% NaCl is what does -- so
+;; the rule requires BOTH. 0.8: the pair is highly characteristic.
+(defrule bile-esculin-pos-salt-tolerant-chains-suggests-enterococcus-class
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("J Clin Microbiol, Presumptive Identification of Group D Streptococci: the Bile-Esculin Test, PMC376909"
+                             "J Clin Microbiol, Comparison of Several Laboratory Media for Presumptive Identification of Enterococci and Group D Streptococci, PMC379740"
+                             "NCBI Bookshelf, Enterococci: From Commensals to Leading Causes of Drug Resistant Infection (Diversity, Origins in Nature, and Gut Colonization), NBK190427")
+                  :belief-basis :illustrative
+                  :note "Enterococci hydrolyze esculin in the presence of 40% bile AND grow in 6.5% NaCl; the salt tolerance is what distinguishes them from the non-enterococcal group D streptococci, which are also bile-esculin positive. Enterococcus was classified as Group D Streptococcus in the MYCIN era and split into its own genus in 1984; modeled here as a genus peer of Staphylococcus and Streptococcus."))
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (growth-conformation (value chains) (of ?o))
+  (bile-esculin (value positive) (of ?o))
+  (salt-tolerance (value tolerant) (of ?o))
+  =>
+  (assert (organism-class (value :enterococcus) (of ?o))))
 
 ;;; ------------------------------------------------------------------
 ;;; Chained cluster, tier 2: refine the enterobacteriaceae class -> species.
@@ -530,8 +610,11 @@
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (organism-identity (value ?value) (of ?o))
-  (test (member ?value '(:staphylococcus :staphylococcus-aureus :streptococcus
-                         :streptococcus-pneumoniae :enterococcus)))
+  ;; :staphylococcus, :streptococcus and :enterococcus dropped in slice A -- all three
+  ;; are organism-CLASSes now, never organism-identities, so they can never match here
+  ;; (the same bookkeeping C2 did for :enterobacteriaceae). Their leaf SPECIES take
+  ;; their place; the species list is populated as slice B authors them.
+  (test (member ?value '(:staphylococcus-aureus :streptococcus-pneumoniae)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
@@ -691,7 +774,9 @@
 
 (defun culture-3 (&key (runp t))
   "Gram-pos cocci in chains from a respiratory site in a compromised host.
-   Produces competing hypotheses: streptococcus, streptococcus-pneumoniae, enterococcus."
+   After slice A, streptococcus is an organism-CLASS (not a leaf identity) and the
+   enterococcus rule concludes its own CLASS, so the only surviving leaf identity here
+   is streptococcus-pneumoniae; slice B refines both classes into competing species."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -730,7 +815,8 @@
 (defun culture-multi (&key (runp t))
   "Two organisms in one culture, to exercise lineage scoping. o1 is an aerobic
    gram-neg rod (=> enterobacteriaceae CLASS only, no leaf identity after C2); o2
-   is a gram-pos coccus in clumps (=> staphylococcus identity only). Each
+   is a gram-pos coccus in clumps (=> staphylococcus CLASS only after slice A, no
+   leaf identity until a coagulase is run). Each
    conclusion must stay on its own organism -- the flat rulebase would
    cross-contaminate via unscoped morphology/gram joins."
   (reset)

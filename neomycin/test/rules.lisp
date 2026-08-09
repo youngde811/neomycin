@@ -30,11 +30,10 @@
                 (af "burn" "serious" p))
               "pseudomonas" 0.4))
 
-(deftest rule-gram-pos-cocci-clumps-staphylococcus () ; 0.7
-  (check-rule (lambda (o p) (declare (ignore p))
-                (af "gram" "pos" o) (af "morphology" "coccus" o)
-                (af "growth-conformation" "clumps" o))
-              "staphylococcus" 0.7))
+;; The one-hop clumps -> staphylococcus IDENTITY rule was retired in slice A of the
+;; gram-positive cluster (staphylococcus is a GENUS, so it is an organism-CLASS now).
+;; The same premises fire the tier-1 CLASS rule instead -- see
+;; chain-tier1-gram-pos-cocci-clumps-staphylococcus-class in chain-tests.lisp.
 
 (deftest rule-anaerobic-gram-neg-rod-blood-bacteroides () ; 0.9
   (check-rule (lambda (o p) (declare (ignore p))
@@ -54,11 +53,9 @@
 ;; fire the tier-1 CLASS rule instead -- see chain-tier1-aerobic-gram-neg-rod-
 ;; enterobacteriaceae-class in chain-tests.lisp, which covers this evidence path.
 
-(deftest rule-gram-pos-cocci-chains-streptococcus () ; 0.7
-  (check-rule (lambda (o p) (declare (ignore p))
-                (af "gram" "pos" o) (af "morphology" "coccus" o)
-                (af "growth-conformation" "chains" o))
-              "streptococcus" 0.7))
+;; The one-hop chains -> streptococcus IDENTITY rule was retired in slice A for the
+;; same reason as the staphylococcus leaf above. See
+;; chain-tier1-gram-pos-cocci-chains-streptococcus-class in chain-tests.lisp.
 
 (deftest rule-hospital-gram-pos-cocci-clumps-staph-aureus () ; 0.8
   (check-rule (lambda (o p)
@@ -108,13 +105,11 @@
                 (af "recent-travel" "tropical" p))
               "salmonella" 0.52))
 
-(deftest rule-gram-pos-cocci-chains-blood-compromised-enterococcus () ; 0.7
-  (check-rule (lambda (o p)
-                (af "culture-site" "blood" *ctx-culture*)
-                (af "gram" "pos" o) (af "morphology" "coccus" o)
-                (af "growth-conformation" "chains" o)
-                (af "compromised-host" "t" p))
-              "enterococcus" 0.7))
+;; The chains+blood+compromised -> enterococcus rule was RE-POINTED in slice A to
+;; conclude the enterococcus organism-CLASS (enterococcus is a genus). Its isolated
+;; coverage now lives in chain-tests.lisp as
+;; chain-tier1-chains-blood-compromised-enterococcus-class -- same premises, same 0.7,
+;; class conclusion.
 
 (deftest rule-enterobacteriaceae-blood-low-wbc-salmonella () ; chained: 0.8*0.55 = 0.44
   ;; Tier-2: organism-class (0.8) + blood + low WBC refines to salmonella (rule 0.55) = 0.44.
@@ -163,13 +158,16 @@
                      "pseudomonas" 0.6))
 
 (deftest rule-gram-neg-argues-against-gram-pos-organism ()
-  ;; A gram-negative reading disconfirms a gram-positive hypothesis
-  ;; (streptococcus established at 0.7 via the cocci-in-chains rule).
-  (check-disconfirms (lambda (o p) (declare (ignore p))
+  ;; A gram-negative reading disconfirms a gram-positive hypothesis. Slice A retired
+  ;; the bare streptococcus leaf this used to key off, so the live hypothesis is now
+  ;; streptococcus-pneumoniae (0.75 via the respiratory cocci-in-chains rule) -- still
+  ;; a gram-positive IDENTITY, which is what the rule under test needs.
+  (check-disconfirms (lambda (o p)
                        (af "gram" "pos" o) (af "morphology" "coccus" o)
                        (af "growth-conformation" "chains" o)
+                       (af "infection-site" "respiratory" p)
                        (af "gram" "neg" o))
-                     "streptococcus" 0.7))
+                     "streptococcus-pneumoniae" 0.75))
 
 (deftest rule-aerobic-argues-against-anaerobe ()
   ;; Aerobic growth disconfirms bacteroides (a strict anaerobe), established at

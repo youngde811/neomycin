@@ -73,6 +73,50 @@
                       (af "aerobicity" "aerobic" o))
                     "enterobacteriaceae" 0.8))
 
+;;; Tier-1 for the GRAM-POSITIVE cocci (docs/gram-positive-cluster-design.md §3.1).
+;;; Same shape as the enterobacteriaceae class rule above: a genus abstraction
+;;; concluded from morphology, carrying the belief of the leaf rule it replaced.
+
+(deftest chain-tier1-gram-pos-cocci-clumps-staphylococcus-class () ; 0.7
+  ;; Replaces the retired one-hop clumps -> staphylococcus IDENTITY rule: same
+  ;; premises, same 0.7, but the conclusion is the genus CLASS that slice B refines
+  ;; into S. aureus / S. epidermidis / S. saprophyticus by coagulase and novobiocin.
+  (check-class-rule (lambda (o p) (declare (ignore p))
+                      (af "gram" "pos" o) (af "morphology" "coccus" o)
+                      (af "growth-conformation" "clumps" o))
+                    "staphylococcus" 0.7))
+
+(deftest chain-tier1-gram-pos-cocci-chains-streptococcus-class () ; 0.7
+  ;; Replaces the retired one-hop chains -> streptococcus IDENTITY rule.
+  (check-class-rule (lambda (o p) (declare (ignore p))
+                      (af "gram" "pos" o) (af "morphology" "coccus" o)
+                      (af "growth-conformation" "chains" o))
+                    "streptococcus" 0.7))
+
+(deftest chain-tier1-bile-esculin-salt-tolerant-enterococcus-class () ; 0.8
+  ;; Enterococcus as a genus peer, not a streptococcal subtype: bile-esculin
+  ;; positivity ALONE would not separate it from the non-enterococcal group D
+  ;; streptococci, so the rule also requires 6.5% NaCl tolerance. Note the chains
+  ;; premises also fire the streptococcus class rule -- both classes legitimately
+  ;; hold, which is why this checks the enterococcus one specifically.
+  (check-class-rule (lambda (o p) (declare (ignore p))
+                      (af "gram" "pos" o) (af "morphology" "coccus" o)
+                      (af "growth-conformation" "chains" o)
+                      (af "bile-esculin" "positive" o)
+                      (af "salt-tolerance" "tolerant" o))
+                    "enterococcus" 0.8))
+
+(deftest chain-tier1-chains-blood-compromised-enterococcus-class () ; 0.7
+  ;; The CLINICAL second path to the enterococcus class (re-pointed from a leaf
+  ;; identity in slice A). It reaches the class without any biochemical test, which
+  ;; is what keeps the class available in scenarios that never run one.
+  (check-class-rule (lambda (o p)
+                      (af "culture-site" "blood" *ctx-culture*)
+                      (af "gram" "pos" o) (af "morphology" "coccus" o)
+                      (af "growth-conformation" "chains" o)
+                      (af "compromised-host" "t" p))
+                    "enterococcus" 0.7))
+
 (deftest chain-tier1-class-scoped-to-organism ()
   ;; The derived class must land on the organism it was inferred from (its OF slot)
   ;; and nowhere else -- the lineage invariant tier-2 species refinement will read
@@ -86,20 +130,25 @@
       "organism-class enterobacteriaceae should be scoped to the single organism"))
 
 (deftest chain-tier1-class-scoped-in-multi-organism ()
-  ;; Multi-organism companion to multi-organism-identities-stay-scoped (scenarios.lisp):
-  ;; the enterobacteriaceae CLASS must land on o1 (the aerobic gram-neg rod) and NOT
-  ;; on o2 (the gram-pos coccus). After C2 the class is the only conclusion o1
-  ;; carries, so this is the positive scoping assertion the identity-side test can no
-  ;; longer make.
+  ;; Multi-organism companion to multi-organism-identities-stay-scoped (scenarios.lisp).
+  ;; After slice A BOTH organisms stop at a genus/family class: o1 (aerobic gram-neg
+  ;; rod) derives enterobacteriaceae, o2 (gram-pos coccus in clumps) derives
+  ;; staphylococcus. Each must land on its own organism and neither may leak onto the
+  ;; other -- the two-sided scoping assertion, now that the identity layer is empty
+  ;; here until slice B adds a coagulase to the driver.
   (belief:use-system :dempster-shafer)
   (let ((*standard-output* (make-broadcast-stream)))
     (funcall 'lisa-user::culture-multi))
   (let ((classes (collect-classes-scoped))
         (o1 (lu "o1")) (o2 (lu "o2")))
-    (is (equal classes (list (cons "enterobacteriaceae" o1)))
-        "exactly one organism-class, enterobacteriaceae, scoped to o1")
-    (is (not (find o2 classes :key #'cdr))
-        "the enterobacteriaceae class must NOT leak onto o2")))
+    (is (equal (sort (copy-list classes) #'string< :key #'car)
+               (list (cons "enterobacteriaceae" o1)
+                     (cons "staphylococcus" o2)))
+        "exactly two organism-classes, each scoped to its own organism")
+    (is (equal (cdr (assoc "enterobacteriaceae" classes :test #'string=)) o1)
+        "the enterobacteriaceae class must sit on o1, not leak onto o2")
+    (is (equal (cdr (assoc "staphylococcus" classes :test #'string=)) o2)
+        "the staphylococcus class must sit on o2, not leak onto o1")))
 
 ;;; ------------------------------------------------------------------
 ;;; Chained cluster, tier 2 (§3B) -- a species refined FROM the intermediate, with

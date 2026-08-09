@@ -40,9 +40,12 @@
 
 (deftest cf-culture-3 ()
   (let ((c (run-scenario 'lisa-user::culture-3 :certainty-factors)))
-    (check-cf c "streptococcus" 0.70)
     (check-cf c "streptococcus-pneumoniae" 0.75)
-    (check-cf c "enterococcus" 0.70)))
+    ;; Slice A: streptococcus and enterococcus are genus CLASSes now, not leaf
+    ;; identities (the same move C2 made for enterobacteriaceae). Their class-side
+    ;; coverage lives in chain-tests.lisp; slice B refines them into species.
+    (check-absent c "streptococcus")
+    (check-absent c "enterococcus")))
 
 ;;; ------------------------------------------------------------------
 ;;; Dempster-Shafer
@@ -68,9 +71,9 @@
 
 (deftest ds-culture-3 ()
   (let ((c (run-scenario 'lisa-user::culture-3 :dempster-shafer)))
-    (check-ds c "streptococcus" 0.70 1.00)
     (check-ds c "streptococcus-pneumoniae" 0.75 1.00)
-    (check-ds c "enterococcus" 0.70 1.00)))
+    (check-absent c "streptococcus")     ; slice A: genus CLASS, not a leaf identity
+    (check-absent c "enterococcus")))    ; slice A: genus CLASS, not a leaf identity
 
 ;;; ------------------------------------------------------------------
 ;;; Behavioral properties (the reasoning content, not just the numbers)
@@ -116,17 +119,16 @@
 ;;; ------------------------------------------------------------------
 
 (deftest multi-organism-identities-stay-scoped ()
-  ;; Two organisms in one culture: o2 (gram-pos coccus in clumps) must be
-  ;; identified as staphylococcus, scoped to o2 and NOT leaking onto o1 -- the
-  ;; property the flat rulebase silently violated. o1 (a bare aerobic gram-neg rod)
-  ;; produces NO leaf identity after C2 (only the enterobacteriaceae CLASS, whose
-  ;; scoping is asserted in chain-tests.lisp), so the sole organism-identity in
-  ;; play must sit on o2 alone.
-  (let ((ids (run-scenario-identities 'lisa-user::culture-multi :dempster-shafer))
-        (o1 (lu "o1")) (o2 (lu "o2")))
-    (is (identity-on-p ids "staphylococcus" o2)
-        "o2 should be identified as staphylococcus")
-    (is (not (identity-on-p ids "staphylococcus" o1))
-        "staphylococcus must NOT leak onto o1")
-    (is (every (lambda (pair) (eq (cdr pair) o2)) ids)
-        "o1 carries no leaf identity -- every organism-identity is scoped to o2")))
+  ;; Two organisms in one culture. After slice A BOTH stop at a genus/family class:
+  ;; o1 (aerobic gram-neg rod) at enterobacteriaceae, o2 (gram-pos coccus in clumps)
+  ;; at staphylococcus. So the identity layer is legitimately EMPTY here, and the
+  ;; live two-sided scoping assertion moved to chain-tier1-class-scoped-in-multi-organism.
+  ;;
+  ;; This is a deliberate, temporary coverage dip of exactly the kind C2 took when it
+  ;; retired the enterobacteriaceae leaf. Slice B adds a coagulase to culture-multi,
+  ;; which refines o2 to a species and restores identity-level scoping coverage here.
+  ;; Until then, asserting emptiness is the honest claim: it still fails loudly if a
+  ;; retired leaf rule comes back or a species rule lands without its goldens.
+  (let ((ids (run-scenario-identities 'lisa-user::culture-multi :dempster-shafer)))
+    (is (null ids)
+        "no leaf identity yet: both organisms stop at their genus/family class")))
