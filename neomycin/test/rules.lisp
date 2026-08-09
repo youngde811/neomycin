@@ -57,12 +57,15 @@
 ;; same reason as the staphylococcus leaf above. See
 ;; chain-tier1-gram-pos-cocci-chains-streptococcus-class in chain-tests.lisp.
 
-(deftest rule-hospital-gram-pos-cocci-clumps-staph-aureus () ; 0.8
+(deftest rule-hospital-gram-pos-cocci-clumps-staph-aureus () ; chained: 0.7*0.8 = 0.56
+  ;; Tier-2 after slice B: the clumps premises now derive the staphylococcus CLASS
+  ;; (0.7), off which this rule refines to S. aureus (rule 0.8) = 0.56. Same premises
+  ;; as before re-parenting; only the belief path changed.
   (check-rule (lambda (o p)
                 (af "gram" "pos" o) (af "morphology" "coccus" o)
                 (af "growth-conformation" "clumps" o)
                 (af "hospital-acquired" "t" p))
-              "staphylococcus-aureus" 0.8))
+              "staphylococcus-aureus" 0.56))
 
 (deftest rule-hospital-compromised-klebsiella-combines () ; 0.688 = (0.8*0.6) combine (0.8*0.5)
   ;; NOT an isolation: with hospital-acquired + compromised, BOTH klebsiella rules
@@ -90,12 +93,14 @@
                 (af "aerobicity" "aerobic" o) (af "compromised-host" "t" p))
               "klebsiella" 0.40))
 
-(deftest rule-respiratory-gram-pos-cocci-chains-strep-pneumoniae () ; 0.75
+(deftest rule-respiratory-gram-pos-cocci-chains-strep-pneumoniae () ; chained: 0.7*0.75 = 0.525
+  ;; Tier-2 after slice B: chains derive the streptococcus CLASS (0.7), off which the
+  ;; respiratory site refines to S. pneumoniae (rule 0.75) = 0.525.
   (check-rule (lambda (o p)
                 (af "gram" "pos" o) (af "morphology" "coccus" o)
                 (af "growth-conformation" "chains" o)
                 (af "infection-site" "respiratory" p))
-              "streptococcus-pneumoniae" 0.75))
+              "streptococcus-pneumoniae" 0.525))
 
 (deftest rule-enterobacteriaceae-travel-salmonella () ; chained: 0.8*0.65 = 0.52
   ;; Tier-2: organism-class (0.8) + tropical travel refines to salmonella (rule 0.65) = 0.52.
@@ -160,14 +165,15 @@
 (deftest rule-gram-neg-argues-against-gram-pos-organism ()
   ;; A gram-negative reading disconfirms a gram-positive hypothesis. Slice A retired
   ;; the bare streptococcus leaf this used to key off, so the live hypothesis is now
-  ;; streptococcus-pneumoniae (0.75 via the respiratory cocci-in-chains rule) -- still
-  ;; a gram-positive IDENTITY, which is what the rule under test needs.
+  ;; streptococcus-pneumoniae -- still a gram-positive IDENTITY, which is what the rule
+  ;; under test needs. Slice B re-parented that rule, so the undisconfirmed baseline is
+  ;; the chained 0.7*0.75 = 0.525 rather than the old one-hop 0.75.
   (check-disconfirms (lambda (o p)
                        (af "gram" "pos" o) (af "morphology" "coccus" o)
                        (af "growth-conformation" "chains" o)
                        (af "infection-site" "respiratory" p)
                        (af "gram" "neg" o))
-                     "streptococcus-pneumoniae" 0.75))
+                     "streptococcus-pneumoniae" 0.525))
 
 (deftest rule-aerobic-argues-against-anaerobe ()
   ;; Aerobic growth disconfirms bacteroides (a strict anaerobe), established at

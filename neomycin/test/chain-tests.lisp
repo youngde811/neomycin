@@ -221,6 +221,29 @@
   "The tier-1 enterobacteriaceae organism-class belief every tier-2 species composes
    through. Change here iff the class rule's belief changes.")
 
+(defparameter *staph-class-belief* 0.7
+  "Tier-1 staphylococcus genus-class belief (slice A; carried from the retired leaf).")
+
+(defparameter *strep-class-belief* 0.7
+  "Tier-1 streptococcus genus-class belief (slice A; carried from the retired leaf).")
+
+(defparameter *enterococcus-class-belief* 0.8
+  "Tier-1 enterococcus genus-class belief via the bile-esculin + salt-tolerance rule.")
+
+(defun check-composition-cases (class-belief lineage cases)
+  "Assert the composition law for each of CASES against a shared LINEAGE builder.
+   Each case is (species-string rule-belief discriminator-builder) and must fire
+   exactly ONE tier-2 rule, whose composed belief is CLASS-BELIEF * RULE-BELIEF --
+   CF exactly, DS as [product, 1.0] since nothing argues against it yet."
+  (dolist (case cases)
+    (destructuring-bind (species rule-belief discriminators) case
+      (let ((expected (* class-belief rule-belief))
+            (builder (lambda (o p)
+                       (funcall lineage o p)
+                       (funcall discriminators o p))))
+        (check-cf (run-facts :certainty-factors builder) species expected)
+        (check-ds (run-facts :dempster-shafer builder) species expected 1.0)))))
+
 (deftest chain-belief-composes-as-class-times-rule ()
   (dolist (case (list
                  ;; (species-string rule-belief discriminator-builder)
@@ -248,6 +271,71 @@
         ;; CF: exactly the product. DS: [product, 1.0] -- confirmatory regime.
         (check-cf (run-facts :certainty-factors builder) species expected)
         (check-ds (run-facts :dempster-shafer builder) species expected 1.0)))))
+
+;;; The same law over the three GRAM-POSITIVE clusters (slice B). Between them these
+;;; cases fire all 9 new tier-2 species rules AND both re-parented ones in isolation,
+;;; so they supply the per-rule isolation coverage the corpus standard asks for as
+;;; well as the invariant -- the generalization sketch §8 wants, arriving early because
+;;; three clusters now instance the same law with different class beliefs.
+
+(deftest chain-belief-composes-staphylococcus-species ()
+  (check-composition-cases
+   *staph-class-belief*
+   (lambda (o p) (declare (ignore p))
+     (af "gram" "pos" o) (af "morphology" "coccus" o) (af "growth-conformation" "clumps" o))
+   (list
+    (list "staphylococcus-aureus"         0.85 (lambda (o p) (declare (ignore p))
+                                                 (af "coagulase" "positive" o)))
+    (list "staphylococcus-epidermidis"    0.55 (lambda (o p) (declare (ignore p))
+                                                 (af "coagulase" "negative" o)))
+    ;; Novobiocin resistance also leaves the weaker epidermidis default standing; the
+    ;; saprophyticus value is unaffected by that, and slice C is where the two siblings
+    ;; start arguing with each other.
+    (list "staphylococcus-saprophyticus"  0.8  (lambda (o p) (declare (ignore p))
+                                                 (af "coagulase" "negative" o)
+                                                 (af "novobiocin" "resistant" o)))
+    ;; The re-parented clinical path to S. aureus -- no coagulase asserted, so only
+    ;; the hospital-acquired rule fires.
+    (list "staphylococcus-aureus"         0.8  (lambda (o p) (declare (ignore o))
+                                                 (af "hospital-acquired" "t" p))))))
+
+(deftest chain-belief-composes-streptococcus-species ()
+  (check-composition-cases
+   *strep-class-belief*
+   (lambda (o p) (declare (ignore p))
+     (af "gram" "pos" o) (af "morphology" "coccus" o) (af "growth-conformation" "chains" o))
+   (list
+    (list "streptococcus-pyogenes"    0.85 (lambda (o p) (declare (ignore p))
+                                             (af "hemolysis" "beta" o)
+                                             (af "bacitracin" "sensitive" o)))
+    (list "streptococcus-agalactiae"  0.7  (lambda (o p) (declare (ignore p))
+                                             (af "hemolysis" "beta" o)
+                                             (af "bacitracin" "resistant" o)))
+    (list "streptococcus-pneumoniae"  0.85 (lambda (o p) (declare (ignore p))
+                                             (af "hemolysis" "alpha" o)
+                                             (af "optochin" "sensitive" o)))
+    (list "streptococcus-viridans"    0.65 (lambda (o p) (declare (ignore p))
+                                             (af "hemolysis" "alpha" o)
+                                             (af "optochin" "resistant" o)))
+    ;; The re-parented clinical (site-based) path to S. pneumoniae.
+    (list "streptococcus-pneumoniae"  0.75 (lambda (o p) (declare (ignore o))
+                                             (af "infection-site" "respiratory" p))))))
+
+(deftest chain-belief-composes-enterococcus-species ()
+  ;; The chains lineage also derives the streptococcus class, but no strep species rule
+  ;; fires without a hemolysis reading, so each case still fires exactly one tier-2 rule.
+  (check-composition-cases
+   *enterococcus-class-belief*
+   (lambda (o p) (declare (ignore p))
+     (af "gram" "pos" o) (af "morphology" "coccus" o) (af "growth-conformation" "chains" o)
+     (af "bile-esculin" "positive" o) (af "salt-tolerance" "tolerant" o))
+   (list
+    (list "enterococcus-faecalis" 0.7 (lambda (o p) (declare (ignore p))
+                                        (af "sorbitol" "fermenter" o)
+                                        (af "arabinose" "non-fermenter" o)))
+    (list "enterococcus-faecium"  0.7 (lambda (o p) (declare (ignore p))
+                                        (af "arabinose" "fermenter" o)
+                                        (af "sorbitol" "non-fermenter" o))))))
 
 ;;; ------------------------------------------------------------------
 ;;; Biochemical CROSS-DISCONFIRMATION among the siblings, in isolation.

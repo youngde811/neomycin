@@ -40,12 +40,21 @@
 
 (deftest cf-culture-3 ()
   (let ((c (run-scenario 'lisa-user::culture-3 :certainty-factors)))
-    (check-cf c "streptococcus-pneumoniae" 0.75)
+    (check-cf c "streptococcus-pneumoniae" 0.525)   ; chained after slice B: 0.7*0.75
     ;; Slice A: streptococcus and enterococcus are genus CLASSes now, not leaf
     ;; identities (the same move C2 made for enterobacteriaceae). Their class-side
-    ;; coverage lives in chain-tests.lisp; slice B refines them into species.
+    ;; coverage lives in chain-tests.lisp. No enterococcus SPECIES appears because
+    ;; culture-3 runs no sugar tests.
     (check-absent c "streptococcus")
     (check-absent c "enterococcus")))
+
+(deftest cf-culture-4 ()
+  ;; Gram-positive differential: two rules refine the same streptococcus class along
+  ;; different axes -- biochemical (beta + bacitracin-sensitive -> S. pyogenes) and
+  ;; clinical (respiratory site -> S. pneumoniae).
+  (let ((c (run-scenario 'lisa-user::culture-4 :certainty-factors)))
+    (check-cf c "streptococcus-pyogenes" 0.595)     ; 0.7*0.85
+    (check-cf c "streptococcus-pneumoniae" 0.525))) ; 0.7*0.75
 
 ;;; ------------------------------------------------------------------
 ;;; Dempster-Shafer
@@ -71,9 +80,19 @@
 
 (deftest ds-culture-3 ()
   (let ((c (run-scenario 'lisa-user::culture-3 :dempster-shafer)))
-    (check-ds c "streptococcus-pneumoniae" 0.75 1.00)
+    (check-ds c "streptococcus-pneumoniae" 0.525 1.00)  ; chained: 0.7*0.75
     (check-absent c "streptococcus")     ; slice A: genus CLASS, not a leaf identity
     (check-absent c "enterococcus")))    ; slice A: genus CLASS, not a leaf identity
+
+(deftest ds-culture-4 ()
+  ;; Both siblings sit at plausibility 1.0 here even though a BETA-hemolytic organism
+  ;; cannot be the alpha-hemolytic S. pneumoniae -- nothing argues against either yet.
+  ;; This is the pre-cross-disconfirmation gap, the same one observed live on the
+  ;; enterobacteriaceae siblings before v0.5.0; slice C is what closes it, and this
+  ;; golden is the before-picture that makes the change visible.
+  (let ((c (run-scenario 'lisa-user::culture-4 :dempster-shafer)))
+    (check-ds c "streptococcus-pyogenes" 0.595 1.00)
+    (check-ds c "streptococcus-pneumoniae" 0.525 1.00)))
 
 ;;; ------------------------------------------------------------------
 ;;; Behavioral properties (the reasoning content, not just the numbers)
@@ -119,16 +138,21 @@
 ;;; ------------------------------------------------------------------
 
 (deftest multi-organism-identities-stay-scoped ()
-  ;; Two organisms in one culture. After slice A BOTH stop at a genus/family class:
-  ;; o1 (aerobic gram-neg rod) at enterobacteriaceae, o2 (gram-pos coccus in clumps)
-  ;; at staphylococcus. So the identity layer is legitimately EMPTY here, and the
-  ;; live two-sided scoping assertion moved to chain-tier1-class-scoped-in-multi-organism.
+  ;; Two organisms in one culture. o2 (gram-pos coccus in clumps, coagulase-POSITIVE)
+  ;; must be identified as S. aureus -- chained through the staphylococcus class, so
+  ;; 0.7*0.85 = 0.595 -- scoped to o2 and NOT leaking onto o1, the property the flat
+  ;; rulebase silently violated. o1 (a bare aerobic gram-neg rod) produces NO leaf
+  ;; identity after C2, only the enterobacteriaceae CLASS, so the sole organism-identity
+  ;; in play must sit on o2 alone.
   ;;
-  ;; This is a deliberate, temporary coverage dip of exactly the kind C2 took when it
-  ;; retired the enterobacteriaceae leaf. Slice B adds a coagulase to culture-multi,
-  ;; which refines o2 to a species and restores identity-level scoping coverage here.
-  ;; Until then, asserting emptiness is the honest claim: it still fails loudly if a
-  ;; retired leaf rule comes back or a species rule lands without its goldens.
-  (let ((ids (run-scenario-identities 'lisa-user::culture-multi :dempster-shafer)))
-    (is (null ids)
-        "no leaf identity yet: both organisms stop at their genus/family class")))
+  ;; Slice A had left this test asserting mere emptiness (both organisms stopped at
+  ;; their genus); the coagulase slice B added to the driver restores the real
+  ;; identity-level scoping assertion.
+  (let ((ids (run-scenario-identities 'lisa-user::culture-multi :dempster-shafer))
+        (o1 (lu "o1")) (o2 (lu "o2")))
+    (is (identity-on-p ids "staphylococcus-aureus" o2)
+        "o2 should be identified as staphylococcus-aureus")
+    (is (not (identity-on-p ids "staphylococcus-aureus" o1))
+        "staphylococcus-aureus must NOT leak onto o1")
+    (is (every (lambda (pair) (eq (cdr pair) o2)) ids)
+        "o1 carries no leaf identity -- every organism-identity is scoped to o2")))

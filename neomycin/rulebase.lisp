@@ -228,6 +228,11 @@
 ;; (S. pyogenes, S. agalactiae, S. pneumoniae, viridans) by hemolysis + optochin /
 ;; bacitracin.
 
+;; Tier-2 (chained, re-parented in slice B): the raw gram-pos/coccus/clumps premises
+;; are replaced by organism-class :staphylococcus, which already encodes them, so
+;; belief composes 0.7*0.8 = 0.56 through the intermediate. A CLINICAL second path to
+;; S. aureus alongside the biochemical coagulase rule -- the same two-paths-to-one-
+;; species shape klebsiella and salmonella already have.
 (defrule hospital-acquired-gram-pos-cocci-in-clumps-suggests-staph-aureus
     (:belief 0.8
      :provenance (:origin :paip-subset
@@ -237,9 +242,7 @@
                   :note "Staphylococcus aureus is a leading cause of hospital-acquired infection, including nosocomial bacteremia."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value pos) (of ?o))
-  (morphology (value coccus) (of ?o))
-  (growth-conformation (value clumps) (of ?o))
+  (organism-class (value :staphylococcus) (of ?o))
   (hospital-acquired (value t) (of ?p))
   =>
   (assert (organism-identity (value :staphylococcus-aureus) (of ?o))))
@@ -298,6 +301,9 @@
   =>
   (assert (organism-identity (value :klebsiella) (of ?o))))
 
+;; Tier-2 (chained, re-parented in slice B): premises replaced by organism-class
+;; :streptococcus, so belief composes 0.7*0.75 = 0.525. The clinical (site-based)
+;; path to S. pneumoniae, alongside the biochemical optochin rule.
 (defrule respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae
     (:belief 0.75
      :provenance (:origin :paip-subset
@@ -307,9 +313,7 @@
                   :note "Streptococcus pneumoniae is a leading cause of community-acquired pneumonia and lower respiratory tract infection."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
-  (gram (value pos) (of ?o))
-  (morphology (value coccus) (of ?o))
-  (growth-conformation (value chains) (of ?o))
+  (organism-class (value :streptococcus) (of ?o))
   (infection-site (value respiratory) (of ?p))
   =>
   (assert (organism-identity (value :streptococcus-pneumoniae) (of ?o))))
@@ -570,6 +574,177 @@
   =>
   (assert (organism-identity (value :proteus) (of ?o))))
 
+;;; ------------------------------------------------------------------
+;;; Tier 2 for the GRAM-POSITIVE COCCI: genus class -> competing SPECIES
+;;; (docs/gram-positive-cluster-design.md §3.2).
+;;;
+;;; Same shape as the enterobacteriaceae species tier: each rule reads the derived
+;;; organism-class as a premise, so species belief = class belief * this rule's
+;;; belief. The discriminators (coagulase, hemolysis, optochin, bacitracin,
+;;; novobiocin, arabinose, sorbitol) carry nil belief and only gate firing.
+;;;
+;;; Unlike the enterobacteriaceae biochemicals, these discriminators partition
+;;; cleanly -- hemolysis three ways, coagulase two -- which is what lets the slice-C
+;;; cross-disconfirming rules carry stronger negative beliefs and drive plausibility
+;;; further below 1.0 on the losing sibling.
+;;; ------------------------------------------------------------------
+
+;; S. aureus: the coagulase-positive staphylococcus. 0.85 -- coagulase is the
+;; defining genus-internal split, though not quite absolute in practice.
+;; Composes to 0.7*0.85 = 0.595.
+(defrule staph-coagulase-pos-suggests-staph-aureus
+    (:belief 0.85
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
+                             "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
+                  :belief-basis :illustrative
+                  :note "Staphylococcus aureus is the coagulase-POSITIVE staphylococcus; a Gram stain plus catalase and coagulase allows it to be identified quickly and separates it from the coagulase-negative species."))
+  (organism (id ?o))
+  (organism-class (value :staphylococcus) (of ?o))
+  (coagulase (value positive) (of ?o))
+  =>
+  (assert (organism-identity (value :staphylococcus-aureus) (of ?o))))
+
+;; S. epidermidis: the DEFAULT coagulase-negative staphylococcus. 0.55 is
+;; deliberately the weakest belief in the corpus -- CoNS is a group, and this rule
+;; names its commonest member rather than making a positive identification. The
+;; near-tie against S. saprophyticus below is the point. Composes to 0.7*0.55 = 0.385.
+;; (Modeling CoNS as a group identity instead is the honest alternative; deferred,
+;; see design §8.1 -- the significance/contaminant increment will want it.)
+(defrule staph-coagulase-neg-suggests-staph-epidermidis
+    (:belief 0.55
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240"
+                             "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
+                  :belief-basis :illustrative
+                  :note "S. epidermidis is a coagulase-negative, catalase-positive gram-positive coccus in clusters, and the commonest coagulase-negative staphylococcus in clinical specimens. Weak (0.55) because coagulase-negativity identifies the GROUP, not this species."))
+  (organism (id ?o))
+  (organism-class (value :staphylococcus) (of ?o))
+  (coagulase (value negative) (of ?o))
+  =>
+  (assert (organism-identity (value :staphylococcus-epidermidis) (of ?o))))
+
+;; S. saprophyticus: coagulase-negative AND novobiocin-RESISTANT -- the standard
+;; discriminator within CoNS. 0.8, calibrated to the reported 93% positive
+;; predictive accuracy of the novobiocin disc. Composes to 0.7*0.8 = 0.56.
+(defrule staph-coagulase-neg-novobiocin-resistant-suggests-staph-saprophyticus
+    (:belief 0.8
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus saprophyticus Infection, NBK482367"
+                             "J Clin Microbiol, Use of Mueller-Hinton agar to determine novobiocin susceptibility of coagulase-negative staphylococci, PMC272557")
+                  :belief-basis :illustrative
+                  :note "S. saprophyticus is differentiated from the other coagulase-negative staphylococci by RESISTANCE to novobiocin; the 5-ug disc has a reported 93% positive predictive accuracy as a presumptive test, which is what 0.8 reflects."))
+  (organism (id ?o))
+  (organism-class (value :staphylococcus) (of ?o))
+  (coagulase (value negative) (of ?o))
+  (novobiocin (value resistant) (of ?o))
+  =>
+  (assert (organism-identity (value :staphylococcus-saprophyticus) (of ?o))))
+
+;; S. pyogenes (Group A): beta-hemolytic AND bacitracin-SENSITIVE. 0.85 rather than
+;; higher because the marker is presumptive, not definitive: up to 10% of S. pyogenes
+;; are bacitracin-resistant and 3-5% of group C/G are susceptible.
+;; Composes to 0.7*0.85 = 0.595.
+(defrule strep-beta-hemolytic-bacitracin-sensitive-suggests-strep-pyogenes
+    (:belief 0.85
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf, Streptococcus pyogenes: Basic Biology to Clinical Manifestations (Laboratory Diagnosis of group A streptococci), NBK587110")
+                  :belief-basis :illustrative
+                  :note "Bacitracin susceptibility is the widely used screening method for presumptive identification of beta-hemolytic group A Streptococcus (S. pyogenes), differentiating it from groups B, C and G. Presumptive only: up to 10% of S. pyogenes are bacitracin-resistant and 3-5% of group C/G are susceptible -- hence 0.85."))
+  (organism (id ?o))
+  (organism-class (value :streptococcus) (of ?o))
+  (hemolysis (value beta) (of ?o))
+  (bacitracin (value sensitive) (of ?o))
+  =>
+  (assert (organism-identity (value :streptococcus-pyogenes) (of ?o))))
+
+;; S. agalactiae (Group B): beta-hemolytic AND bacitracin-RESISTANT. 0.7 -- weaker
+;; than its group A sibling because bacitracin resistance is shared with groups C
+;; and G, so it narrows rather than names. Composes to 0.7*0.7 = 0.49.
+(defrule strep-beta-hemolytic-bacitracin-resistant-suggests-strep-agalactiae
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf / StatPearls, Group B Streptococcus and Pregnancy, NBK482443")
+                  :belief-basis :illustrative
+                  :note "Bacitracin RESISTANCE in a beta-hemolytic streptococcus argues for a non-group-A group, of which group B (S. agalactiae) is the principal clinical one. Only 0.7 because groups C and G are also bacitracin-resistant, so this narrows the field rather than naming the species."))
+  (organism (id ?o))
+  (organism-class (value :streptococcus) (of ?o))
+  (hemolysis (value beta) (of ?o))
+  (bacitracin (value resistant) (of ?o))
+  =>
+  (assert (organism-identity (value :streptococcus-agalactiae) (of ?o))))
+
+;; S. pneumoniae: alpha-hemolytic AND optochin-SENSITIVE -- the classic separation
+;; from the rest of the viridans-type alpha-hemolytic streptococci. 0.85.
+;; Composes to 0.7*0.85 = 0.595.
+(defrule strep-alpha-hemolytic-optochin-sensitive-suggests-strep-pneumoniae
+    (:belief 0.85
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
+                             "NCBI Bookshelf / StatPearls, Streptococcus pneumoniae, NBK470537")
+                  :belief-basis :illustrative
+                  :note "S. pneumoniae is separated from the other alpha-hemolytic streptococci by sensitivity to surfactants -- bile or optochin -- which activate its autolytic enzymes."))
+  (organism (id ?o))
+  (organism-class (value :streptococcus) (of ?o))
+  (hemolysis (value alpha) (of ?o))
+  (optochin (value sensitive) (of ?o))
+  =>
+  (assert (organism-identity (value :streptococcus-pneumoniae) (of ?o))))
+
+;; Viridans group: alpha-hemolytic AND optochin-RESISTANT. 0.65 -- "viridans" is a
+;; heterogeneous GROUP defined largely by exclusion (alpha-hemolytic and NOT
+;; pneumococcus), so the conclusion is genuinely coarser than its siblings.
+;; Composes to 0.7*0.65 = 0.455.
+(defrule strep-alpha-hemolytic-optochin-resistant-suggests-viridans
+    (:belief 0.65
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611")
+                  :belief-basis :illustrative
+                  :note "Alpha-hemolytic streptococci that are optochin-RESISTANT are the viridans group. 0.65 because viridans is a heterogeneous group defined largely by exclusion from S. pneumoniae, not a species-level call."))
+  (organism (id ?o))
+  (organism-class (value :streptococcus) (of ?o))
+  (hemolysis (value alpha) (of ?o))
+  (optochin (value resistant) (of ?o))
+  =>
+  (assert (organism-identity (value :streptococcus-viridans) (of ?o))))
+
+;; E. faecalis vs E. faecium: a reciprocal sugar pair, NOT arabinose alone.
+;; Verification found the single-marker teaching contested -- PMC5476817 reports
+;; faecalis sorbitol+/arabinose- and faecium the reverse, while the biochemical key
+;; in PMC91588 does not treat arabinose as discriminating between the two. Requiring
+;; BOTH sugars is the honest reading of a divided source base, and the belief is held
+;; at 0.7 rather than the 0.8 a clean single marker would earn. Deliberate exact tie
+;; between the siblings: 0.8*0.7 = 0.56 each.
+(defrule enterococcus-sorbitol-pos-arabinose-neg-suggests-e-faecalis
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("Carriage of multidrug resistant Enterococcus faecium and Enterococcus faecalis among apparently healthy humans, PMC5476817"
+                             "NCBI Bookshelf, Enterococci: From Commensals to Leading Causes of Drug Resistant Infection, NBK190427")
+                  :belief-basis :illustrative
+                  :note "PMC5476817: 'All the Enterococcus faecalis isolates fermented sorbitol, mannitol, glucose and lactose but not arabinose while E. faecium was able to ferment arabinose, mannitol, glucose and lactose but not sorbitol.' CONTESTED: the biochemical key in PMC91588 does not treat arabinose as discriminating between these two species, so this rule requires the reciprocal PAIR and is held to 0.7 rather than 0.8."))
+  (organism (id ?o))
+  (organism-class (value :enterococcus) (of ?o))
+  (sorbitol (value fermenter) (of ?o))
+  (arabinose (value non-fermenter) (of ?o))
+  =>
+  (assert (organism-identity (value :enterococcus-faecalis) (of ?o))))
+
+(defrule enterococcus-arabinose-pos-sorbitol-neg-suggests-e-faecium
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("Carriage of multidrug resistant Enterococcus faecium and Enterococcus faecalis among apparently healthy humans, PMC5476817"
+                             "NCBI Bookshelf, Enterococci: From Commensals to Leading Causes of Drug Resistant Infection, NBK190427")
+                  :belief-basis :illustrative
+                  :note "The reciprocal of the E. faecalis rule: E. faecium ferments arabinose but not sorbitol. Same contested-source caveat and same 0.7. Clinically this is the most therapy-consequential split on the gram-positive side, since E. faecium does not behave like the genus average on ampicillin or vancomycin -- a species-level KB entry is the correct follow-up (design §8.3)."))
+  (organism (id ?o))
+  (organism-class (value :enterococcus) (of ?o))
+  (arabinose (value fermenter) (of ?o))
+  (sorbitol (value non-fermenter) (of ?o))
+  =>
+  (assert (organism-identity (value :enterococcus-faecium) (of ?o))))
+
 ;;; --- Ruling-out (disconfirming) rules ---
 ;;;
 ;;; These inject *negative* evidence: a contradictory Gram stain or oxygen
@@ -612,9 +787,13 @@
   (organism-identity (value ?value) (of ?o))
   ;; :staphylococcus, :streptococcus and :enterococcus dropped in slice A -- all three
   ;; are organism-CLASSes now, never organism-identities, so they can never match here
-  ;; (the same bookkeeping C2 did for :enterobacteriaceae). Their leaf SPECIES take
-  ;; their place; the species list is populated as slice B authors them.
-  (test (member ?value '(:staphylococcus-aureus :streptococcus-pneumoniae)))
+  ;; (the same bookkeeping C2 did for :enterobacteriaceae). Their leaf SPECIES, added
+  ;; in slice B, take their place.
+  (test (member ?value '(:staphylococcus-aureus :staphylococcus-epidermidis
+                         :staphylococcus-saprophyticus
+                         :streptococcus-pneumoniae :streptococcus-pyogenes
+                         :streptococcus-agalactiae :streptococcus-viridans
+                         :enterococcus-faecalis :enterococcus-faecium)))
   =>
   (assert (organism-identity (value ?value) (of ?o))))
 
@@ -815,10 +994,11 @@
 (defun culture-multi (&key (runp t))
   "Two organisms in one culture, to exercise lineage scoping. o1 is an aerobic
    gram-neg rod (=> enterobacteriaceae CLASS only, no leaf identity after C2); o2
-   is a gram-pos coccus in clumps (=> staphylococcus CLASS only after slice A, no
-   leaf identity until a coagulase is run). Each
-   conclusion must stay on its own organism -- the flat rulebase would
-   cross-contaminate via unscoped morphology/gram joins."
+   is a gram-pos coccus in clumps with a POSITIVE coagulase (=> staphylococcus
+   class, refined to the S. aureus species at 0.7*0.85 = 0.595). Each conclusion
+   must stay on its own organism -- the flat rulebase would cross-contaminate via
+   unscoped morphology/gram joins. The coagulase was added in slice B so the
+   identity layer is non-empty again: slice A had left o2 stopping at its genus."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -830,5 +1010,35 @@
   (assert (gram (value pos) (of o2)))
   (assert (morphology (value coccus) (of o2)))
   (assert (growth-conformation (value clumps) (of o2)))
+  (assert (coagulase (value positive) (of o2)))
+  (when runp
+    (run)))
+
+(defun culture-4 (&key (runp t))
+  "Gram-positive differential (slice B): a beta-hemolytic, bacitracin-sensitive
+   gram-pos coccus in chains from a patient with a respiratory infection site.
+
+   Two rules refine the derived streptococcus CLASS to competing species along
+   different axes -- the biochemical one to S. pyogenes (0.7*0.85 = 0.595) and the
+   clinical/site one to S. pneumoniae (0.7*0.75 = 0.525) -- so the differential is
+   genuinely two-sided rather than a single hypothesis with a number on it.
+
+   The pair is mutually exclusive in reality: a BETA-hemolytic organism is not
+   S. pneumoniae, which is alpha-hemolytic. Until slice C adds the hemolysis
+   cross-disconfirming rules, both nonetheless sit at plausibility 1.0 with neither
+   pulling the other down -- precisely the gap observed live on the enterobacteriaceae
+   siblings before v0.5.0. This driver is the fixture that makes slice C's effect
+   visible."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (infection-site (value respiratory) (of p1)))
+  (assert (gram (value pos) (of o1)))
+  (assert (morphology (value coccus) (of o1)))
+  (assert (growth-conformation (value chains) (of o1)))
+  (assert (hemolysis (value beta) (of o1)))
+  (assert (bacitracin (value sensitive) (of o1)))
   (when runp
     (run)))
