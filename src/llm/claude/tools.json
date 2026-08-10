@@ -13,6 +13,21 @@
             "morphology",
             "aerobicity",
             "growth-conformation",
+            "lactose",
+            "indole",
+            "motility",
+            "urease",
+            "pigment",
+            "catalase",
+            "coagulase",
+            "hemolysis",
+            "optochin",
+            "bacitracin",
+            "novobiocin",
+            "bile-esculin",
+            "salt-tolerance",
+            "arabinose",
+            "sorbitol",
             "culture-site",
             "culture-age",
             "burn",
@@ -20,16 +35,20 @@
             "hospital-acquired",
             "recent-travel",
             "white-blood-count",
-            "infection-site"
+            "infection-site",
+            "neutropenia",
+            "prosthetic-material",
+            "iv-drug-use",
+            "age-group"
           ]
         },
         "value": {
           "type": "string",
-          "description": "The value for this fact. Valid values depend on fact_type: gram=(pos|neg), morphology=(rod|coccus), aerobicity=(aerobic|anaerobic), growth-conformation=(clumps|chains), culture-site=(blood), burn=(serious), compromised-host=(t), culture-age=(integer as string), hospital-acquired=(t), recent-travel=(tropical), white-blood-count=(low), infection-site=(respiratory|abdominal)."
+          "description": "The value for this fact. Valid values depend on fact_type. Organism-level morphology/staining: gram=(pos|neg), morphology=(rod|coccus), aerobicity=(aerobic|anaerobic), growth-conformation=(clumps|chains). Enterobacteriaceae species discriminators: lactose=(fermenter|non-fermenter), indole=(positive|negative), motility=(motile|non-motile|swarming), urease=(positive|negative), pigment=(red|none). Gram-positive coccus discriminators: catalase=(positive|negative), coagulase=(positive|negative), hemolysis=(alpha|beta|gamma), optochin=(sensitive|resistant), bacitracin=(sensitive|resistant), novobiocin=(sensitive|resistant), bile-esculin=(positive|negative), salt-tolerance=(tolerant|intolerant), arabinose=(fermenter|non-fermenter), sorbitol=(fermenter|non-fermenter). Culture-level: culture-site=(blood), culture-age=(integer as string). Patient-level: burn=(serious), compromised-host=(t), hospital-acquired=(t), recent-travel=(tropical), white-blood-count=(low), infection-site=(respiratory|abdominal|urinary), neutropenia=(t), prosthetic-material=(t), iv-drug-use=(t), age-group=(neonate|infant|adult|elderly)."
         },
         "entity": {
           "type": "string",
-          "description": "Optional organism identifier (e.g. 'organism-1', 'organism-2'), used ONLY for organism-level facts (gram, morphology, aerobicity, growth-conformation) when a case has more than one organism, to keep each organism's evidence separate. Omit for single-organism cases (defaults to 'organism-1'). Ignored for patient-level facts (burn, compromised-host, hospital-acquired, recent-travel, infection-site, white-blood-count) and culture-level facts (culture-site, culture-age), which the bridge scopes automatically."
+          "description": "Optional organism identifier (e.g. 'organism-1', 'organism-2'), used ONLY for organism-level facts (gram, morphology, aerobicity, growth-conformation, and every biochemical/disc discriminator: lactose, indole, motility, urease, pigment, catalase, coagulase, hemolysis, optochin, bacitracin, novobiocin, bile-esculin, salt-tolerance, arabinose, sorbitol) when a case has more than one organism, to keep each organism's evidence separate. Omit for single-organism cases (defaults to 'organism-1'). Ignored for patient-level facts (burn, compromised-host, hospital-acquired, recent-travel, infection-site, white-blood-count, neutropenia, prosthetic-material, iv-drug-use, age-group) and culture-level facts (culture-site, culture-age), which the bridge scopes automatically."
         },
         "confidence": {
           "type": "number",

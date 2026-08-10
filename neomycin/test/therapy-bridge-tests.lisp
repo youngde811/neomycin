@@ -82,8 +82,15 @@
   ;; culture-multi's o1 is a bare aerobic gram-neg rod: it yields the
   ;; enterobacteriaceae CLASS but no member species. With nothing below it clearing
   ;; the gate, the family must be carried in as a backstop item so the organism is
-  ;; still treated empirically. (o2's staphylococcus is unrelated -- a different
-  ;; family -- and rides along untouched.)
+  ;; still treated empirically.
+  ;;
+  ;; o2 now demonstrates the OPPOSITE arm of the same rule, which is why this scenario
+  ;; is worth more than it used to be. Before the gram-positive increment o2 stopped at
+  ;; a :staphylococcus leaf identity; it is now a coagulase-positive organism refined to
+  ;; S. aureus, so the genus is suppressed exactly as enterobacteriaceae is in
+  ;; therapy-bridge-family-backstop-suppressed-when-member-covers. One scenario, both
+  ;; arms: family treated empirically where nothing is pinned down, species treated
+  ;; alone where something is.
   (run-scenario 'lisa-user::culture-multi :certainty-factors)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (assoc :enterobacteriaceae concl)
@@ -91,7 +98,10 @@
     (is (null (intersection '(:klebsiella :e-coli :salmonella :enterobacter :serratia :proteus)
                             (mapcar #'car concl)))
         "no enterobacteriaceae member species was identified in culture-multi")
-    (is (assoc :staphylococcus concl) "o2's staphylococcus rides along, unaffected")))
+    (is (assoc :staphylococcus-aureus concl)
+        "o2 is refined to the S. aureus species by its positive coagulase")
+    (is (not (assoc :staphylococcus concl))
+        "the staphylococcus GENUS is suppressed -- its member species covers it")))
 
 (deftest therapy-bridge-family-backstop-suppressed-when-member-covers ()
   ;; culture-1 identifies klebsiella (0.40), a member species that clears the

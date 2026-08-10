@@ -1,14 +1,19 @@
 ;; This file is part of neomycin, a research reconstruction of MYCIN/EMYCIN.
 ;; MIT License. Copyright (c) 2000 David Young.
 
-;; Description: neomycin's OWN per-rule coverage, validating neomycin/rulebase.lisp.
+;; Description: neomycin's OWN per-rule coverage, validating neomycin/rules/.
 ;; Forked from Lisa's tests/rules.lisp (identical as of Slice 0; diverges once rules
 ;; are re-parented -- docs/chaining-belief-spike.md §7.1). Each rule is fired in
 ;; isolation on a minimal premise set that lets *only that rule* conclude the
-;; target organism, and the resulting belief is asserted. Confirming rules
-;; (1-15) must contribute exactly their :belief (CF) / [belief, 1.0] (DS); the
-;; three disconfirming rules (16-18) must lower an existing hypothesis and pull
-;; its plausibility below 1.0.
+;; target organism, and the resulting belief is asserted. A confirming rule must
+;; contribute exactly its :belief (CF) / [belief, 1.0] (DS); a disconfirming rule
+;; must lower an existing hypothesis and pull its plausibility below 1.0.
+;;
+;; This file covers the ONE-HOP gram-negative rules and the gram-stain/aerobicity
+;; disconfirmers. The chained clusters -- every organism-class rule, all tier-2
+;; species, the gram-positive cross-disconfirmers and the host-factor modifiers --
+;; are covered in chain-tests.lisp, which also states the composition law once per
+;; cluster. Corpus-WIDE invariants live in property-tests.lisp.
 
 (in-package "LISA-TEST")
 
@@ -20,7 +25,7 @@
   (check-ds (run-facts :dempster-shafer builder) organism belief 1.0))
 
 ;;; ------------------------------------------------------------------
-;;; Confirming rules (1-15) — fired in isolation
+;;; Confirming rules — fired in isolation
 ;;; ------------------------------------------------------------------
 
 (deftest rule-gram-neg-rod-burn-pseudomonas ()      ; 0.4
@@ -30,11 +35,10 @@
                 (af "burn" "serious" p))
               "pseudomonas" 0.4))
 
-(deftest rule-gram-pos-cocci-clumps-staphylococcus () ; 0.7
-  (check-rule (lambda (o p) (declare (ignore p))
-                (af "gram" "pos" o) (af "morphology" "coccus" o)
-                (af "growth-conformation" "clumps" o))
-              "staphylococcus" 0.7))
+;; The one-hop clumps -> staphylococcus IDENTITY rule was retired in slice A of the
+;; gram-positive cluster (staphylococcus is a GENUS, so it is an organism-CLASS now).
+;; The same premises fire the tier-1 CLASS rule instead -- see
+;; chain-tier1-gram-pos-cocci-clumps-staphylococcus-class in chain-tests.lisp.
 
 (deftest rule-anaerobic-gram-neg-rod-blood-bacteroides () ; 0.9
   (check-rule (lambda (o p) (declare (ignore p))
@@ -54,18 +58,19 @@
 ;; fire the tier-1 CLASS rule instead -- see chain-tier1-aerobic-gram-neg-rod-
 ;; enterobacteriaceae-class in chain-tests.lisp, which covers this evidence path.
 
-(deftest rule-gram-pos-cocci-chains-streptococcus () ; 0.7
-  (check-rule (lambda (o p) (declare (ignore p))
-                (af "gram" "pos" o) (af "morphology" "coccus" o)
-                (af "growth-conformation" "chains" o))
-              "streptococcus" 0.7))
+;; The one-hop chains -> streptococcus IDENTITY rule was retired in slice A for the
+;; same reason as the staphylococcus leaf above. See
+;; chain-tier1-gram-pos-cocci-chains-streptococcus-class in chain-tests.lisp.
 
-(deftest rule-hospital-gram-pos-cocci-clumps-staph-aureus () ; 0.8
+(deftest rule-hospital-gram-pos-cocci-clumps-staph-aureus () ; chained: 0.7*0.8 = 0.56
+  ;; Tier-2 after slice B: the clumps premises now derive the staphylococcus CLASS
+  ;; (0.7), off which this rule refines to S. aureus (rule 0.8) = 0.56. Same premises
+  ;; as before re-parenting; only the belief path changed.
   (check-rule (lambda (o p)
                 (af "gram" "pos" o) (af "morphology" "coccus" o)
                 (af "growth-conformation" "clumps" o)
                 (af "hospital-acquired" "t" p))
-              "staphylococcus-aureus" 0.8))
+              "staphylococcus-aureus" 0.56))
 
 (deftest rule-hospital-compromised-klebsiella-combines () ; 0.688 = (0.8*0.6) combine (0.8*0.5)
   ;; NOT an isolation: with hospital-acquired + compromised, BOTH klebsiella rules
@@ -93,12 +98,14 @@
                 (af "aerobicity" "aerobic" o) (af "compromised-host" "t" p))
               "klebsiella" 0.40))
 
-(deftest rule-respiratory-gram-pos-cocci-chains-strep-pneumoniae () ; 0.75
+(deftest rule-respiratory-gram-pos-cocci-chains-strep-pneumoniae () ; chained: 0.7*0.75 = 0.525
+  ;; Tier-2 after slice B: chains derive the streptococcus CLASS (0.7), off which the
+  ;; respiratory site refines to S. pneumoniae (rule 0.75) = 0.525.
   (check-rule (lambda (o p)
                 (af "gram" "pos" o) (af "morphology" "coccus" o)
                 (af "growth-conformation" "chains" o)
                 (af "infection-site" "respiratory" p))
-              "streptococcus-pneumoniae" 0.75))
+              "streptococcus-pneumoniae" 0.525))
 
 (deftest rule-enterobacteriaceae-travel-salmonella () ; chained: 0.8*0.65 = 0.52
   ;; Tier-2: organism-class (0.8) + tropical travel refines to salmonella (rule 0.65) = 0.52.
@@ -108,13 +115,11 @@
                 (af "recent-travel" "tropical" p))
               "salmonella" 0.52))
 
-(deftest rule-gram-pos-cocci-chains-blood-compromised-enterococcus () ; 0.7
-  (check-rule (lambda (o p)
-                (af "culture-site" "blood" *ctx-culture*)
-                (af "gram" "pos" o) (af "morphology" "coccus" o)
-                (af "growth-conformation" "chains" o)
-                (af "compromised-host" "t" p))
-              "enterococcus" 0.7))
+;; The chains+blood+compromised -> enterococcus rule was RE-POINTED in slice A to
+;; conclude the enterococcus organism-CLASS (enterococcus is a genus). Its isolated
+;; coverage now lives in chain-tests.lisp as
+;; chain-tier1-chains-blood-compromised-enterococcus-class -- same premises, same 0.7,
+;; class conclusion.
 
 (deftest rule-enterobacteriaceae-blood-low-wbc-salmonella () ; chained: 0.8*0.55 = 0.44
   ;; Tier-2: organism-class (0.8) + blood + low WBC refines to salmonella (rule 0.55) = 0.44.
@@ -125,6 +130,16 @@
                 (af "white-blood-count" "low" p))
               "salmonella" 0.44))
 
+(deftest rule-neutropenia-aerobic-gram-neg-rod-pseudomonas () ; 0.5
+  ;; Host-factor modifier (slice D). One-hop, NOT chained: Pseudomonas is not an
+  ;; enterobacteriaceae, so it cannot refine from the class the same premises derive.
+  ;; The class is derived here too but reaches no species without discriminators.
+  (check-rule (lambda (o p)
+                (af "gram" "neg" o) (af "morphology" "rod" o)
+                (af "aerobicity" "aerobic" o)
+                (af "neutropenia" "t" p))
+              "pseudomonas" 0.5))
+
 (deftest rule-anaerobic-gram-neg-rod-abdomen-bacteroides () ; 0.8
   (check-rule (lambda (o p)
                 (af "gram" "neg" o) (af "morphology" "rod" o)
@@ -133,7 +148,7 @@
               "bacteroides" 0.8))
 
 ;;; ------------------------------------------------------------------
-;;; Disconfirming rules (16-18) — must lower a live hypothesis (pl < 1.0)
+;;; Disconfirming rules — must lower a live hypothesis (pl < 1.0)
 ;;; ------------------------------------------------------------------
 
 (defun check-disconfirms (builder organism confirming-belief)
@@ -163,13 +178,17 @@
                      "pseudomonas" 0.6))
 
 (deftest rule-gram-neg-argues-against-gram-pos-organism ()
-  ;; A gram-negative reading disconfirms a gram-positive hypothesis
-  ;; (streptococcus established at 0.7 via the cocci-in-chains rule).
-  (check-disconfirms (lambda (o p) (declare (ignore p))
+  ;; A gram-negative reading disconfirms a gram-positive hypothesis. Slice A retired
+  ;; the bare streptococcus leaf this used to key off, so the live hypothesis is now
+  ;; streptococcus-pneumoniae -- still a gram-positive IDENTITY, which is what the rule
+  ;; under test needs. Slice B re-parented that rule, so the undisconfirmed baseline is
+  ;; the chained 0.7*0.75 = 0.525 rather than the old one-hop 0.75.
+  (check-disconfirms (lambda (o p)
                        (af "gram" "pos" o) (af "morphology" "coccus" o)
                        (af "growth-conformation" "chains" o)
+                       (af "infection-site" "respiratory" p)
                        (af "gram" "neg" o))
-                     "streptococcus" 0.7))
+                     "streptococcus-pneumoniae" 0.525))
 
 (deftest rule-aerobic-argues-against-anaerobe ()
   ;; Aerobic growth disconfirms bacteroides (a strict anaerobe), established at

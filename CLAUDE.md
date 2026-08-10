@@ -32,17 +32,19 @@ Or explicitly — which is all that convenience file does:
 (load "lisa.asd")
 (load "neomycin.asd")
 (load "lisa-bridge.asd")
-(asdf:load-system :neomycin)   ; loads neomycin/rulebase.lisp + the therapy system
+(asdf:load-system :neomycin)   ; loads neomycin/rules/ + the therapy system
                                ; (:neomycin depends on :lisa and :lisa-bridge)
 (lisa-bridge:start)            ; port 8090
 ```
 
 To stop: `(lisa-bridge:stop)`
 
-neomycin's canonical rulebase is **`neomycin/rulebase.lisp`** (the keyword-vocabulary
-MYCIN reconstruction, loaded by the `:neomycin` ASDF system). Lisa's
-`examples/mycin.lisp` is Lisa-proper and is **never** used by neomycin — don't load it
-over the neomycin rulebase.
+neomycin's canonical rulebase is **`neomycin/rules/`** (the keyword-vocabulary MYCIN
+reconstruction, loaded by the `:neomycin` ASDF system). It was a single
+`neomycin/rulebase.lisp` through v0.5.0 and was split by cluster once it passed 40
+rules; `rules/context.lisp` defines every class the rule files use and **must load
+first**. Lisa's `examples/mycin.lisp` is Lisa-proper and is **never** used by
+neomycin — don't load it over the neomycin rulebase.
 
 ### Choosing a belief system
 
@@ -66,15 +68,26 @@ and emits `{bel, pl, ignorance}` payloads under DS.
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rulebase.lisp       — THE canonical MYCIN rulebase: 27 rules (18 confirming — 10 leaf
-                        identities + 8 tier-2 chained enterobacteriaceae species — plus 1
-                        tier-1 organism-class chain rule + 8 disconfirming, of which 5 are
-                        biochemical cross-disconfirmation among the enterobacteriaceae
-                        siblings), keyword
-                        vocabulary, culture-1/1a/2/3/multi demo drivers. Enterobacteriaceae
-                        is a class-only family (no leaf identity); its species (E. coli,
-                        Klebsiella, Salmonella, Enterobacter, Serratia, Proteus) chain off
-                        the derived class
+  rules/              — THE canonical MYCIN rulebase: 50 rules, split by cluster (was a
+                        single rulebase.lisp through v0.5.0). 6 one-hop leaves, 5 tier-1
+                        organism-class rules, 19 tier-2 chained species, 5 host-factor
+                        modifiers, 16 disconfirming (32% — of which 13 are biochemical
+                        cross-disconfirmation among siblings). 17 leaf identities across
+                        FOUR organism-classes / three chained clusters. A class is never a
+                        leaf identity; species chain off the derived class
+    context.lisp      — context tree, 31 clinical params, conclusion classes. LOADS FIRST
+    identity-gram-neg.lisp     — 5 one-hop rules (pseudomonas, bacteroides: no family to
+                                 refine from)
+    chain-enterobacteriaceae.lisp — 9 rules: class + E. coli / Klebsiella / Salmonella /
+                                 Enterobacter / Serratia / Proteus
+    chain-gram-pos.lisp — 15 rules: the staphylococcus / streptococcus / enterococcus
+                                 genus classes + their species (S. aureus, S. epidermidis,
+                                 S. saprophyticus, S. pneumoniae, S. pyogenes,
+                                 S. agalactiae, viridans, E. faecalis, E. faecium)
+    host-factors.lisp   — 5 patient-level belief modifiers (neutropenia, prosthetic
+                                 material, IV drug use, neonate, urinary source)
+    disconfirming.lisp  — all 16 ruling-out rules, every cluster
+    conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/2/3/4/5/multi drivers
   therapy/            — therapy-recommendation phase (own :neomycin-therapy package, nick :therapy)
     package.lisp      — package definition + exports
     protocol.lisp     — pluggable solver protocol, recommendation structs, policy dials
@@ -87,6 +100,9 @@ neomycin/
     stub-solver.lisp / greedy-solver.lisp — solvers (greedy weighted set-cover)
     bridge.lisp       — /recommend-therapy handler + recommendation→JSON (with provenance)
   test/               — neomycin/test system: therapy + antibiogram tests + repointed goldens
+                        + property-tests.lisp (corpus-WIDE invariants checked by
+                        introspecting the compiled rulebase, so a new rule is covered the
+                        moment it is authored — sketch §8)
   clinician-samples/  — saved driver transcripts
 docs/                 — design docs, runbook, clinician scenarios, therapy demo
 
@@ -149,7 +165,7 @@ chains off it (0.8 × 0.5).
 Two dependency-free suites (golden-master + belief-algebra, no external framework):
 
 - **`neomycin/test`** — neomycin's suite (`neomycin/test/`). Its `setup.lisp` repoints the
-  shared LISA-TEST harness at `neomycin/rulebase.lisp` and adds the therapy + antibiogram
+  shared LISA-TEST harness at neomycin's own rulebase and adds the therapy + antibiogram
   tests. **This is the suite to run for neomycin work.**
 - **`lisa/test`** — the Lisa substrate suite (`tests/`), run against Lisa's own
   `examples/mycin.lisp`.
@@ -164,13 +180,26 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~310 assertions / 93 tests): both belief algebras (CF and DS) directly; all four
+Coverage (~858 assertions / 152 tests): both belief algebras (CF and DS) directly; all six
 `culture-*` scenarios under each system (against neomycin's rulebase) with hand-verified
-golden values; DS clamp / total-conflict / malformed-input edge cases; **each of the 18
-rules fired in isolation**; the therapy solver (greedy set-cover, coverage gating,
-contraindications, belief-valued susceptibilities); and the **antibiogram overlay** (IDM
-counts→interval, Bayesian combination under both algebras, JSON provenance). If a belief
-computation changes intentionally, re-capture and update the goldens in `tests/scenarios.lisp`.
+golden values; DS clamp / total-conflict / malformed-input edge cases; **each of the 50
+rules fired in isolation**; the composition law (species belief = class belief × rule
+belief) stated once per chained cluster; the therapy solver (greedy set-cover, coverage
+gating, contraindications, belief-valued susceptibilities); and the **antibiogram overlay**
+(IDM counts→interval, Bayesian combination under both algebras, JSON provenance). If a
+belief computation changes intentionally, re-capture and update the goldens in
+`neomycin/test/scenarios.lisp`.
+
+**Corpus-wide property tests** (`neomycin/test/property-tests.lisp`, sketch §8) complement
+— never replace — the hand goldens. They introspect the compiled rulebase, so they cover a
+new rule automatically: belief in range; disconfirming rules follow the ruling-out template;
+**no disconfirming rule names an identity no confirming rule concludes** (the staleness
+guard — `member` lists go stale silently when a species is retired or promoted to a class);
+no dead-end organism-classes in either direction; **every concluded identity is treatable**
+(directly or by KB family roll-up, so a new species cannot land without its therapy wiring);
+and disconfirming rules stay above 20% of the corpus (a drift alarm for §6's "shape is the
+spec"). The "confirming rule contributes exactly its `:belief`, CF = DS-bel, pl = 1.0" law
+is deliberately *not* restated there — `check-rule` already enforces it per rule.
 
 ## Key Packages
 
@@ -186,7 +215,7 @@ computation changes intentionally, re-capture and update the goldens in `tests/s
 Identification and therapy both run end to end:
 
 - **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
-- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (27 rules), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (50 rules), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
 - **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
 - **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
 

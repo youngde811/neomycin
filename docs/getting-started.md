@@ -35,7 +35,7 @@ Rete engine, driven by an LLM. It splits reasoning into two layers, after
 Clancey's NEOMYCIN:
 
 - **Domain knowledge + belief propagation** — the Rete rulebase
-  (`neomycin/rulebase.lisp`) plus a pluggable belief system. This is deterministic
+  (`neomycin/rules/`) plus a pluggable belief system. This is deterministic
   and auditable.
 - **Diagnostic strategy** — an LLM decides what to ask next and narrates results,
   the role MYCIN's backward chaining once played.
@@ -51,7 +51,7 @@ headline research artifact.
 
 | Area | Status |
 |------|--------|
-| Rete engine + MYCIN rulebase (keyword vocabulary) | ✅ `neomycin/rulebase.lisp` is the canonical rulebase |
+| Rete engine + MYCIN rulebase (keyword vocabulary) | ✅ `neomycin/rules/` is the canonical rulebase |
 | Belief systems (CF + DS), pluggable | ✅ DS default, CF via env/`/reset` |
 | HTTP bridge (Hunchentoot) | ✅ assert / infer / conclusions / trace / reset / partial-matches |
 | LLM driver (Claude tool-use) | ✅ `src/llm/claude/driver.py` |
@@ -159,7 +159,7 @@ As of this writing the suite is **195 assertions / 60 tests, all green.** It cov
   engine, read conclusions off working memory, recommend over the canonical KB,
   and serialize to JSON.
 
-> The golden scenario/rules tests run against **`neomycin/rulebase.lisp`** — the
+> The golden scenario/rules tests run against **`neomycin/rules/`** — the
 > canonical rulebase. (Lisa's `examples/mycin.lisp` is Lisa-proper and is never
 > used by neomycin; `neomycin/test/setup.lisp` points the shared harness at
 > neomycin's rulebase.)

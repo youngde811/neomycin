@@ -145,7 +145,7 @@
 ;;; (pure CF/DS algebra, no rulebase involved). Both lisa/test and neomycin/test
 ;;; depend on this. The rulebase-DEPENDENT goldens (scenarios, rules) live in the
 ;;; dependent system instead, so neomycin can validate its own canonical rulebase
-;;; (neomycin/rulebase.lisp) without inheriting Lisa's example goldens -- which
+;;; (neomycin/rules/) without inheriting Lisa's example goldens -- which
 ;;; diverge once neomycin re-parents rules. See docs/chaining-belief-spike.md §7.1.
 (asdf:defsystem "lisa/test-base"
   :description "Rulebase-independent test harness + belief-algebra suite (no external deps)."

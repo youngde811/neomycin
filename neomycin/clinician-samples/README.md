@@ -31,7 +31,7 @@ rather than re-synced, so an older one can lag the current rulebase.
 >   therapy as a species, or as a family *backstop* when no species clears the gate).
 >
 > For current, verified values and the up-to-date rule set, see
-> `docs/clinician-scenarios.md` and `neomycin/rulebase.lisp`.
+> `docs/clinician-scenarios.md` and `neomycin/rules/`.
 
 - `burn-patient-gram-flip-ds-collapse.md`
 - `neutropenic-line-sepsis-antibiogram-overlay.md`

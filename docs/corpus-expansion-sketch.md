@@ -17,13 +17,17 @@ The tempting framing — "more rules ⇒ the solver sees more cases" — bundles
 things that scale differently, and the distinction should drive what we build:
 
 - **Knowledge breadth (the corpus).** How much of MYCIN's differential space is
-  reachable. Today: 27 rules (18 confirming, 1 tier-1 organism-class, 8 disconfirming) reaching ~13
-  organism-identity values. This is the genuine bottleneck for realistic
-  scenarios and — more to the point for this fork — for making the CF-vs-DS
-  divergence *empirically* interesting. With so few conflicting rules the DS
-  ignorance intervals barely get exercised.
+  reachable. Today: **50 rules** (6 one-hop leaves, 5 tier-1 organism-class rules,
+  19 tier-2 chained species, 5 host-factor modifiers, 16 disconfirming) reaching **17**
+  organism-identity values across **four** organism-classes. *(Was 27 rules / ~13
+  identities / 1 class before the gram-positive increment — see
+  `gram-positive-cluster-design.md`.)* Breadth was the genuine bottleneck for realistic
+  scenarios and — more to the point for this fork — for making the CF-vs-DS divergence
+  *empirically* interesting; at 8 conflicting rules the DS ignorance intervals barely
+  got exercised. At 16, with two clean partitions (hemolysis three ways, coagulase two)
+  among the new siblings, they do.
 - **Engine capability (the mechanism).** The Rete network, conflict resolution,
-  and belief combination are *already* exercised by 27 rules. Adding rule #200
+  and belief combination are *already* exercised by 50 rules. Adding rule #200
   runs the **same code paths** — more coverage and scaling pressure, not new
   reasoning. A bigger flat rulebase alone does not make the engine reason
   differently.
@@ -168,6 +172,13 @@ concern, not an afterthought.
 Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
 
 1. **Taxonomic refinement of the gram-neg rods** *(chaining, decision B).*
+   ✅ **DELIVERED** as v0.3.0, and since **generalized**: the gram-positive increment
+   applied the identical template to three more genera (staphylococcus, streptococcus,
+   enterococcus), each of which had the same genus-masquerading-as-a-leaf-identity
+   defect C2 fixed here. Four organism-classes across three chained clusters now. The
+   pattern proved cheap to repeat — the second application cost far less than the
+   first, which is the usual sign the abstraction was the right one.
+
    `enterobacteriaceae` is currently a leaf. Historically it's a family:
    *E. coli, Klebsiella, Enterobacter, Serratia, Proteus, Salmonella*. Evidence →
    `organism-class enterobacteriaceae` → competing **sibling species**. This yields
@@ -209,7 +220,20 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    co-plausibility. Highest-fidelity, lowest-effort DS enrichment now that the family
    has six species. (The engine handles it already; this is pure corpus authoring +
    goldens.)
-5. **Host-factor modifiers.** Age, steroids, neutropenia, prosthetic material —
+5. **Host-factor modifiers.** ✅ **DELIVERED** (`feature/gram-positive-cluster` slice D,
+   design `docs/gram-positive-cluster-design.md` §3.3): five patient-level rules —
+   neutropenia → Pseudomonas (0.5), prosthetic material → S. epidermidis (0.6), IV drug
+   use → S. aureus (0.55), neonate → S. agalactiae (0.7), urinary → S. saprophyticus
+   (0.65). Three further candidates (neutropenia → viridans, asplenia → pneumococcus,
+   catheter → Proteus) were scoped and deferred to hold the corpus at 50.
+
+   One honest finding from building it: **"modifier" describes intent, not mechanism.**
+   These rules assert an `organism-identity` like every other confirming rule, so what
+   they actually do is contribute an additional independent mass that *combines* with
+   the existing one. A true modifier would scale a belief already held — which the
+   engine does not express. That is engine-axis work (§1), noted and not done.
+
+   Original sketch retained: age, steroids, neutropenia, prosthetic material —
    patient-level `param-mixin`s that shift beliefs rather than name organisms.
    Good CF-vs-DS material (weak modifying evidence), low structural risk.
 6. **Clinical-syndrome conclusions (e.g. necrotizing fasciitis).** *A different
@@ -293,6 +317,14 @@ Concretely, each cluster is additive against `mycin.lisp` as it stands:
   `rules/` directory by cluster (identity-gram-neg, identity-gram-pos, context,
   host-factors), loaded together. Diff-reviewability (therapy design principle #3)
   is the reason to split before it gets unwieldy.
+  > ✅ **DONE** (slice E), at 50 rules / 1312 lines — so the ~40 guess in §10.3 was
+  > about right. Eight files: `context` (must load first), `identity-gram-neg`,
+  > `chain-enterobacteriaceae`, `chain-gram-pos`, `host-factors`, `disconfirming`,
+  > `conclusion`, `drivers`. One thing the sketch did not anticipate: because rules had
+  > accumulated in *authoring* order, the split had to **reorder** as well as cut. That
+  > is safe here — both belief combinators are commutative — and the suite returning
+  > byte-identical results proved it, but it is worth knowing that the cut is not
+  > purely mechanical. Grouping by cluster rather than by date is most of the value.
 
 No new context tree, no belief-algebra changes, no bridge changes for the identity
 side. The overlay/therapy layer is untouched.
@@ -320,6 +352,23 @@ A larger corpus needs a **complementary** strategy, not a replacement:
 
 Flag this early: the moment we pass ~30–40 rules, the golden-per-rule model is the
 thing that breaks first.
+
+> ✅ **DONE** (gram-positive increment, slice E). `neomycin/test/property-tests.lisp`
+> holds the corpus-wide invariants, checked by introspecting the compiled rulebase so
+> a new rule is covered the moment it is authored. The hand goldens were *kept* — all
+> 50 rules are still fired in isolation — exactly as this section proposed.
+>
+> The prediction held, but the failure mode was not the one anticipated here. Nobody
+> struggled to hand-verify 50 goldens; what actually rotted was **cross-references
+> between rules**. Ruling-out rules name their targets in literal `(test (member ?value
+> '(...)))` lists, and those go stale *silently* when a species is retired or promoted
+> to a class — the rule still compiles, still fires, and simply never matches the dead
+> value again. No golden notices, because a disconfirming rule that has stopped
+> disconfirming still passes every test that does not exercise it. That happened three
+> times in this increment and once in C2. The staleness guard is now the most valuable
+> test in the file, and the §10.4 question ("which invariants are truly universal?")
+> is answered in practice: the universal ones are about *consistency between* rules,
+> not about any rule in isolation.
 
 ---
 
@@ -354,3 +403,35 @@ top: a §5.1 + §3B spike — reconstruct the enterobacteriaceae family as one c
 cluster with cited provenance and DS goldens for the intermediate composition. It's
 the smallest thing that exercises breadth, fidelity, *and* the one engine path a
 corpus can actually stress.
+
+---
+
+## 11. What the 27 → 50 increment actually taught us
+
+Recorded because the answers differed from the guesses above, and the next increment
+should start from the answers.
+
+1. **Q10.1 — how far to chain?** One tier still looks right, but the *number* of
+   clusters matters more than their depth. Going from one chained cluster to three
+   bought far more DS behaviour than a second tier would have, and cost less.
+2. **Q10.2 — provenance mechanism?** Settled long since (the WHY/HOW facility promoted
+   it to a real rule property), and it paid off unexpectedly here: `:provenance :note`
+   became the natural place to record *source disagreement*, not just sources. The
+   E. faecalis/faecium rules carry a note saying two references conflict on whether
+   arabinose alone discriminates — which is why those rules require a reciprocal sugar
+   pair and sit at 0.7 rather than 0.8. A comment convention could not have surfaced
+   that to the LLM.
+3. **Q10.3 — file-split threshold?** ~40 was a good guess; 50 was comfortable. See §7.
+4. **Q10.4 — which invariants are universal?** Answered in §8: the ones about
+   *consistency between* rules, not about rules in isolation.
+5. **New, unanticipated: verify the biology before pricing the belief.** Two rule
+   beliefs ended up calibrated to figures found during citation checking rather than
+   chosen by feel — bacitracin → S. pyogenes at 0.85 because up to 10% of S. pyogenes
+   are bacitracin-resistant, novobiocin → S. saprophyticus at 0.8 against a reported
+   93% positive predictive accuracy. Neither number is invented. Doing the citation
+   pass *before* authoring, rather than as documentation afterwards, is what made that
+   possible, and it also killed one planned rule shape outright.
+6. **New: the identification/therapy seam is where silent holes appear.** Seven species
+   were added across two slices and none was treatable until the genus `deffamily`
+   entries landed — no error, just a regimen quietly failing to cover them. There is
+   now a property test asserting every concluded identity is treatable.

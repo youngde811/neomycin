@@ -1,12 +1,11 @@
-# neomycin — what it is, and why it exists
+# Welcome to Neomycin
 
-A plain-language introduction for readers who may know Common Lisp but not
-expert systems, and who may know software but not Dempster-Shafer theory.
-Nothing here assumes a background in probability, artificial-intelligence
-history, or medicine.
+Neomycin is a hybrid symbolic/LLM engine designed to mimic and extend the capabilities of the original MYCIN expert
+system, using Claude as a natural language clinical assistant in front of [Lisa](https://github.com/youngde811/Lisa), a
+production-quality expert system shell written in Common Lisp.
 
 > ## ⚠️ NOT FOR CLINICAL USE
-> neomycin is a research artifact. It is not a medical device, a decision aid,
+> Neomycin is a research artifact. It is not a medical device, a decision aid,
 > or a diagnostic tool, and it must never inform a health decision for any
 > human or animal. Every certainty number, drug, dose, and susceptibility in it
 > is illustrative — chosen to make the reasoning machinery legible, not
@@ -17,7 +16,7 @@ history, or medicine.
 ## Table of contents
 
 1. [The short version](#the-short-version)
-2. [The historical problem neomycin re-opens](#the-historical-problem-neomycin-re-opens)
+2. [The historical problem Neomycin re-opens](#the-historical-problem-Neomycin-re-opens)
 3. [What the project is actually for](#what-the-project-is-actually-for)
 4. [The architecture in one pass](#the-architecture-in-one-pass)
 5. [The rules engine, for software engineers](#the-rules-engine-for-software-engineers)
@@ -33,7 +32,7 @@ history, or medicine.
 
 ## The short version
 
-neomycin is a working reconstruction of **MYCIN**, the Stanford medical expert
+Neomycin is a working reconstruction of **MYCIN**, the Stanford medical expert
 system of the 1970s, rebuilt on a modern Common Lisp rules engine and fitted
 with a conversational front end powered by a large language model.
 
@@ -51,7 +50,7 @@ inspected like a ledger.
 
 ---
 
-## The historical problem neomycin re-opens
+## The historical problem Neomycin re-opens
 
 **MYCIN** (Shortliffe, 1976) diagnosed bacterial infections of the blood and
 recommended antibiotics. It was one of the first programs to perform at the
@@ -84,14 +83,14 @@ taught, reused, or reasoned about. Clancey pulled them apart.
 
 This project takes its name from that separation, because that separation is its
 whole architecture — with one substitution. Where Clancey wrote the diagnostic
-strategy as an explicit second body of rules, neomycin lets a language model
+strategy as an explicit second body of rules, Neomycin lets a language model
 play that role.
 
 ---
 
 ## What the project is actually for
 
-neomycin is not an attempt to build a better diagnostic tool. It is an
+Neomycin is not an attempt to build a better diagnostic tool. It is an
 instrument for studying three questions.
 
 **Can a language model serve as the strategic layer of a symbolic system
@@ -104,7 +103,7 @@ being structurally prevented from touching the reasoning itself.
 **What does uncertainty look like when you model ignorance explicitly?**
 Certainty factors compress everything into one number, which means *no evidence
 either way* and *strong evidence in both directions* end up looking identical.
-Dempster-Shafer theory keeps them distinct. neomycin runs both systems over the
+Dempster-Shafer theory keeps them distinct. Neomycin runs both systems over the
 same rules so the difference can be observed rather than argued about.
 
 **What does auditability cost, and what does it buy?** Every conclusion the
@@ -124,15 +123,15 @@ the system is unchanged.
 Four components, each with a job it does not share.
 
 **[Lisa](https://github.com/youngde811/Lisa).** A forward-chaining production rule engine written in Common Lisp,
-using the Rete algorithm. It holds working memory and fires rules. neomycin is a
-fork of Lisa that keeps the engine's packages un-renamed: neomycin *uses* Lisa
+using the Rete algorithm. It holds working memory and fires rules. Neomycin is a
+fork of Lisa that keeps the engine's packages un-renamed: Neomycin *uses* Lisa
 rather than absorbing it, though engine-level changes are made when the research
 genuinely calls for them.
 
-**The rulebase and belief system.** `neomycin/rulebase.lisp` holds 27 medical
-rules in a controlled vocabulary. Underneath sits a pluggable belief system —
-either Dempster-Shafer (the default) or certainty factors — that decides how
-confidence is represented and combined.
+**The rulebase and belief system.** `Neomycin/rules/` holds 50 medical rules in a
+controlled vocabulary, grouped by cluster across a handful of files. Underneath sits
+a pluggable belief system — either Dempster-Shafer (the default) or certainty
+factors — that decides how confidence is represented and combined.
 
 **The bridge.** A small HTTP service that runs inside the same Lisp image as the
 engine. It exposes the engine's capabilities as a handful of web endpoints:
@@ -159,7 +158,7 @@ read what came back.
 ## The rules engine, for software engineers
 
 A **rule** pairs a set of conditions with a conclusion. Here is one, lightly
-trimmed, from the neomycin rulebase:
+trimmed, from the Neomycin rulebase:
 
 ```lisp
 (defrule gram-neg-rod-in-burn-patient-suggests-pseudomonas
@@ -208,7 +207,7 @@ network. The engine trades memory for time, and the payoff is that the cost of
 adding a fact is proportional to what that fact actually affects.
 
 That stored partial-match state turns out to have a second use, and it is the
-one neomycin cares about most. Because the network already knows which rules are
+one Neomycin cares about most. Because the network already knows which rules are
 one condition short of firing, the engine can be asked directly: *what single
 additional fact would let something new conclude?* That question is what
 `/partial-matches` answers, and it is how a forward-chaining engine recovers the
@@ -273,7 +272,7 @@ combining their buckets and renormalizing — and the amount of belief that land
 in contradictory places is called the **conflict**. When conflict is present,
 the combined interval visibly widens and drops.
 
-neomycin restricts the theory to a single hypothesis and its negation, a
+Neomycin restricts the theory to a single hypothesis and its negation, a
 standard simplification that keeps combination cheap while remaining faithful
 Dempster-Shafer on that frame.
 
@@ -373,7 +372,7 @@ substantial part of this project.
 
 The naive way to explain a language model's answer is to ask the model. That
 produces fluent, plausible text with no reliable connection to what actually
-happened. neomycin does something structurally different.
+happened. Neomycin does something structurally different.
 
 Two records are kept. Each rule carries **provenance**: where the rule came from
 (inherited from the historical MYCIN corpus, or added by this project) and which
@@ -404,7 +403,7 @@ disposition.
 ## From identification to treatment
 
 Identifying the organism is half a consultation. The other half is deciding what
-to treat with, and neomycin handles it with the same separation of
+to treat with, and Neomycin handles it with the same separation of
 responsibilities.
 
 Treatment selection is posed as a **covering problem**. Every organism whose
@@ -414,7 +413,7 @@ broad-spectrum use drives resistance — so the objective is the smallest set of
 drugs that covers everything.
 
 This is a classic set-cover problem, and finding the true optimum is
-computationally hard in general. neomycin uses a **greedy solver**: repeatedly
+computationally hard in general. Neomycin uses a **greedy solver**: repeatedly
 take the drug that covers the most still-uncovered organisms, with ties broken
 deterministically so that the same case always yields the same regimen. Drugs
 the patient cannot take are excluded up front, with the reason recorded. Any
@@ -481,7 +480,7 @@ and the reasons given were real: knowledge acquisition was expensive, and the
 interfaces were unusable. Both of those failures were about the *human edges* of
 the system — getting knowledge in, and getting explanations out — not about the
 inference core, which worked. Language models are unusually good at exactly
-those edges. neomycin is a test of the resulting hypothesis: that the symbolic
+those edges. Neomycin is a test of the resulting hypothesis: that the symbolic
 core was never the problem, and that pairing it with a model that handles the
 edges produces something neither approach reaches alone. The engine keeps the
 model honest, and the model makes the engine usable.
@@ -506,7 +505,7 @@ that the clinical association is real; they do not verify the number. Grounding
 some of those numbers in real frequency data is active work.
 
 **Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 27 rules against MYCIN's original 450 —
+its contraindications. The rulebase is 50 rules against MYCIN's original 450 —
 enough to exercise every mechanism in the architecture, and nowhere near enough
 to be clinically meaningful.
 
@@ -525,9 +524,11 @@ to be clinically meaningful.
 | [`demo-runsheet.md`](demo-runsheet.md) | A 15-minute live demonstration script |
 | [`../CLAUDE.md`](../CLAUDE.md) | Build notes and the layout of the codebase |
 
-**References.** Shortliffe, E. H. (1976), *Computer-Based Medical Consultations:
-MYCIN*. Buchanan, B. G. and Shortliffe, E. H. (1984), *Rule-Based Expert
-Systems*. Clancey, W. J. (1987), *Knowledge-Based Tutoring: The GUIDON Program*.
-Shafer, G. (1976), *A Mathematical Theory of Evidence*. Norvig, P. (1992),
-*Paradigms of Artificial Intelligence Programming*, chapter 16, whose
-forward-chaining translation of the MYCIN rules this rulebase follows.
+**References.**
+
+- Shortliffe, E. H. (1976), *Computer-Based Medical Consultations: MYCIN*
+- Buchanan, B. G. and Shortliffe, E. H. (1984), *Rule-Based Expert Systems*
+- Clancey, W. J. (1987), *Knowledge-Based Tutoring: The GUIDON Program*
+- Shafer, G. (1976), *A Mathematical Theory of Evidence*
+- Norvig, P. (1992), *Paradigms of Artificial Intelligence Programming*, chapter 16, whose
+forward-chaining translation of the MYCIN rules this rulebase follows

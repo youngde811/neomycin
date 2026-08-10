@@ -3,7 +3,7 @@
 ## Context
 
 > **Note:** This section describes the state *before* the 2026-07-02 work
-> below. The rulebase has since grown from 6 → 27 rules and Dempster-Shafer
+> below. The rulebase has since grown from 6 → 50 rules and Dempster-Shafer
 > has been added as a second (now default) belief system, upgraded to real
 > Dempster combination on 2026-07-03 — see the Progress sections at the end.
 
