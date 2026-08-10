@@ -84,7 +84,7 @@
 ;;; (asdf:load-system "neomycin/test") followed by (lisa-test:run-all).
 ;;; Depends on lisa/test-base (the rulebase-independent harness + belief-algebra),
 ;;; NOT lisa/test -- neomycin ships its OWN forked golden files (scenarios, rules)
-;;; validating neomycin/rulebase.lisp, which diverges from Lisa's examples/mycin.lisp
+;;; validating neomycin/rules/, which diverges from Lisa's examples/mycin.lisp
 ;;; once rules are re-parented (docs/chaining-belief-spike.md §7.1). setup.lisp loads
 ;;; first and repoints the shared harness at neomycin's canonical rulebase.
 (asdf:defsystem "neomycin/test"

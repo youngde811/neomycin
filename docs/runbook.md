@@ -47,7 +47,7 @@ The system has two halves that talk over HTTP:
   observations into structured facts, calls Lisa's endpoints as tool-use
   invocations, and narrates the results with full rule-level traceability.
 
-The MYCIN rulebase currently has **27 rules** covering gram-stain morphology,
+The MYCIN rulebase currently has **50 rules** covering gram-stain morphology,
 site-of-culture context, host status (burn / immunocompromised /
 hospital-acquired), travel history, WBC, and biochemical discriminators
 (lactose / indole / motility / urease / pigment) — including a **tier-1
@@ -100,7 +100,7 @@ From the project root, in an SBCL REPL:
 (load "lisa.asd")
 (load "lisa-bridge.asd")
 (load "neomycin.asd")
-(asdf:load-system :neomycin)     ; loads neomycin/rulebase.lisp (27 rules,
+(asdf:load-system :neomycin)     ; loads neomycin/rules/ (50 rules,
                                  ; culture-* drivers) + the therapy system
 (lisa-bridge:start)              ; port 8090
 ```

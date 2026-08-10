@@ -2,7 +2,7 @@
 ;; MIT License. Copyright (c) 2000 David Young.
 
 ;; Description: neomycin's OWN end-to-end golden-master tests, validating
-;; neomycin/rulebase.lisp (the canonical rulebase) under both belief systems.
+;; neomycin/rules/ (the canonical rulebase) under both belief systems.
 ;; Forked from Lisa's tests/scenarios.lisp: as of Slice 0 the values are identical
 ;; to Lisa's, but neomycin's rulebase diverges from examples/mycin.lisp once rules
 ;; are re-parented (chained cluster; docs/chaining-belief-spike.md §7.1), so these

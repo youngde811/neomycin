@@ -46,17 +46,27 @@ express that; keeping both is what makes the comparison worth publishing.
 ## Status
 
 Early, but both halves of a consultation now run end to end. On the
-**identification** side: a 27-rule MYCIN subset (neomycin's own
-`neomycin/rulebase.lisp`), the pluggable belief protocol (DS default, CF
-retained), the HTTP bridge, and the Claude driver.
+**identification** side: a 50-rule MYCIN subset (neomycin's own `neomycin/rules/`),
+the pluggable belief protocol (DS default, CF retained), the HTTP bridge, and the
+Claude driver.
 
-The rulebase includes a **chained enterobacteriaceae cluster** — the corpus's
-first multi-hop inference. An aerobic gram-negative rod derives the *family* as an
-intermediate `organism-class`, from which sibling species (E. coli, Klebsiella,
-Salmonella, Enterobacter, Serratia, Proteus) are refined by biochemical
-discriminators, so a species' belief **composes through** the family (e.g. E. coli
-`0.64 = 0.8 × 0.8`). The family is never a leaf identity; on the therapy side it is
-covered empirically only as a *backstop*, when no member species is pinned down.
+The rulebase is built around **three chained clusters** and four derived
+`organism-class` intermediates. Raw evidence derives a taxonomic *family or genus*
+first, and sibling species are refined from it, so a species' belief **composes
+through** the class:
+
+| organism-class | from | refines to |
+|---|---|---|
+| enterobacteriaceae | aerobic gram-neg rod | E. coli, Klebsiella, Salmonella, Enterobacter, Serratia, Proteus |
+| staphylococcus | gram-pos cocci in clumps | S. aureus, S. epidermidis, S. saprophyticus |
+| streptococcus | gram-pos cocci in chains | S. pneumoniae, S. pyogenes, S. agalactiae, viridans |
+| enterococcus | chains + bile-esculin + salt tolerance | E. faecalis, E. faecium |
+
+A class is **never** a leaf identity (E. coli composes to `0.64 = 0.8 × 0.8`; S. aureus
+to `0.595 = 0.7 × 0.85`); on the therapy side a class is covered empirically only as a
+*backstop*, when no member species is pinned down. Sixteen **disconfirming** rules —
+roughly a third of the corpus — keep plausibility able to fall below 1.0, which is what
+stops Dempster-Shafer collapsing into certainty factors as the corpus grows.
 
 The **therapy-recommendation phase** now exists too, and it reuses the same
 strategy/knowledge split. A deterministic greedy weighted **set-cover solver**
@@ -89,10 +99,19 @@ verify the clinical association, never the value itself. See
 [`docs/why-how-provenance-design.md`](docs/why-how-provenance-design.md) and Scenario
 11 in [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md).
 
-Still ahead: scaling the rule corpus further, drug–drug interaction constraints, and
-an exact-solver oracle for the greedy one. (Biochemical cross-disconfirmation among
-the enterobacteriaceae siblings — a contradictory reading pulling both implicated
-siblings below `pl 1.0` — has now landed.)
+Still ahead: **drug–drug interaction constraints**, an **exact-solver oracle** for the
+greedy one, and **species-level therapy entries for E. faecium** (it currently inherits
+the enterococcus genus figures, which understates exactly the ampicillin and vancomycin
+resistance that makes the species split worth modeling).
+
+Landed since this list was written: biochemical cross-disconfirmation among the
+enterobacteriaceae siblings, and the 27 → 50 corpus expansion — three chained clusters
+in place of one, host-factor modifiers, and corpus-wide property tests. Scaling the
+corpus *further* is no longer a headline goal: at 50 rules the shape is what matters,
+and the remaining §5 candidates in
+[`docs/corpus-expansion-sketch.md`](corpus-expansion-sketch.md) (significance/contaminant
+context, site breadth, clinical syndromes) each add a new *kind* of reasoning rather
+than more of the same.
 
 ## Provenance and license
 

@@ -96,7 +96,7 @@
   (asdf:system-relative-pathname "lisa" "examples/mycin.lisp")
   "Pathname of the MYCIN rulebase ENSURE-RULEBASE loads. Defaults to Lisa-proper's
    example so a standalone lisa/test run is self-contained. neomycin/test overrides
-   this to its own canonical neomycin/rulebase.lisp (see neomycin/test/setup.lisp),
+   this to its own canonical neomycin/rules/ (see neomycin/test/setup.lisp),
    so the suite validates the rulebase neomycin actually ships.")
 
 (defun ensure-rulebase ()

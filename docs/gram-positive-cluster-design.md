@@ -293,22 +293,23 @@ plan is **complementary, not a replacement**:
 
 ## 7. Slice plan
 
-Each slice is green and committed separately.
+Each slice is green and committed separately. **All slices delivered** — the corpus
+landed at exactly 50 rules, 858 assertions / 152 tests, 0 failures.
 
-- **Slice 0 — citations.** Verify every clinical claim in §2/§3 against NCBI
+- ✅ **Slice 0 — citations.** Verify every clinical claim in §2/§3 against NCBI
   Bookshelf / StatPearls / CDC / IDSA. No rule is authored before its citation
   exists.
-- **Slice A — params + tier-1.** 14 new `param-mixin` classes; three class rules
+- ✅ **Slice A — params + tier-1.** 14 new `param-mixin` classes; three class rules
   + one re-pointed; retire the two genus leaves; fix the gram-neg-stain member
   list; re-capture `culture-3` / `culture-multi` goldens.
-- **Slice B — tier-2 species.** 9 new species rules + 2 re-parented; DS
+- ✅ **Slice B — tier-2 species.** 9 new species rules + 2 re-parented; DS
   composition goldens.
-- **Slice C — cross-disconfirmation.** 8 rules; conflict goldens showing `pl`
+- ✅ **Slice C — cross-disconfirmation.** 8 rules; conflict goldens showing `pl`
   falling below 1.0 for the losing sibling.
-- **Slice D — host factors.** 5 modifier rules; `culture-5`.
-- **Slice E — split + property tests.** `neomycin/rules/`; corpus-wide
+- ✅ **Slice D — host factors.** 5 modifier rules; `culture-5`.
+- ✅ **Slice E — split + property tests.** `neomycin/rules/`; corpus-wide
   invariants.
-- **Slice F — sync.** Therapy `deffamily`; CLAUDE.md counts; README; clinician
+- ✅ **Slice F — sync.** Therapy `deffamily`; CLAUDE.md counts; README; clinician
   scenarios; corpus sketch §5 status; system prompt; tools.json.
 
 ---

@@ -12,7 +12,7 @@
 ;; law (species belief = class belief * rule belief) stated once per cluster over
 ;; every isolatable tier-2 rule; and each cross-disconfirming rule fired against a
 ;; single live sibling. These tests are neomycin-only (organism-class exists only in
-;; neomycin/rulebase.lisp, never in Lisa's examples/mycin.lisp), so they live in
+;; neomycin/rules/, never in Lisa's examples/mycin.lisp), so they live in
 ;; the neomycin/test system rather than the shared lisa/test rule suite.
 
 (in-package "LISA-TEST")

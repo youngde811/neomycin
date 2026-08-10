@@ -129,10 +129,10 @@ fork of Lisa that keeps the engine's packages un-renamed: neomycin *uses* Lisa
 rather than absorbing it, though engine-level changes are made when the research
 genuinely calls for them.
 
-**The rulebase and belief system.** `neomycin/rulebase.lisp` holds 27 medical
-rules in a controlled vocabulary. Underneath sits a pluggable belief system —
-either Dempster-Shafer (the default) or certainty factors — that decides how
-confidence is represented and combined.
+**The rulebase and belief system.** `neomycin/rules/` holds 50 medical rules in a
+controlled vocabulary, grouped by cluster across a handful of files. Underneath sits
+a pluggable belief system — either Dempster-Shafer (the default) or certainty
+factors — that decides how confidence is represented and combined.
 
 **The bridge.** A small HTTP service that runs inside the same Lisp image as the
 engine. It exposes the engine's capabilities as a handful of web endpoints:
@@ -506,7 +506,7 @@ that the clinical association is real; they do not verify the number. Grounding
 some of those numbers in real frequency data is active work.
 
 **Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 27 rules against MYCIN's original 450 —
+its contraindications. The rulebase is 50 rules against MYCIN's original 450 —
 enough to exercise every mechanism in the architecture, and nowhere near enough
 to be clinically meaningful.
 

@@ -75,14 +75,21 @@
 ;; Vocabulary is KEYWORDS end to end. Organism keywords match the engine's
 ;; keyword organism-identity values exactly (same global objects, no conversion),
 ;; so conclusions flow straight from the Rete facts into the KB. Leaf-species
-;; organism-identities (matches organism-identity in neomycin/rulebase.lisp):
+;; organism-identities (matches organism-identity in neomycin/rules/):
 ;;   :pseudomonas :klebsiella :salmonella :e-coli :enterobacter :serratia
-;;   :proteus :bacteroides :streptococcus :streptococcus-pneumoniae
-;;   :staphylococcus :staphylococcus-aureus :enterococcus
-;; :enterobacteriaceae is NOT a leaf identity (C2): it is the taxonomic FAMILY,
-;; concluded as an organism-CLASS and carried here as a therapy backstop item only
-;; when no member species clears the coverage gate (conclusions-for-solver). Its
-;; KB sensitivities are the empiric family-level figures the roll-up inherits.
+;;   :proteus :bacteroides
+;;   :staphylococcus-aureus :staphylococcus-epidermidis :staphylococcus-saprophyticus
+;;   :streptococcus-pneumoniae :streptococcus-pyogenes :streptococcus-agalactiae
+;;   :streptococcus-viridans :enterococcus-faecalis :enterococcus-faecium
+;; FOUR keywords are NOT leaf identities -- they are taxonomic CLASSES, concluded as
+;; organism-CLASS facts and carried here as therapy backstop items only when no member
+;; species clears the coverage gate (conclusions-for-solver):
+;;   :enterobacteriaceae (family, since C2)
+;;   :staphylococcus :streptococcus :enterococcus (genera, since the gram-positive
+;;     increment -- each was a leaf identity before it, the same
+;;     genus-masquerading-as-a-species defect C2 fixed for enterobacteriaceae)
+;; Their KB sensitivities are the empiric class-level figures the roll-up inherits,
+;; and that is the right home for them: empiric therapy is pitched at the genus.
 ;; ==========================================================================
 
 (in-package :neomycin-therapy)
@@ -106,6 +113,34 @@
 ;;; NOT inherit the family's aminoglycoside figure. Taxonomy is citable to any clinical
 ;;; microbiology reference.
 (deffamily :enterobacteriaceae :e-coli :enterobacter :serratia :proteus :klebsiella :salmonella)
+
+;;; --------------------------------------------------------------------------
+;;; Taxonomy: the gram-positive genera.
+;;; --------------------------------------------------------------------------
+;;; Same mechanism, applied to the three genera the gram-positive increment promoted
+;;; from leaf identities to organism-classes. The existing :staphylococcus /
+;;; :streptococcus / :enterococcus sensitivity entries below were always empiric
+;;; GENUS-level figures -- they simply used to be reachable as identities. Declaring
+;;; membership keeps them reachable, now as the roll-up target for species that carry
+;;; no entries of their own, and makes the item-selection rule work: identify
+;;; S. aureus and the genus is not separately treated; pin down nothing and the genus
+;;; is treated empirically as a backstop.
+;;;
+;;; :staphylococcus-aureus already carries its own entries for the anti-staphylococcal
+;;; drugs (nafcillin, vancomycin, linezolid), so roll-up never triggers for it. The
+;;; other six species have no species-specific entries and inherit wholesale.
+(deffamily :staphylococcus :staphylococcus-aureus :staphylococcus-epidermidis
+                           :staphylococcus-saprophyticus)
+(deffamily :streptococcus :streptococcus-pneumoniae :streptococcus-pyogenes
+                          :streptococcus-agalactiae :streptococcus-viridans)
+
+;;; E. faecium inherits the :enterococcus figures, which UNDERSTATES its resistance --
+;;; the very thing that makes the species split worth modeling. Ampicillin holds for
+;;; most E. faecalis but commonly fails against E. faecium, and VRE is concentrated in
+;;; E. faecium. The correct fix is species-level entries, deliberately deferred so this
+;;; increment stays corpus-only (gram-positive-cluster-design.md §8.3); recorded here
+;;; rather than left as a silent inheritance so the gap is visible at the point of use.
+(deffamily :enterococcus :enterococcus-faecalis :enterococcus-faecium)
 
 ;;; --------------------------------------------------------------------------
 ;;; Beta-lactams: anti-pseudomonal cephalosporin (WHO AWaRe: Watch)

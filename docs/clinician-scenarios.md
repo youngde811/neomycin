@@ -1,7 +1,7 @@
 # Clinician Scenarios for the MYCIN Rulebase
 
-A curated set of vignettes for driving the 23-rule neomycin MYCIN rulebase
-(`neomycin/rulebase.lisp` — **not** Lisa's `examples/mycin.lisp`) through the
+A curated set of vignettes for driving the 50-rule neomycin MYCIN rulebase
+(`neomycin/rules/` — **not** Lisa's `examples/mycin.lisp`) through the
 Claude driver (`src/llm/claude/driver.py`) and the HTTP bridge. Each scenario is
 written the way a clinician might present a case at the bedside, and each is
 annotated with:
@@ -11,22 +11,27 @@ annotated with:
 - **Expected differential** — the organism hypotheses and belief behavior,
   contrasted between certainty factors (CF) and Dempster-Shafer (DS)
 
-Together Scenarios 1–7 exercise most of the base directly; Scenarios 9–10 cover
+Together Scenarios 1–7 exercise the gram-negative base directly; Scenarios 9–10 cover
 the biochemical enterobacteriaceae species (E. coli, Enterobacter, Serratia,
 Proteus) and the therapy family-backstop; Scenario 11 exercises the WHY/HOW
-explanation facility. Scenario 7 reaches the disconfirming rules. Two `clumps`-based gram-positive rules (staphylococcus, staph-aureus) and
-several disconfirming rules are reachable only by the noted variations (see the
-coverage matrix). Critically, several cases produce situations where *multiple
-rules conclude the same organism* — which is where belief combination becomes
-visible — and Scenario 7 produces *conflicting* evidence, which is where CF and DS
-diverge.
+explanation facility; Scenarios 12–13 cover the **gram-positive cocci** — the
+staphylococcus, streptococcus and enterococcus clusters, their cross-disconfirming
+rules, and the host-factor modifiers. Scenarios 7 and 12 reach the disconfirming
+rules. Critically, several cases produce situations where *multiple rules conclude
+the same organism* — which is where belief combination becomes visible — and
+Scenarios 7 and 12 produce *conflicting* evidence, which is where CF and DS diverge.
 
-**A note on enterobacteriaceae (post-C2):** the family is an **organism-class**, not
-a leaf identity. An aerobic gram-neg rod derives the *class* (0.8); specific species
-(Klebsiella, Salmonella, E. coli, Enterobacter, Serratia, Proteus) are refined *from*
-it and are what appear in `/conclusions`. "Enterobacteriaceae" itself never appears as
-an identity — but on the therapy side the solver still covers the family empirically
-as a **backstop** when no member species was pinned down (Scenario 10).
+**If you only run two:** Scenario 12 is the sharpest CF-vs-DS contrast in the corpus
+(a single number going negative versus a bounded interval), and Scenario 13 is its
+counterpart where the two algebras agree exactly. Run them back to back.
+
+**A note on organism-classes.** Four keywords are **organism-classes**, not leaf
+identities: `enterobacteriaceae` (a family) and `staphylococcus`, `streptococcus`,
+`enterococcus` (genera). Evidence derives the *class* first, and specific species are
+refined *from* it — so a species' belief is the product of the two, and only species
+appear in `/conclusions`. None of the four ever appears as an identity. On the therapy
+side the solver still covers a class empirically as a **backstop** when no member
+species was pinned down (Scenario 10).
 
 **Scenario 8** steps past identification to the **therapy** side: it shows the
 **antibiogram overlay** changing the recommended regimen once a site-local
@@ -155,19 +160,29 @@ support. Exercises the hospital-acquired branch of the chained rules.
 `growth-conformation=chains`.
 
 **Rules that fire**:
-- `gram-pos-cocci-in-chains-suggests-streptococcus` (0.7)
-- `respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae` (0.75)
-- `gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus` (0.7)
+- `gram-pos-cocci-in-chains-suggests-streptococcus-class` (0.7) → organism-class
+- `gram-pos-cocci-in-chains-in-blood-compromised-suggests-enterococcus` (0.7) → organism-class
+- `respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae` (0.75, tier-2)
 
 **Expected differential**:
-Three competing gram-positive hypotheses, each from a single rule — so no
-belief combination on any one organism, but a great case for showing
-partial-matches driving discriminating questions ("do we have a respiratory
-source?" completes the *strep-pneumoniae* rule).
+Two genus *classes* are derived — streptococcus and enterococcus, both at 0.7 —
+but only one leaf **species** is reachable without a bench test:
 
-- **Streptococcus** — CF 0.7, DS bel 0.7 / ignorance 0.3
-- **Streptococcus pneumoniae** — CF 0.75, DS bel 0.75 / ignorance 0.25
-- **Enterococcus** — CF 0.7, DS bel 0.7 / ignorance 0.3
+- **Streptococcus pneumoniae** — CF 0.525, DS bel 0.525 / ignorance 0.475
+  (chained: 0.7 class × 0.75 rule)
+
+Neither `streptococcus` nor `enterococcus` appears in `/conclusions`, because both
+are organism-*classes* now, not leaf identities. **This is the scenario that best
+shows why goal-directed questioning matters**: morphology alone gets you a genus and
+one weakly-supported species, and the discriminating question is obvious from the
+cluster — *"is there a hemolysis reading?"* Alpha plus optochin-sensitive would push
+pneumococcus to 0.595 and combine with the site rule; beta would fire the
+cross-disconfirming rule and pull it *down* instead (Scenario 12). A bile-esculin
+plus salt-tolerance result would split the enterococcus class into species.
+
+Under the older flat rulebase this scenario reported three co-equal hypotheses at
+0.7/0.75/0.7 with nothing to choose between them — a differential that looked
+richer than it was, because two of the three were genera masquerading as species.
 
 ---
 
@@ -562,12 +577,116 @@ rule is gone (C2) — the tier-1 **class** rule now covers that evidence path, a
 family reaches therapy only as a species (Scenarios 1/2/4/5/8/9) or as a backstop
 (Scenario 10).
 
-The eight disconfirming rules carry negative beliefs and fire only when a
+The sixteen disconfirming rules carry negative beliefs and fire only when a
 contradictory finding meets a live hypothesis. Scenario 7 exercises the gram-stain
-one directly; the five **biochemical** ones (urease, red pigment, indole, and the two
-lactose rules) are reachable in Scenario 9's two-sibling and cross-disconfirmation
-variations; the aerobic-vs-anaerobe one needs a scenario where the oxygen requirement
+one directly; the five enterobacteriaceae **biochemical** ones (urease, red pigment,
+indole, and the two lactose rules) are reachable in Scenario 9's two-sibling and
+cross-disconfirmation variations; the eight **gram-positive** ones are driven by
+Scenario 12; the aerobic-vs-anaerobe one needs a scenario where the oxygen requirement
 flips against an already-supported organism.
+
+---
+
+## Scenario 12 — Hemolysis contradicts the site (gram-positive cross-disconfirmation)
+
+> "Sputum culture from a chest infection — gram-positive cocci in chains. The
+> bench has just phoned through beta hemolysis, bacitracin sensitive."
+
+**Facts to extract**:
+`infection-site=respiratory` (patient-1), `culture-site=blood`, `gram=pos`,
+`morphology=coccus`, `growth-conformation=chains`, `hemolysis=beta`,
+`bacitracin=sensitive`.
+
+Driver: `(culture-4)`.
+
+**Rules that fire**:
+- `gram-pos-cocci-in-chains-suggests-streptococcus-class` (0.7) → organism-class
+- `strep-beta-hemolytic-bacitracin-sensitive-suggests-strep-pyogenes` (0.85, tier-2)
+- `respiratory-gram-pos-cocci-in-chains-suggests-strep-pneumoniae` (0.75, tier-2)
+- `beta-hemolysis-argues-against-non-beta-streptococci` (**−0.75**)
+
+**Expected differential**:
+
+| Organism | CF | DS |
+|---|---|---|
+| Streptococcus pyogenes | 0.595 | [0.595, 1.0] |
+| Streptococcus pneumoniae | **−0.474** | **[0.216, 0.412]** |
+
+**Why this is the best CF-vs-DS scenario in the corpus.** Two rules refine the same
+genus class along different axes — biochemical (beta + bacitracin-sensitive → group A)
+and clinical (respiratory site → pneumococcus). But a beta-hemolytic organism *cannot*
+be the alpha-hemolytic pneumococcus, so the two calls are mutually exclusive, and the
+hemolysis rule says so.
+
+Watch what each algebra does with that:
+
+- **CF** collapses the pneumococcus to a single negative number, −0.474. It reads as
+  "disbelieved" and stops there. The number cannot tell you whether the case against it
+  is overwhelming or merely adequate, and it has silently discarded the fact that a
+  respiratory source genuinely *did* support it.
+- **DS** returns `[0.216, 0.412]`. Belief fell but did not vanish — the site evidence
+  is still in there — and the *ceiling* dropped to 0.41, which is the new information:
+  hemolysis caps how plausible pneumococcus can now be. Two numbers, two distinct
+  facts.
+
+Conflict also stays **localized**. Nothing argues against S. pyogenes, so it holds
+clean at `[0.595, 1.0]` instead of being dragged down alongside its sibling — the
+property that lets a clinician read the interval as being about *that* organism.
+
+Good narration names the marker and both bounds: *"the beta hemolysis argues against
+pneumococcus — belief down to 0.22 with plausibility capped at 0.41 — so it's still on
+the table but no longer the leading call."* Bad narration says "pneumococcus is ruled
+out." It isn't.
+
+**Variation** — swap `hemolysis=alpha` and `optochin=sensitive` for the beta/bacitracin
+pair. Now the biochemistry and the site *agree*: pneumococcus is confirmed twice
+(0.595 from optochin, 0.525 from the site) and combines upward, while
+`alpha-hemolysis-argues-against-beta-hemolytic-streptococci` keeps S. pyogenes out.
+Same cluster, opposite dynamic.
+
+---
+
+## Scenario 13 — A host factor reinforcing a bench result (belief combination)
+
+> "Neonate, five days old, blood culture positive. Gram-positive cocci in chains,
+> beta-hemolytic, bacitracin resistant."
+
+**Facts to extract**:
+`age-group=neonate` (patient-1), `culture-site=blood`, `gram=pos`,
+`morphology=coccus`, `growth-conformation=chains`, `hemolysis=beta`,
+`bacitracin=resistant`.
+
+Driver: `(culture-5)`.
+
+**Rules that fire**:
+- `gram-pos-cocci-in-chains-suggests-streptococcus-class` (0.7) → organism-class
+- `strep-beta-hemolytic-bacitracin-resistant-suggests-strep-agalactiae` (0.7, tier-2)
+- `neonate-with-beta-hemolytic-strep-suggests-strep-agalactiae` (0.7, host factor)
+
+**Expected differential**:
+
+- **Streptococcus agalactiae (group B)** — CF 0.7399, DS bel 0.7399 / **ignorance
+  0.2601, plausibility 1.0**
+
+Two independent paths reach the same species — the bench result (beta,
+bacitracin-resistant → 0.49) and the host factor (neonate + beta-hemolytic → 0.49) —
+and their masses **combine**: `0.49 + 0.49 − 0.49×0.49 = 0.7399`.
+
+This is the deliberate counterpart to Scenario 12. There, two paths reached mutually
+exclusive species and the algebras diverged sharply. Here they reach the *same* species
+and there is no conflict at all — so plausibility stays pinned at 1.0 and **CF and DS
+agree exactly**. That agreement is worth demonstrating: it shows DS is not a
+pessimism knob that always widens intervals, it is a representation that reports
+conflict when conflict exists and stays quiet when it doesn't.
+
+It also makes the point of host factors concrete. `age-group=neonate` costs nothing and
+has no lab turnaround, yet it lifted the call from 0.49 to 0.74. Ask for host factors
+early.
+
+**Honest caveat to state when narrating**: the rule keys on the neonatal age band, and
+group B strep leads early-onset neonatal sepsis in *term* infants — in preterm infants
+E. coli is the commoner cause. That scoping is recorded in the rule's provenance and
+`explain_conclusion` will return it.
 
 ---
 

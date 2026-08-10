@@ -189,7 +189,34 @@
                     (lisa:rule-short-name rule) class))))))
 
 ;;; ------------------------------------------------------------------
-;;; Invariant 4 -- the corpus keeps its DS-stressing shape (sketch §6).
+;;; Invariant 4 -- identification and therapy share one vocabulary.
+;;; ------------------------------------------------------------------
+
+(deftest property-every-concluded-identity-is-treatable ()
+  ;; The seam between the two phases, and the one place this corpus can grow a silent
+  ;; hole. Organism keywords are shared end to end -- the engine's organism-identity
+  ;; values ARE the therapy KB's organism keys -- so adding a species to the rulebase
+  ;; without giving it either its own susceptibilities or a family to inherit them
+  ;; from produces an organism the solver simply cannot cover. Nothing errors: the
+  ;; regimen just silently fails to treat it.
+  ;;
+  ;; This is not hypothetical. The gram-positive increment added seven species across
+  ;; slices B and D, and none was treatable until slice F declared the genus
+  ;; deffamily entries. Asserting it here means the next species cannot land without
+  ;; its therapy wiring.
+  ;; Asked through KB-SUSCEPTIBILITY, which is the solver's own single read point and
+  ;; already performs the family roll-up -- so this asserts the property that actually
+  ;; matters ("some drug covers it") rather than the mechanism that usually provides it.
+  (let* ((kb (therapy:therapy-kb))
+         (drugs (therapy:kb-drug-ids kb)))
+    (dolist (organism (concluded-values 'lisa-user::organism-identity))
+      (is (some (lambda (drug) (therapy:kb-susceptibility kb drug organism)) drugs)
+          (format nil "~S is concluded by a rule but no drug in the KB has a ~
+                       susceptibility for it, directly or by family roll-up -- the ~
+                       solver cannot cover it" organism)))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 5 -- the corpus keeps its DS-stressing shape (sketch §6).
 ;;; ------------------------------------------------------------------
 
 (deftest property-corpus-retains-disconfirming-mass ()

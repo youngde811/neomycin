@@ -1,14 +1,19 @@
 ;; This file is part of neomycin, a research reconstruction of MYCIN/EMYCIN.
 ;; MIT License. Copyright (c) 2000 David Young.
 
-;; Description: neomycin's OWN per-rule coverage, validating neomycin/rulebase.lisp.
+;; Description: neomycin's OWN per-rule coverage, validating neomycin/rules/.
 ;; Forked from Lisa's tests/rules.lisp (identical as of Slice 0; diverges once rules
 ;; are re-parented -- docs/chaining-belief-spike.md §7.1). Each rule is fired in
 ;; isolation on a minimal premise set that lets *only that rule* conclude the
-;; target organism, and the resulting belief is asserted. Confirming rules
-;; (1-15) must contribute exactly their :belief (CF) / [belief, 1.0] (DS); the
-;; three disconfirming rules (16-18) must lower an existing hypothesis and pull
-;; its plausibility below 1.0.
+;; target organism, and the resulting belief is asserted. A confirming rule must
+;; contribute exactly its :belief (CF) / [belief, 1.0] (DS); a disconfirming rule
+;; must lower an existing hypothesis and pull its plausibility below 1.0.
+;;
+;; This file covers the ONE-HOP gram-negative rules and the gram-stain/aerobicity
+;; disconfirmers. The chained clusters -- every organism-class rule, all tier-2
+;; species, the gram-positive cross-disconfirmers and the host-factor modifiers --
+;; are covered in chain-tests.lisp, which also states the composition law once per
+;; cluster. Corpus-WIDE invariants live in property-tests.lisp.
 
 (in-package "LISA-TEST")
 
@@ -20,7 +25,7 @@
   (check-ds (run-facts :dempster-shafer builder) organism belief 1.0))
 
 ;;; ------------------------------------------------------------------
-;;; Confirming rules (1-15) — fired in isolation
+;;; Confirming rules — fired in isolation
 ;;; ------------------------------------------------------------------
 
 (deftest rule-gram-neg-rod-burn-pseudomonas ()      ; 0.4
@@ -143,7 +148,7 @@
               "bacteroides" 0.8))
 
 ;;; ------------------------------------------------------------------
-;;; Disconfirming rules (16-18) — must lower a live hypothesis (pl < 1.0)
+;;; Disconfirming rules — must lower a live hypothesis (pl < 1.0)
 ;;; ------------------------------------------------------------------
 
 (defun check-disconfirms (builder organism confirming-belief)
