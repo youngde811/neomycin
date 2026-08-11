@@ -122,13 +122,13 @@ the system is unchanged.
 
 Four components, each with a job it does not share.
 
-**[Lisa](https://github.com/youngde811/Lisa).** A forward-chaining production rule engine written in Common Lisp,
+**Lisa.** A forward-chaining production rule engine written in Common Lisp,
 using the Rete algorithm. It holds working memory and fires rules. Neomycin is a
 fork of Lisa that keeps the engine's packages un-renamed: Neomycin *uses* Lisa
 rather than absorbing it, though engine-level changes are made when the research
 genuinely calls for them.
 
-**The rulebase and belief system.** `Neomycin/rules/` holds 50 medical rules in a
+**The rulebase and belief system.** `neomycin/rules/` holds 50 medical rules in a
 controlled vocabulary, grouped by cluster across a handful of files. Underneath sits
 a pluggable belief system — either Dempster-Shafer (the default) or certainty
 factors — that decides how confidence is represented and combined.
@@ -515,14 +515,14 @@ to be clinically meaningful.
 
 | Document | What it covers |
 |---|---|
-| [`getting-started.md`](getting-started.md) | Building, running, and testing; how to read the output |
-| [`runbook.md`](runbook.md) | A guided tour of a full identification consultation |
-| [`therapy-demo.md`](therapy-demo.md) | The treatment phase, end to end |
-| [`clinician-scenarios.md`](clinician-scenarios.md) | Worked cases exercising the rulebase and the antibiogram overlay |
-| [`why-how-provenance-design.md`](why-how-provenance-design.md) | The design of the explanation facility |
-| [`antibiogram-overlay-design.md`](antibiogram-overlay-design.md) | The site-local susceptibility mathematics |
-| [`demo-runsheet.md`](demo-runsheet.md) | A 15-minute live demonstration script |
-| [`../CLAUDE.md`](../CLAUDE.md) | Build notes and the layout of the codebase |
+| [`docs/getting-started.md`](docs/getting-started.md) | Building, running, and testing; how to read the output |
+| [`docs/runbook.md`](docs/runbook.md) | A guided tour of a full identification consultation |
+| [`docs/therapy-demo.md`](docs/therapy-demo.md) | The treatment phase, end to end |
+| [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md) | Worked cases exercising the rulebase and the antibiogram overlay |
+| [`docs/why-how-provenance-design.md`](docs/why-how-provenance-design.md) | The design of the explanation facility |
+| [`docs/antibiogram-overlay-design.md`](docs/antibiogram-overlay-design.md) | The site-local susceptibility mathematics |
+| [`docs/demo-runsheet.md`](docs/demo-runsheet.md) | A 15-minute live demonstration script |
+| [`CLAUDE.md`](CLAUDE.md) | Build notes and the layout of the codebase |
 
 **References.**
 
