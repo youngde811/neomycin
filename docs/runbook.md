@@ -255,6 +255,17 @@ teaching figure (`belief_basis: illustrative`), never a measured probability. Tr
 enterobacteriaceae class ← evidence), showing why a chained belief runs lower. This
 is the WHY/HOW facility: Claude answers from queried ground truth, not memory.
 
+The same holds for rules that have *not* fired. Ask *"what would tell the two
+staphylococci apart?"* and Claude calls `describe_rules` with
+`cluster=staphylococcus`, getting back the class rule, each species rule with its
+belief and required premises, and the coagulase/catalase rules that argue
+*against* a species — read from the compiled rulebase, not recited. The system
+prompt deliberately does not contain the corpus: it carries the shape (chaining,
+composition, what a negative belief means) and queries the rest, which is why a
+rule that is retired or re-weighted cannot leave a stale copy behind. You can hit
+the same endpoint directly with `./bin/test-rules.sh`, which needs no inference —
+the catalogue describes the corpus, not working memory.
+
 ### 2. Partial-matches drive the next question
 
 **Goal**: See Claude look at *what facts are missing* to decide what to ask

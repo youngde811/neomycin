@@ -219,6 +219,24 @@ HERE = Path(__file__).parent
 SYSTEM_PROMPT = (HERE / "system-prompt.md").read_text()
 TOOLS = json.loads((HERE / "tools.json").read_text())
 
+# Prompt caching. Requests render as tools -> system -> messages, and both files
+# are read once at import and never interpolated, so the prefix is byte-identical
+# on every call: one breakpoint on the last (only) system block caches the tools
+# with it -- ~18.5k tokens, of which the tool schemas are ~3.9k. That prefix is
+# otherwise re-sent and re-billed on every round trip, and since we take one tool
+# call per turn (see disable_parallel_tool_use below) a single case is a dozen or
+# more of them. Marking the block explicitly rather than passing a top-level
+# cache_control keeps this working on Bedrock and Vertex, which don't support the
+# automatic form. Anything session-specific interpolated into either file would
+# change the prefix and silently cost every hit.
+SYSTEM = [
+    {
+        "type": "text",
+        "text": SYSTEM_PROMPT,
+        "cache_control": {"type": "ephemeral"},
+    }
+]
+
 TOOL_TO_ENDPOINT = {
     "assert_fact": ("POST", "/assert-fact"),
     "run_inference": ("POST", "/run-inference"),
@@ -226,6 +244,7 @@ TOOL_TO_ENDPOINT = {
     "get_rule_trace": ("GET", "/rule-trace"),
     "get_partial_matches": ("GET", "/partial-matches"),
     "explain_conclusion": ("POST", "/why"),
+    "describe_rules": ("GET", "/rules"),
     "reset_session": ("POST", "/reset"),
     "recommend_therapy": ("POST", "/recommend-therapy"),
 }
@@ -237,7 +256,9 @@ def call_bridge(tool_name: str, tool_input: dict) -> dict:
     if method == "POST":
         resp = httpx.post(url, json=tool_input if tool_input else None)
     else:
-        resp = httpx.get(url)
+        # GET tools carry their arguments as query parameters (/rules filters);
+        # the parameterless ones pass an empty input and send none.
+        resp = httpx.get(url, params=tool_input or None)
     return resp.json()
 
 
@@ -644,7 +665,7 @@ def run():
                 # (tables, differentials), which strands tool_use blocks without
                 # tool_result and 400s the next request.
                 max_tokens=4096,
-                system=SYSTEM_PROMPT,
+                system=SYSTEM,
                 tools=TOOLS,
                 # One tool call per turn: keeps each response small so it never
                 # truncates mid-tool-batch, and keeps the transcript legible

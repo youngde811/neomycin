@@ -14,7 +14,8 @@
 ;; across the whole corpus so new rules are covered the moment they are authored.
 ;;
 ;; These tests need no update when a rule is added -- that is the entire point. They
-;; iterate LISA::GET-RULE-LIST, so a 51st rule is checked automatically.
+;; iterate LISA:GET-RULE-LIST through the engine's introspection API, so a 51st rule
+;; is checked automatically.
 ;;
 ;; NOT DUPLICATED HERE:
 ;;   * "a confirming rule fired alone contributes exactly its :belief, and CF equals
@@ -27,7 +28,14 @@
 (in-package "LISA-TEST")
 
 ;;; ------------------------------------------------------------------
-;;; Introspection helpers over the compiled rulebase.
+;;; Corpus selection.
+;;;
+;;; The MECHANICAL introspection these tests are built on -- what a rule asserts,
+;;; matches, and believes -- now lives in the engine as LISA:RULE-ASSERTED-FACTS
+;;; and friends (src/core/rule-introspection.lisp), because /rules serves the same
+;;; queries over HTTP and neither caller should be reaching through LISA:: for
+;;; them. What stays here is the part that is a JUDGEMENT rather than a fact about
+;;; the rulebase: which rules these invariants are about.
 ;;; ------------------------------------------------------------------
 
 (defparameter *reporting-rules* '(lisa-user::conclusion)
@@ -38,66 +46,22 @@
   "Every knowledge-bearing rule in the compiled rulebase. Matches on RULE-SHORT-NAME:
    LISA:RULE-NAME is module-qualified (INITIAL-CONTEXT.CONCLUSION), so the short name
    is what compares against a LISA-USER symbol -- the same accessor
-   provenance-tests.lisp uses for its exemption."
+   provenance-tests.lisp uses for its exemption.
+
+   Deliberately NOT LISA:KNOWLEDGE-RULE-P, which selects on `declares a belief'.
+   That predicate is the right one for a client asking what the corpus contains,
+   but using it here would make invariant 1 -- every domain rule declares a usable
+   belief -- true by construction, and a rule that forgot its :belief would drop
+   out of the population instead of failing the test."
   (remove-if (lambda (r) (member (lisa:rule-short-name r) *reporting-rules*))
-             (lisa::get-rule-list (lisa:inference-engine))))
+             (lisa:get-rule-list (lisa:inference-engine))))
 
-(defun rule-asserted-facts (rule)
-  "((class-symbol . value) ...) for each fact RULE asserts on its RHS."
-  (let ((acc '()))
-    (dolist (action (lisa::rule-actions-actions (lisa::rule-actions rule)) (nreverse acc))
-      ;; Shape: (LISA:ASSERT (class (slot value) ...))
-      (when (and (consp action) (eq (first action) 'lisa:assert))
-        (let* ((form (second action))
-               (class (first form))
-               (value (second (assoc 'lisa-user::value (rest form)))))
-          (push (cons class value) acc))))))
-
-(defun rule-premise-classes (rule)
-  "The fact classes RULE matches on its LHS (test patterns excluded)."
-  (remove nil
-          (mapcar (lambda (p)
-                    (unless (eq (lisa::parsed-pattern-type p) :test)
-                      (lisa::parsed-pattern-class p)))
-                  (lisa::rule-patterns rule))))
-
-(defun rule-premise-values (rule class)
-  "The literal VALUE slots RULE matches for premise facts of CLASS."
-  (let ((acc '()))
-    (dolist (p (lisa::rule-patterns rule) (nreverse acc))
-      (when (and (not (eq (lisa::parsed-pattern-type p) :test))
-                 (eq (lisa::parsed-pattern-class p) class))
-        (dolist (slot (lisa::parsed-pattern-slots p))
-          (when (eq (lisa::pattern-slot-name slot) 'lisa-user::value)
-            (let ((v (lisa::pattern-slot-value slot)))
-              (when (keywordp v) (push v acc)))))))))
-
-(defun rule-member-test-values (rule)
-  "Values named in RULE's (test (member ?value '(...))) patterns, flattened."
-  (let ((acc '()))
-    (dolist (p (lisa::rule-patterns rule) acc)
-      (when (eq (lisa::parsed-pattern-type p) :test)
-        (dolist (form (lisa::parsed-pattern-slots p))
-          ;; Shape: (MEMBER ?VALUE '(:A :B ...))
-          (when (and (consp form) (eq (first form) 'member))
-            (let ((quoted (third form)))
-              (when (and (consp quoted) (eq (first quoted) 'quote))
-                (setf acc (append acc (second quoted)))))))))))
-
-(defun disconfirming-rule-p (rule)
-  (let ((b (lisa::belief-factor rule)))
-    (and (realp b) (minusp b))))
-
-(defun confirming-rule-p (rule)
-  (let ((b (lisa::belief-factor rule)))
-    (and (realp b) (plusp b))))
-
-(defun concluded-values (class &key (predicate #'confirming-rule-p))
+(defun concluded-values (class &key (predicate #'lisa:confirming-rule-p))
   "Every VALUE asserted as a CLASS fact by a rule satisfying PREDICATE."
   (let ((acc '()))
     (dolist (rule (domain-rules) (remove-duplicates acc))
       (when (funcall predicate rule)
-        (dolist (pair (rule-asserted-facts rule))
+        (dolist (pair (lisa:rule-asserted-facts rule))
           (when (eq (car pair) class) (pushnew (cdr pair) acc)))))))
 
 ;;; ------------------------------------------------------------------
@@ -110,7 +74,7 @@
   ;; DS additionally clamps defensively at combination time; this catches the problem
   ;; at the source instead.
   (dolist (rule (domain-rules))
-    (let ((b (lisa::belief-factor rule)))
+    (let ((b (lisa:rule-belief rule)))
       (is (and (realp b) (<= -1 b 1) (not (zerop b)))
           (format nil "~A: belief ~S must be a non-zero real in [-1, 1]"
                   (lisa:rule-short-name rule) b)))))
@@ -126,9 +90,9 @@
   ;; something it does not also match would not be disconfirming anything -- it would
   ;; be quietly creating a hypothesis with negative mass.
   (dolist (rule (domain-rules))
-    (when (disconfirming-rule-p rule)
-      (let ((asserted (mapcar #'car (rule-asserted-facts rule)))
-            (matched (rule-premise-classes rule)))
+    (when (lisa:disconfirming-rule-p rule)
+      (let ((asserted (mapcar #'car (lisa:rule-asserted-facts rule)))
+            (matched (lisa:rule-premise-classes rule)))
         (is (and asserted (every (lambda (c) (member c matched)) asserted))
             (format nil "~A: disconfirming rule must re-assert a fact type it matches ~
                          (asserts ~S, matches ~S)"
@@ -149,8 +113,8 @@
   ;; can actually conclude.
   (let ((reachable (concluded-values 'lisa-user::organism-identity)))
     (dolist (rule (domain-rules))
-      (when (disconfirming-rule-p rule)
-        (dolist (value (rule-member-test-values rule))
+      (when (lisa:disconfirming-rule-p rule)
+        (dolist (value (lisa:rule-member-test-values rule))
           (is (member value reachable)
               (format nil "~A: names ~S, which NO confirming rule concludes ~
                            (retired, renamed, or promoted to an organism-class?)"
@@ -171,7 +135,7 @@
         (consumed '()))
     (dolist (rule (domain-rules))
       (setf consumed
-            (append consumed (rule-premise-values rule 'lisa-user::organism-class))))
+            (append consumed (lisa:rule-premise-values rule 'lisa-user::organism-class))))
     (dolist (class concluded)
       (is (member class consumed)
           (format nil "organism-class ~S is concluded but never read as a premise ~
@@ -183,7 +147,7 @@
   ;; golden would catch (an absent conclusion looks like an unexercised path).
   (let ((concluded (concluded-values 'lisa-user::organism-class)))
     (dolist (rule (domain-rules))
-      (dolist (class (rule-premise-values rule 'lisa-user::organism-class))
+      (dolist (class (lisa:rule-premise-values rule 'lisa-user::organism-class))
         (is (member class concluded)
             (format nil "~A: reads organism-class ~S, which no rule concludes"
                     (lisa:rule-short-name rule) class))))))
@@ -228,7 +192,7 @@
   ;; -- it is a drift alarm, not a target to optimize.
   (let* ((rules (domain-rules))
          (total (length rules))
-         (disconfirming (count-if #'disconfirming-rule-p rules)))
+         (disconfirming (count-if #'lisa:disconfirming-rule-p rules)))
     (is (>= (/ disconfirming total) 1/5)
         (format nil "only ~D of ~D rules are disconfirming (~,1F%) -- below the 20% ~
                      floor; new confirming clusters need paired ruling-out rules ~
