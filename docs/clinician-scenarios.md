@@ -540,6 +540,10 @@ is an interval, so the explanation shows ignorance narrowing/shifting per firing
 
 ## Rule Coverage Matrix
 
+*Which scenarios make each rule **fire**. Scenario 14 is deliberately absent: it
+queries the catalogue rather than exercising the engine, so it covers every rule by
+description and none by firing.*
+
 | Rule | Scenarios that exercise it |
 |---|---|
 | gram-neg-rod-in-burn-patient-suggests-pseudomonas | 1, 7 |
@@ -687,6 +691,58 @@ early.
 group B strep leads early-onset neonatal sepsis in *term* infants — in preterm infants
 E. coli is the commoner cause. That scoping is recorded in the rule's provenance and
 `explain_conclusion` will return it.
+
+---
+
+## Scenario 14 — Interrogating the rulebase itself (the catalogue)
+
+*Not a case: a question **about the corpus** rather than about a patient. It exercises
+the **rule catalogue** — the LLM answers from the compiled rulebase via
+`describe_rules` → `/rules`, because the system prompt deliberately no longer carries a
+copy of it.*
+
+Ask cold, before asserting anything, or as a follow-up to any case:
+
+> "Which single test best discriminates within the streptococci, and how heavily does
+> the system weight it?"
+
+Claude calls `describe_rules` with `cluster=streptococcus`. A cluster query returns
+three things a client cannot get from any one of them alone:
+
+- the rule **deriving the class** (`gram-pos-cocci-in-chains-suggests-streptococcus-class`, 0.7);
+- every rule **refining a species off it** — the hemolysis/disc rules at 0.85, 0.85,
+  0.7 and 0.65, each with the premises it requires;
+- every rule **arguing against** one of those species — `beta-hemolysis-argues-against-
+  non-beta-streptococci` and `alpha-hemolysis-argues-against-beta-hemolytic-streptococci`
+  (both −0.75), `optochin-sensitive-argues-against-viridans` (−0.70).
+
+That third arm is the point. Ruling-out rules key off the *identity* and never mention
+the organism-class, so a naive cluster query answers only "what argues **for** each
+species" — precisely half of what "what discriminates?" means.
+
+**What a good answer contains**: hemolysis named as the branch point *because* it both
+gates the species rules and fires a disconfirming rule against the other branch; exact
+beliefs quoted, not approximated; and the *rationale* from each rule's provenance `note`
+— e.g. bacitracin-resistant → agalactiae is only 0.70 "because groups C and G are also
+bacitracin-resistant, so it narrows rather than names."
+
+**What a good answer does not contain**: any belief, premise, or citation stated without
+a `describe_rules` call behind it. The prompt states the corpus counts and quotes rule
+names in its examples; everything else it must ask for. Two suite guards
+(`prompt-tests.lisp`) hold that line from the other side — every rule name the prompt
+quotes must exist, and the counts it states must be the real ones.
+
+**Other useful shapes of the same question**:
+
+| Ask | Query it should produce |
+|---|---|
+| "What would have to be true for Serratia?" | `concludes=serratia` |
+| "What can we refine once it's in the enterobacteriaceae family?" | `premises=enterobacteriaceae` |
+| "What can argue *against* a hypothesis here?" | `kind=disconfirming` |
+| "Tell me about that rule" (named by a trace or partial match) | `name=<rule>` |
+
+Sample transcript: `neomycin/clinician-samples/strep-hemolysis-conflict-rule-catalogue.md`
+(Scenario 12 followed by this question). Endpoint smoke test: `./bin/test-rules.sh`.
 
 ---
 
