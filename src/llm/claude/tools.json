@@ -102,6 +102,37 @@
     }
   },
   {
+    "name": "describe_rules",
+    "description": "Retrieve the AUTHORITATIVE catalogue of the diagnostic rulebase, read from the compiled rules themselves. Per matching rule: its `belief`, its `kind` (confirming | disconfirming), what it `concludes`, the `premises` it requires with the values they must take, `chained_from` when it refines off a derived organism-class, `targets` for a ruling-out rule (the identities it argues against), and its `provenance` (origin, verified literature `evidence`, `belief_basis`, and a clinical `note` giving the rule's basis and why it is weighted as it is). Every response also carries a corpus `summary`: rule counts, the derived organism-classes, a `clusters` map of which species refine off which class, and every leaf identity. You do NOT hold the rulebase in memory: call this before stating any rule's belief, premises, targets, or citation, and whenever the clinician asks what the system knows, which test would best discriminate, or what would have to be true for an organism to be concluded. Distinct from explain_conclusion, which reports how a belief the engine ACTUALLY reached was built; this reports what the corpus contains whether or not anything has fired.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "An organism-class name (e.g. 'staphylococcus', 'enterobacteriaceae'). Returns the whole cluster: the rule deriving the class, every rule refining a species off it, and every rule arguing for or against one of those species. The right query for 'what separates the staphylococci?' or 'which test next for this genus?'."
+        },
+        "concludes": {
+          "type": "string",
+          "description": "An organism identity or class (e.g. 'klebsiella'). Returns every rule that can conclude it — what would have to be true for this organism to be identified."
+        },
+        "premises": {
+          "type": "string",
+          "description": "A value appearing as a premise (e.g. 'enterobacteriaceae'). Returns every rule that reads it — what can be refined once this is established."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Restrict to confirming rules (positive belief, argue FOR a hypothesis) or disconfirming ones (negative belief, argue AGAINST it and cap plausibility below 1.0).",
+          "enum": ["confirming", "disconfirming"]
+        },
+        "name": {
+          "type": "string",
+          "description": "An exact rule name (e.g. 'staph-coagulase-pos-suggests-staph-aureus'), for when a trace, partial match, or explanation has already named a rule and you need its detail."
+        }
+      },
+      "required": []
+    }
+  },
+  {
     "name": "get_partial_matches",
     "description": "Check which rules have some but not all conditions satisfied by current working memory. Returns rules that are 'close to firing' — showing which conditions are already met and which facts are still needed. Use this to determine what questions to ask the clinician next.",
     "input_schema": {

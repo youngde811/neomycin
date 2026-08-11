@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.6.0"
+  :version "0.7.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -99,6 +99,9 @@
                      (:file "rules")
                      (:file "chain-tests")
                      (:file "property-tests")
+                     ;; Guards the LLM system prompt against the compiled
+                     ;; rulebase; depends on property-tests for DOMAIN-RULES.
+                     (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
@@ -108,7 +111,7 @@
                (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :neomycin0.6.0 *features*)
+  (pushnew :neomycin0.7.0 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*

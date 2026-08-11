@@ -7,6 +7,20 @@ rather than re-synced, so an older one can lag the current rulebase.
 
 ## Current
 
+- **`strep-hemolysis-conflict-rule-catalogue.md`** (2026-08-11) — a respiratory
+  gram-positive case where the bench reading **contradicts** the clinical site: the
+  respiratory site refines S. pneumoniae off the streptococcus class, then beta
+  hemolysis fires `beta-hemolysis-argues-against-non-beta-streptococci` (−0.75) and
+  pulls it to **[0.216, 0.412]** while S. pyogenes sits at 0.595 with plausibility
+  still 1.0. Claude reports **both bounds** and says plainly that pneumococcus is *not
+  ruled out*, only capped — the narration this corpus exists to make possible. The
+  follow-up (*"which single test best discriminates within the streptococci, and how
+  heavily does the system weight it?"*) exercises the **rule catalogue**: Claude calls
+  `describe_rules` with `cluster=streptococcus` and answers with exact rule beliefs and
+  the provenance *rationale* — "only 0.70 because groups C/G are also
+  bacitracin-resistant" — read from the compiled rulebase rather than recalled. The
+  first sample recorded after the system prompt stopped carrying a copy of the corpus.
+
 - **`why-how-klebsiella-explanation.md`** (2026-08-03) — a burn / immunocompromised
   case yielding Pseudomonas + Klebsiella, then a *"why Klebsiella, and how confident?"*
   follow-up that exercises the **WHY/HOW facility**: Claude answers from the engine's

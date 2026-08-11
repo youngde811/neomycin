@@ -244,6 +244,7 @@ TOOL_TO_ENDPOINT = {
     "get_rule_trace": ("GET", "/rule-trace"),
     "get_partial_matches": ("GET", "/partial-matches"),
     "explain_conclusion": ("POST", "/why"),
+    "describe_rules": ("GET", "/rules"),
     "reset_session": ("POST", "/reset"),
     "recommend_therapy": ("POST", "/recommend-therapy"),
 }
@@ -255,7 +256,9 @@ def call_bridge(tool_name: str, tool_input: dict) -> dict:
     if method == "POST":
         resp = httpx.post(url, json=tool_input if tool_input else None)
     else:
-        resp = httpx.get(url)
+        # GET tools carry their arguments as query parameters (/rules filters);
+        # the parameterless ones pass an empty input and send none.
+        resp = httpx.get(url, params=tool_input or None)
     return resp.json()
 
 

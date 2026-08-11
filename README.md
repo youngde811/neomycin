@@ -521,6 +521,7 @@ to be clinically meaningful.
 | [`docs/clinician-scenarios.md`](docs/clinician-scenarios.md) | Worked cases exercising the rulebase and the antibiogram overlay |
 | [`docs/why-how-provenance-design.md`](docs/why-how-provenance-design.md) | The design of the explanation facility |
 | [`docs/antibiogram-overlay-design.md`](docs/antibiogram-overlay-design.md) | The site-local susceptibility mathematics |
+| [`docs/rule-catalogue-design.md`](docs/rule-catalogue-design.md) | Why the rulebase is queried rather than described to the model |
 | [`docs/demo-runsheet.md`](docs/demo-runsheet.md) | A 15-minute live demonstration script |
 | [`CLAUDE.md`](CLAUDE.md) | Build notes and the layout of the codebase |
 
