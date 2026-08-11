@@ -113,7 +113,11 @@
        (:file "rete")
        (:file "belief-interface")
        (:file "meta")
-       (:file "retrieve"))
+       (:file "retrieve")
+       ;; Read-only queries over the compiled rulebase (what a rule concludes,
+       ;; matches on, and believes). Loads last in CORE: it composes the RULE
+       ;; class and the PARSED-PATTERN/RULE-ACTIONS structures defined above.
+       (:file "rule-introspection"))
       :serial t)
      (:module rete
       :pathname "rete/reference/"
