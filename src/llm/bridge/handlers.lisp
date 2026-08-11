@@ -552,15 +552,28 @@ pattern.  Cross-pattern variable consistency is not checked here."
           (when (eq (car pair) class)
             (pushnew (value-name (cdr pair)) acc :test #'string=)))))))
 
-(defun rules-summary (rules)
-  "The corpus SHAPE: counts, the derived classes, and the leaf identities. A
-   client can hold this in its head and query the detail on demand."
+(defun clusters->json (class-names)
+  "{class: [identities refined from it]} -- the chaining map. This is the one
+   piece of corpus shape a client cannot reconstruct from the flat lists: which
+   species hang off which derived class, and therefore whose belief composes
+   through what."
   (let ((ht (make-hash-table :test #'equal)))
+    (loop for class across class-names
+          do (setf (gethash class ht)
+                   (coerce (cluster-identity-names class) 'vector)))
+    ht))
+
+(defun rules-summary (rules)
+  "The corpus SHAPE: counts, the derived classes and what each refines to, and
+   the leaf identities. A client can hold this in its head and query the detail
+   on demand -- which is the entire point of the endpoint."
+  (let ((ht (make-hash-table :test #'equal))
+        (classes (concluded-value-names rules 'lisa-user::organism-class)))
     (setf (gethash "total" ht) (length rules))
     (setf (gethash "confirming" ht) (count-if #'lisa:confirming-rule-p rules))
     (setf (gethash "disconfirming" ht) (count-if #'lisa:disconfirming-rule-p rules))
-    (setf (gethash "organism_classes" ht)
-          (concluded-value-names rules 'lisa-user::organism-class))
+    (setf (gethash "organism_classes" ht) classes)
+    (setf (gethash "clusters" ht) (clusters->json classes))
     (setf (gethash "identities" ht)
           (concluded-value-names rules 'lisa-user::organism-identity))
     ht))

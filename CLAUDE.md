@@ -102,7 +102,9 @@ neomycin/
   test/               — neomycin/test system: therapy + antibiogram tests + repointed goldens
                         + property-tests.lisp (corpus-WIDE invariants checked by
                         introspecting the compiled rulebase, so a new rule is covered the
-                        moment it is authored — sketch §8)
+                        moment it is authored — sketch §8) + prompt-tests.lisp (guards
+                        system-prompt.md against the corpus: every rule name it quotes must
+                        exist, and the counts it states must be the real ones)
   clinician-samples/  — saved driver transcripts
 docs/                 — design docs, runbook, clinician scenarios, therapy demo
 
@@ -111,6 +113,10 @@ lisa.asd              — Lisa core (depends on log4cl)
 lisa-bridge.asd       — Bridge system (depends on lisa, hunchentoot, jzon, bordeaux-threads)
 src/
   core/               — Rete engine, rules, facts, conflict resolution
+    rule-introspection.lisp — exported, domain-neutral queries over the COMPILED rulebase
+                        (what a rule concludes / matches / believes). The read half of the
+                        derivation table: that records what a rule DID when it fired, this
+                        records what a rule IS. Consumed by /rules and by property-tests
   belief-systems/     — Pluggable belief-system protocol
     protocol.lisp     — Generic function surface + dispatcher + use-system
     certainty-factors/— Shortliffe-Buchanan CF implementation
@@ -122,7 +128,7 @@ src/
     handlers.lisp     — REST endpoints (belief-system-aware)
   llm/claude/         — Claude tool-use integration
     driver.py         — Python client: tool-call loop; transcript capture
-    tools.json        — Tool schemas (assert_fact, run_inference, recommend_therapy, …)
+    tools.json        — Tool schemas (assert_fact, run_inference, describe_rules, recommend_therapy, …)
     system-prompt.md  — clinical system prompt (identification + therapy/antibiogram narration)
 examples/
   mycin.lisp          — Lisa-proper MYCIN example; NOT neomycin's rulebase (unused by neomycin)
@@ -130,6 +136,8 @@ bin/
   test-culture-1.sh   — end-to-end identification bridge test (curl); run-mycin.sh is a legacy alias
   test-therapy.sh     — end-to-end therapy bridge test (curl)
   test-why.sh         — end-to-end WHY/HOW explanation bridge test (curl): /why for a chained species
+  test-rules.sh       — end-to-end rule-catalogue bridge test (curl): /rules corpus summary, one
+                        cluster, one rule in full, and every ruling-out rule's targets
 ```
 
 ## Bridge Endpoints (port 8090)
@@ -142,6 +150,7 @@ bin/
 | `/conclusions` | GET | Get organism-identity results + belief factors |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
+| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its belief, kind, conclusions, premises, `chained_from`, ruling-out `targets`, and `:provenance`; plus a corpus `summary` (counts, organism-classes, the `clusters` map, every identity). Filters (ANDed): `?name=`, `?kind=confirming\|disconfirming`, `?concludes=`, `?premises=`, `?cluster=`. Needs no inference — it describes the corpus, not working memory |
 | `/why` | GET/POST | Authoritative belief explanation for a concluded organism (`?organism=` or `{organism}`): the engine-recorded derivation — each firing's composition arithmetic, recursive chained premises (organism-class → species), and the rule's two-axis `:provenance` (origin + verified `evidence` citations + `belief_basis`) |
 | `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`) |
 | `/reset` | POST | Clear working memory and entity registry |
@@ -153,6 +162,7 @@ bin/
 ./bin/test-culture-1.sh     # identification: culture-1 → pseudomonas + klebsiella
 ./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen with belief-valued susceptibilities
 ./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (composition arithmetic + citations)
+./bin/test-rules.sh         # catalogue: /rules corpus shape + the staphylococcus cluster (no inference needed)
 ```
 
 Expected (identification): culture-1 produces pseudomonas (0.76) and klebsiella (0.40).
@@ -180,7 +190,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~858 assertions / 152 tests): both belief algebras (CF and DS) directly; all six
+Coverage (~860 assertions / 154 tests): both belief algebras (CF and DS) directly; all six
 `culture-*` scenarios under each system (against neomycin's rulebase) with hand-verified
 golden values; DS clamp / total-conflict / malformed-input edge cases; **each of the 50
 rules fired in isolation**; the composition law (species belief = class belief × rule
@@ -214,8 +224,9 @@ is deliberately *not* restated there — `check-rule` already enforces it per ru
 
 Identification and therapy both run end to end:
 
-- **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
-- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt with the MYCIN clinical ontology (50 rules), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, rules, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
+- **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt carrying the MYCIN clinical ontology and the corpus's *shape* (the rulebase itself is queried via `describe_rules`, not transcribed — see "Rule catalogue" below), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
+- **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — beliefs, premises, ruling-out targets, provenance, and the cluster map — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (chaining and composition, class-is-never-a-leaf, what a negative belief means, the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts.
 - **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
 - **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
 

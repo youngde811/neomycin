@@ -99,6 +99,9 @@
                      (:file "rules")
                      (:file "chain-tests")
                      (:file "property-tests")
+                     ;; Guards the LLM system prompt against the compiled
+                     ;; rulebase; depends on property-tests for DOMAIN-RULES.
+                     (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
                      (:file "therapy-tests")
                      (:file "antibiogram-tests")
