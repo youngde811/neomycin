@@ -382,3 +382,204 @@ pattern.  Cross-pattern variable consistency is not checked here."
             (json-response result))))
     (error (e)
       (error-response (format nil "Explanation failed: ~A" e) :status 500))))
+
+;;; ------------------------------------------------------------------
+;;; /rules -- the corpus catalogue.
+;;;
+;;; The companion query to /why. /why explains a conclusion the engine actually
+;;; reached; /rules answers what the corpus CONTAINS, whether or not anything has
+;;; fired -- what a rule concludes, what it needs, what it believes, and on what
+;;; authority. That is the question a client otherwise answers from a second,
+;;; hand-maintained copy of the rulebase, which drifts the moment a rule is
+;;; retired or re-parented.
+;;;
+;;; The walkers underneath are domain-neutral (LISA:RULE-ASSERTED-FACTS and
+;;; friends). The domain vocabulary appears HERE, in the serializer, exactly as it
+;;; already does in /conclusions and /why: organism-class is the chaining
+;;; intermediate, organism-identity the leaf.
+;;; ------------------------------------------------------------------
+
+(defun value-name (value)
+  "VALUE's bare name, downcased. The corpus spells conclusion values as keywords
+   in some clusters and plain symbols in others (:STAPHYLOCOCCUS vs KLEBSIELLA);
+   both render the same way here, so clients never have to know which."
+  (string-downcase (princ-to-string value)))
+
+(defun value-matches-p (value query)
+  "True when VALUE is what QUERY (a client-supplied string) names. Compared by
+   name so no client input is ever interned."
+  (and query (string-equal (value-name value) query)))
+
+(defun catalogue-rules ()
+  "Every knowledge-bearing rule in the loaded rulebase -- the reporting and
+   driver rules that carry no belief are not part of the corpus a client is
+   asking about."
+  (remove-if-not #'lisa:knowledge-rule-p
+                 (lisa:get-rule-list (lisa:inference-engine))))
+
+(defun rule-kind (rule)
+  (if (lisa:disconfirming-rule-p rule) "disconfirming" "confirming"))
+
+(defun rule-chained-from (rule)
+  "The organism-class RULE refines from, or NIL if it reads raw evidence. This is
+   what makes a rule tier-2, and why its effective belief composes through the
+   class rather than standing alone."
+  (first (lisa:rule-premise-values rule 'lisa-user::organism-class)))
+
+(defun ordered-premise-classes (rule)
+  "RULE's premise classes, de-duplicated, in pattern order."
+  (remove-duplicates (lisa:rule-premise-classes rule) :from-end t))
+
+(defun rule-premises->json (rule)
+  "[{class, values}] for each premise class RULE constrains to a literal. Classes
+   matched only through variables (the organism/culture context wiring) carry no
+   value and are omitted -- they gate the join, they are not evidence."
+  (let ((acc '()))
+    (dolist (class (ordered-premise-classes rule) (coerce (nreverse acc) 'vector))
+      (let ((values (lisa:rule-premise-values rule class)))
+        (when values
+          (let ((ht (make-hash-table :test #'equal)))
+            (setf (gethash "class" ht) (string-downcase (symbol-name class)))
+            (setf (gethash "values" ht)
+                  (coerce (mapcar #'value-name values) 'vector))
+            (push ht acc)))))))
+
+(defun rule-concludes->json (rule)
+  "[{class, value}] for each fact RULE asserts."
+  (coerce (mapcar (lambda (pair)
+                    (let ((ht (make-hash-table :test #'equal)))
+                      (setf (gethash "class" ht)
+                            (string-downcase (symbol-name (car pair))))
+                      (setf (gethash "value" ht) (value-name (cdr pair)))
+                      ht))
+                  (lisa:rule-asserted-facts rule))
+          'vector))
+
+(defun rule->json (rule)
+  "One catalogue entry: what the rule concludes, needs, believes, and cites."
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "rule" ht) (string-downcase (symbol-name (lisa:rule-short-name rule))))
+    (setf (gethash "belief" ht) (lisa:rule-belief rule))
+    (setf (gethash "kind" ht) (rule-kind rule))
+    (setf (gethash "concludes" ht) (rule-concludes->json rule))
+    (setf (gethash "premises" ht) (rule-premises->json rule))
+    (let ((from (rule-chained-from rule)))
+      (when from
+        (setf (gethash "chained_from" ht) (value-name from))))
+    ;; A ruling-out rule names its targets in a (test (member ...)) rather than in
+    ;; a premise slot, so they would otherwise be invisible in this payload.
+    (let ((targets (lisa:rule-member-test-values rule)))
+      (when targets
+        (setf (gethash "targets" ht)
+              (coerce (mapcar #'value-name targets) 'vector))))
+    (let ((prov (provenance->json (lisa:rule-provenance rule))))
+      (when prov
+        (setf (gethash "provenance" ht) prov)))
+    ht))
+
+;;; Filters. Each is a predicate over a rule; the handler ANDs the ones the
+;;; client supplied.
+
+(defun rule-concludes-value-p (rule query)
+  (some (lambda (pair) (value-matches-p (cdr pair) query))
+        (lisa:rule-asserted-facts rule)))
+
+(defun rule-premises-value-p (rule query)
+  (some (lambda (class)
+          (some (lambda (v) (value-matches-p v query))
+                (lisa:rule-premise-values rule class)))
+        (ordered-premise-classes rule)))
+
+(defun rule-targets-value-p (rule query)
+  "True when RULE names QUERY in a (test (member ...)) -- how a ruling-out rule
+   selects the hypotheses it argues against."
+  (some (lambda (v) (value-matches-p v query))
+        (lisa:rule-member-test-values rule)))
+
+(defun cluster-identity-names (query)
+  "The identities refined FROM the class QUERY: what every rule premising on that
+   class concludes. Computed once per request, not per rule."
+  (let ((acc '()))
+    (dolist (rule (catalogue-rules) (nreverse acc))
+      (when (and (lisa:confirming-rule-p rule)
+                 (rule-premises-value-p rule query))
+        (dolist (pair (lisa:rule-asserted-facts rule))
+          (when (eq (car pair) 'lisa-user::organism-identity)
+            (pushnew (value-name (cdr pair)) acc :test #'string=)))))))
+
+(defun rule-in-cluster-p (rule query cluster-identities)
+  "A cluster is a derived class, everything refined from it, and everything that
+   argues about those refinements: the rule CONCLUDING the class, every rule
+   PREMISING on it, and every rule concluding or targeting one of its species.
+   The third arm is what reaches the ruling-out rules -- they key off the identity
+   and never mention the class, so a client asking `what separates the
+   staphylococci?' would otherwise be shown only the rules that argue FOR each
+   species and none of the discriminators that argue against."
+  (or (rule-concludes-value-p rule query)
+      (rule-premises-value-p rule query)
+      (some (lambda (id)
+              (or (rule-concludes-value-p rule id)
+                  (rule-targets-value-p rule id)))
+            cluster-identities)))
+
+(defun matching-rules (&key name kind concludes premises cluster)
+  (let ((rules (catalogue-rules))
+        (cluster-identities (and cluster (cluster-identity-names cluster))))
+    (when name
+      (setf rules (remove-if-not
+                   (lambda (r) (string-equal (symbol-name (lisa:rule-short-name r)) name))
+                   rules)))
+    (when kind
+      (setf rules (remove-if-not (lambda (r) (string-equal (rule-kind r) kind)) rules)))
+    (when concludes
+      (setf rules (remove-if-not (lambda (r) (rule-concludes-value-p r concludes)) rules)))
+    (when premises
+      (setf rules (remove-if-not (lambda (r) (rule-premises-value-p r premises)) rules)))
+    (when cluster
+      (setf rules (remove-if-not
+                   (lambda (r) (rule-in-cluster-p r cluster cluster-identities))
+                   rules)))
+    rules))
+
+(defun concluded-value-names (rules class)
+  "The distinct values RULES conclude for CLASS, as names, confirming rules only
+   -- a disconfirming rule re-asserts a hypothesis to argue against it, and would
+   otherwise look like a way to reach one."
+  (let ((acc '()))
+    (dolist (rule rules (coerce (nreverse acc) 'vector))
+      (when (lisa:confirming-rule-p rule)
+        (dolist (pair (lisa:rule-asserted-facts rule))
+          (when (eq (car pair) class)
+            (pushnew (value-name (cdr pair)) acc :test #'string=)))))))
+
+(defun rules-summary (rules)
+  "The corpus SHAPE: counts, the derived classes, and the leaf identities. A
+   client can hold this in its head and query the detail on demand."
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "total" ht) (length rules))
+    (setf (gethash "confirming" ht) (count-if #'lisa:confirming-rule-p rules))
+    (setf (gethash "disconfirming" ht) (count-if #'lisa:disconfirming-rule-p rules))
+    (setf (gethash "organism_classes" ht)
+          (concluded-value-names rules 'lisa-user::organism-class))
+    (setf (gethash "identities" ht)
+          (concluded-value-names rules 'lisa-user::organism-identity))
+    ht))
+
+(hunchentoot:define-easy-handler (rules-handler :uri "/rules") ()
+  (handler-case
+      (let* ((rules (matching-rules
+                     :name (hunchentoot:get-parameter "name")
+                     :kind (hunchentoot:get-parameter "kind")
+                     :concludes (hunchentoot:get-parameter "concludes")
+                     :premises (hunchentoot:get-parameter "premises")
+                     :cluster (hunchentoot:get-parameter "cluster")))
+             (result (make-hash-table :test #'equal)))
+        ;; The summary always describes the WHOLE corpus, not the filtered slice:
+        ;; it is orientation, and a filtered count would misreport the shape.
+        (setf (gethash "summary" result) (rules-summary (catalogue-rules)))
+        (setf (gethash "matched" result) (length rules))
+        (setf (gethash "rules" result)
+              (coerce (mapcar #'rule->json rules) 'vector))
+        (json-response result))
+    (error (e)
+      (error-response (format nil "Rule query failed: ~A" e) :status 500))))
