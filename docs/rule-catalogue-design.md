@@ -159,11 +159,16 @@ Two scripted driver sessions against the rewritten prompt, `claude-sonnet-5`:
 
 ## 7. Non-goals / open
 
-- **The corpus spells conclusion values inconsistently** — keywords in the
-  gram-positive files (`:staphylococcus`), plain symbols in the enterobacteriaceae
-  ones (`klebsiella`). Each cluster is internally consistent so nothing is broken, and
-  `value-name` normalizes it away for clients, but it is a real latent inconsistency
-  now visible in one place. Worth its own cleanup; deliberately not folded in here.
+- **~~The corpus spells conclusion values inconsistently~~ — retracted (2026-08-12).**
+  This slice originally recorded a mixed keyword/symbol spelling across the rule
+  files. It does not exist: an audit of the compiled rulebase found 105 literal
+  conclusion and premise values, **all** keyword-spelled, the only non-keywords being
+  the `?value` variable the 16 ruling-out rules match and re-assert. The claim came
+  from comparing two introspection probes written with different format directives —
+  `~A` prints `:klebsiella` as `KLEBSIELLA`, `~S` prints `:staphylococcus` intact.
+  Left in place, struck through, because the commit messages and the v0.7.0 tag
+  annotation carry the same error and cannot be amended; this is the correction of
+  record. `value-name` is still right, for the reason below.
 - **`/rules` is unauthenticated and unpaginated**, like every other bridge endpoint.
   Fine for a research artifact on localhost; not a posture for anything else.
 - **The `-suggests-` / `-argues-against-` naming convention is load-bearing** for guard
