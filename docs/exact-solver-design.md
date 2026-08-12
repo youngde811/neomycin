@@ -1,7 +1,14 @@
 # Exact therapy solver — design & objective comparison
 
-> **Status: proposed.** No code yet. Written to settle one question before any is
-> written: *what should the solver optimize?* The exact search is the easy part.
+> **Status: accepted, unimplemented (2026-08-12).** No code yet. Written to settle
+> one question before any is written: *what should the solver optimize?* The exact
+> search is the easy part.
+>
+> **Decisions taken** (David, 2026-08-12): the objective becomes a third policy dial
+> rather than a choice between the two candidates (§3.5); `:lexicographic` ships
+> first as an equivalence check against greedy, `:spectrum-sparing` second; spectrum
+> breadth is **declared** on `defdrug`, not derived from KB coverage counts (§3.4).
+> The slice plan in §6 is the agreed order of work.
 
 ## 1. Why — greedy does not optimize what the codebase says it does
 
@@ -147,12 +154,12 @@ of KB curation masquerading as a clinical fact.
 carry its own provenance note exactly as rule beliefs do — including the
 `belief_basis: illustrative` caveat, which applies here with full force.
 
-**Recommendation: declared.** The derived measure is free and wrong in a way that
+**Recommendation: declared. — ACCEPTED.** The derived measure is free and wrong in a way that
 would be hard to see later; this project's whole posture is that schematic values
 are labelled as such rather than smuggled in. Deriving breadth from coverage counts
 is exactly the kind of number that looks measured and isn't.
 
-### 3.5 Recommendation: make the objective the third dial
+### 3.5 Recommendation: make the objective the third dial — ACCEPTED
 
 Not A or B — **both, selected by a parameter**, the way `*belief-system*` and the
 coverage gate already work. The exact solver takes an `objective` (`:lexicographic`
