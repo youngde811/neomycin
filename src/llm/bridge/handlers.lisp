@@ -400,9 +400,10 @@ pattern.  Cross-pattern variable consistency is not checked here."
 ;;; ------------------------------------------------------------------
 
 (defun value-name (value)
-  "VALUE's bare name, downcased. The corpus spells conclusion values as keywords
-   in some clusters and plain symbols in others (:STAPHYLOCOCCUS vs KLEBSIELLA);
-   both render the same way here, so clients never have to know which."
+  "VALUE's bare name, downcased -- :STAPHYLOCOCCUS renders as \"staphylococcus\".
+   The corpus spells these consistently as keywords; the normalization is here so
+   that Lisp reader syntax never reaches a JSON client, not to reconcile a
+   disagreement in the rulebase."
   (string-downcase (princ-to-string value)))
 
 (defun value-matches-p (value query)
