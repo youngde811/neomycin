@@ -74,7 +74,12 @@
            ;; reference, and a deployment/demo LOADs its own counts file to overlay
            ;; local data onto the current *therapy-kb*.
            (:file "stub-solver" :depends-on ("protocol"))
-           (:file "greedy-solver" :depends-on ("protocol" "kb"))
+           ;; Shared phase A (belief gate, contraindication filter, the scalar
+           ;; reductions both gates read) -- solver-independent, so every solver
+           ;; gates identically and comparisons between them stay meaningful
+           ;; (exact-solver-design.md §4).
+           (:file "solver-common" :depends-on ("protocol" "kb"))
+           (:file "greedy-solver" :depends-on ("solver-common"))
            ;; HTTP surface for the therapy phase (design doc step (c)); depends on
            ;; the solver protocol + the canonical KB it recommends over.
            (:file "bridge" :depends-on ("greedy-solver" "knowledge-base"))))))))
