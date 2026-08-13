@@ -147,6 +147,26 @@
    :susceptibility (mapcar #'(lambda (o) (susceptibility-item-for kb drug o))
                            covered)))
 
+(defun alternative-agents-for (kb candidates universe chosen-drugs)
+  "Every candidate drug NOT in CHOSEN-DRUGS that still covers at least one organism
+   in UNIVERSE, reported in the same shape as a regimen drug.
+
+   This is a fact about the KB and the gated items -- not about how the regimen was
+   searched for -- so it is computed here and every solver reports it. That is the
+   point: the clinician who asked \"is there a narrower agent?\" was using the
+   default solver, so a fix available only under an exhaustive search would not have
+   reached them (exact-solver-design.md 1.1).
+
+   Name-sorted, NOT ranked. Ordering these by coverage weight would imply the solver
+   had judged one alternative better than another, which it did not do -- it never
+   compared them at all. The susceptibility interval on each entry is what a reader
+   should compare, and it is right there in the payload."
+  (let ((others (remove-if #'(lambda (d) (member d chosen-drugs)) candidates)))
+    (loop for d in others
+          for cov = (drug-covers kb d universe)
+          when cov
+            collect (regimen-item-for kb d cov))))
+
 ;;; ============================================================
 ;;; Phase A -- what to treat, and with what candidates
 ;;; ============================================================

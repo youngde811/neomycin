@@ -43,6 +43,9 @@
    #:recommendation #:make-recommendation #:recommendation-p
    #:recommendation-regimen #:recommendation-items-to-treat #:recommendation-excluded
    #:recommendation-uncovered
+   #:recommendation-alternative-agents #:recommendation-alternative-regimens
+   #:alternative-regimen #:make-alternative-regimen #:alternative-regimen-p
+   #:alternative-regimen-drugs
    #:regimen-item #:make-regimen-item #:regimen-item-drug #:regimen-item-dose
    #:regimen-item-covers #:regimen-item-susceptibility
    #:susceptibility-item #:make-susceptibility-item #:susceptibility-item-organism
@@ -57,9 +60,9 @@
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
    #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram #:deffamily
-   #:with-therapy-kb #:therapy-kb #:with-greedy-solver
+   #:with-therapy-kb #:therapy-kb #:with-greedy-solver #:with-exact-solver
    ;; --- solvers ---
-   #:greedy-solver
+   #:greedy-solver #:exact-solver
    ;; --- bridge glue (design doc step (c); HTTP handler registers itself) ---
    #:conclusions-for-solver #:recommendation->json
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---

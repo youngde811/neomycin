@@ -60,36 +60,49 @@
 (defun solve-regimen-phase-b (kb conclusions items excluded candidates uncovered regimen)
   "Solve Regimen Phase B: greedy weighted set cover. BELIEF-OF is rebuilt here as
    a local closure over CONCLUSIONS -- it is the only consumer."
-  (flet ((belief-of (org)
-           (scalar-of (cdr (assoc org conclusions)))))
-    (loop
-      (when (null uncovered)
-        (return))
-      (let ((best nil) (best-cov '()) (best-n -1) (best-w -1))
-        (dolist (d candidates)
-          (let* ((cov (drug-covers kb d uncovered))
-                 (n (length cov)))
-            (when (plusp n)
-              (let ((w (coverage-weight kb d cov #'belief-of)))
-                ;; Total order: more covered, then higher weight. Candidates are
-                ;; already name-sorted and we only replace on a STRICT win, so a
-                ;; full (n,w) tie keeps the earliest name -> deterministic.
-                (when (or (> n best-n)
-                          (and (= n best-n) (> w best-w)))
-                  (setf best d best-cov cov best-n n best-w w))))))
-        (when (null best)
-          (return)) ; nothing covers any remaining item
-        (push (regimen-item-for kb best best-cov) regimen)
-        (setf uncovered (set-difference uncovered best-cov))
-        (setf candidates (remove best candidates))))
-    (make-recommendation
-     :regimen (nreverse regimen)
-     :items-to-treat (mapcar #'(lambda (p)
-                                 (make-treat-item :organism (car p) :belief (cdr p)))
-                             items)
-     :excluded excluded
-     ;; name-sort the leftovers for a deterministic report
-     :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name))))
+  ;; The loop rebinds CANDIDATES and UNCOVERED as it consumes them, so capture the
+  ;; originals first: ALTERNATIVE-AGENTS is about what was available at the start,
+  ;; not what survived to the end.
+  (let ((all-candidates candidates)
+        (universe uncovered)
+        (chosen '()))
+    (flet ((belief-of (org)
+             (scalar-of (cdr (assoc org conclusions)))))
+      (loop
+        (when (null uncovered)
+          (return))
+        (let ((best nil) (best-cov '()) (best-n -1) (best-w -1))
+          (dolist (d candidates)
+            (let* ((cov (drug-covers kb d uncovered))
+                   (n (length cov)))
+              (when (plusp n)
+                (let ((w (coverage-weight kb d cov #'belief-of)))
+                  ;; Total order: more covered, then higher weight. Candidates are
+                  ;; already name-sorted and we only replace on a STRICT win, so a
+                  ;; full (n,w) tie keeps the earliest name -> deterministic.
+                  (when (or (> n best-n)
+                            (and (= n best-n) (> w best-w)))
+                    (setf best d best-cov cov best-n n best-w w))))))
+          (when (null best)
+            (return)) ; nothing covers any remaining item
+          (push (regimen-item-for kb best best-cov) regimen)
+          (push best chosen)
+          (setf uncovered (set-difference uncovered best-cov))
+          (setf candidates (remove best candidates))))
+      (make-recommendation
+       :regimen (nreverse regimen)
+       :items-to-treat (mapcar #'(lambda (p)
+                                   (make-treat-item :organism (car p) :belief (cdr p)))
+                               items)
+       :excluded excluded
+       ;; name-sort the leftovers for a deterministic report
+       :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)
+       ;; Greedy CAN report this: it is a KB fact about the gated items, not a
+       ;; by-product of the search. It cannot report ALTERNATIVE-REGIMENS, which
+       ;; needs the enumeration only the exact solver performs -- so that field
+       ;; stays empty here rather than being faked from the drugs greedy happened
+       ;; to pass over.
+       :alternative-agents (alternative-agents-for kb all-candidates universe chosen)))))
 
 (defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
   "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of

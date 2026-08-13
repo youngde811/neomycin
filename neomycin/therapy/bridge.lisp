@@ -149,6 +149,14 @@
                   'vector))
     ht))
 
+(defun alternative-regimen->json (alt)
+  "An ALTERNATIVE-REGIMEN renders as {drugs: [...]} -- each drug in the same shape
+   as a REGIMEN entry, so a reader compares like with like."
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "drugs" ht)
+          (coerce (mapcar #'regimen-item->json (alternative-regimen-drugs alt)) 'vector))
+    ht))
+
 (defun treat-item->json (item)
   (let ((ht (make-hash-table :test #'equal)))
     (setf (gethash "organism" ht) (key->name (treat-item-organism item)))
@@ -174,6 +182,18 @@
           (coerce (mapcar #'exclusion->json (recommendation-excluded rec)) 'vector))
     (setf (gethash "uncovered" ht)
           (coerce (mapcar #'key->name (recommendation-uncovered rec)) 'vector))
+    ;; The two "what else was possible" fields. Always emitted, even when empty:
+    ;; an absent key reads as "not applicable", an empty array reads as "asked and
+    ;; answered -- nothing". Only the second is true, and it is the distinction
+    ;; whose absence produced the false answer in exact-solver-design.md 1.1.
+    (setf (gethash "alternative_agents" ht)
+          (coerce (mapcar #'regimen-item->json
+                          (recommendation-alternative-agents rec))
+                  'vector))
+    (setf (gethash "alternative_regimens" ht)
+          (coerce (mapcar #'alternative-regimen->json
+                          (recommendation-alternative-regimens rec))
+                  'vector))
     ht))
 
 ;;; ------------------------------------------------------------------
@@ -189,10 +209,17 @@
           collect (intern (string-upcase token) :keyword))))
 
 (defun parse-solver-name (raw)
-  "The requested solver keyword, defaulting to :greedy when unset."
+  "The requested solver keyword, defaulting to :exact when unset.
+
+   The default was :greedy until the exact solver's equivalence with it was
+   established by test across every scenario and patient combination
+   (exact-solver-design.md 5). Exact never loses to greedy -- where the two differ,
+   greedy's approximation was the one that lost -- and only the exhaustive search
+   can report ALTERNATIVE-REGIMENS. :greedy remains selectable, and is what the
+   equivalence property is asserted against."
   (if (and raw (stringp raw) (plusp (length raw)))
       (intern (string-upcase raw) :keyword)
-      :greedy))
+      :exact))
 
 (defun parse-gate (raw)
   "The requested coverage-gate keyword, defaulting to :belief (conservative) when

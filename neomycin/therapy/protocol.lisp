@@ -63,13 +63,33 @@
   drug
   reason)          ; :contraindication | :interaction
 
+(defstruct (alternative-regimen (:constructor make-alternative-regimen))
+  "Another regimen of the SAME minimum size the solver could have returned, but
+   did not -- the objective's tiebreak chose against it.
+
+   Reported because a tiebreak no clinician stated is not a clinical judgement, and
+   presenting only the winner implies a decisiveness the solver does not have. Only
+   an exhaustive search can populate this; a greedy search never learns what it
+   passed over (exact-solver-design.md 4)."
+  (drugs '()))           ; list of regimen-item, exactly as REGIMEN is shaped
+
 (defstruct (recommendation (:constructor make-recommendation))
   "The full therapy recommendation returned by a solver."
   (regimen '())          ; list of regimen-item
   (items-to-treat '())   ; list of treat-item
   (excluded '())         ; list of exclusion
-  (uncovered '()))       ; organisms in U that no candidate drug could cover
+  (uncovered '())        ; organisms in U that no candidate drug could cover
                          ; (an honest failure surfaced, not a silent partial cover)
+  ;; The two "what else was possible" fields (exact-solver-design.md 1.1). Neither
+  ;; is a recommendation: they exist so that "is there a narrower agent?" has a
+  ;; truthful answer. Without them the payload contains only the winner, and a
+  ;; reader -- human or LLM -- infers from its silence that nothing else covered.
+  ;; That inference was drawn, stated to a clinician, and was false.
+  (alternative-agents '())    ; list of regimen-item: candidate drugs NOT chosen that
+                              ; nonetheless cover >= 1 treated organism. Solver-
+                              ; independent -- a KB fact about the gated items, so
+                              ; every solver reports it, greedy included.
+  (alternative-regimens '())) ; list of alternative-regimen; exact search only
 
 ;;; ============================================================
 ;;; Policy dials (design doc 4.2)

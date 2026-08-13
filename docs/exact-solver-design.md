@@ -257,10 +257,18 @@ CF-vs-DS and belief-vs-plausibility contrasts the project already trades on.
 two solvers disagreeing about *what to treat* would make every comparison
 meaningless.
 
-**Search.** Candidates → bitmask coverage → dominance prune → ascending-k
+**Search.** Candidates → bitmask coverage → ~~dominance prune~~ → ascending-k
 enumeration → among all covers of minimum size, pick by the objective's comparator
 → deterministic name tiebreak last. Returns the same `RECOMMENDATION` struct; no
 protocol change.
+
+*Dominance pruning was dropped when slice 2 was written.* Pruning discards a drug
+whose coverage is a subset of another's — which is exactly a drug that belongs in
+`alternative_agents` or `alternative_regimens`. Since reporting those completely is
+the point of the slice, an optimization that silently removes them would trade the
+slice's purpose for speed the search does not need (2¹¹ worst case). If the KB ever
+grows enough to want it, prune the *winner* search only and enumerate alternatives
+separately.
 
 **Registration.** `(register-solver :exact (make-instance 'exact-solver))` — the
 registry means no existing file changes. `tools.json` gains `"exact"` to the
@@ -305,6 +313,9 @@ follow-on slice, not this one.
 
 ## 6. Slice plan
 
+**Status: slices 1 and 2 are DONE (2026-08-13).** Suite 860/154 → 1024/169. Slice 3
+is next.
+
 1. **Extract shared phase A** from greedy; suite green, no behaviour change.
 2. **Exact solver, `:lexicographic`** + registration + goldens + the equivalence
    property test, **plus `alternatives` reporting** (moved here from slice 4; see the
@@ -327,8 +338,10 @@ accepted knowingly: slice 2 is no longer a pure equivalence check — it is now 
 recommendation changes, but the payload stops implying the chosen drug is the only
 one."
 
-**Open sub-question for slice 2 — what `alternatives` ranges over.** Two readings,
-and they differ in who gets the §1.1 fix:
+**Sub-question — what `alternatives` ranges over — RESOLVED (David, 2026-08-13):
+both.** `alternative_agents` (solver-independent, so greedy reports it too) and
+`alternative_regimens` (exact only). The two readings, and why doing only the first
+would have left the §1.1 clinician unfixed:
 
 | | Alternative *regimens* | Alternative *agents* |
 |---|---|---|
@@ -337,12 +350,27 @@ and they differ in who gets the §1.1 fix:
 | Available to | `:exact` only | **both solvers**, greedy included |
 | Answers §1.1's question | for the 1-organism case, yes | always |
 
-The doc has assumed the first. But the default solver is `greedy`, and §1.1's session
-ran on the default — so under the first reading the clinician who hit this bug still
-would not get the fix unless `:exact` also becomes the default, which is not in the
-accepted plan. The second reading is solver-independent and strictly cheaper.
-They are not exclusive; the honest payload may want both, and for a single treated
-organism they coincide. **Decide before writing slice 2.**
+The doc had assumed the first. But the default solver was `greedy` and §1.1's session
+ran on the default, so the first reading alone would not have reached the clinician
+who hit the bug. Both shipped; for a single treated organism they coincide, which is
+visible in the §1.1 regression test (five alternative agents, five alternative
+single-drug regimens, same five drugs).
+
+**The default solver is now `:exact`** (David, 2026-08-13), flipped at the end of
+slice 2 and gated on the equivalence property being green — 12 conclusion sets × 3
+patient states, agreeing on regimen size, gated items, and uncovered organisms. The
+reasoning is worth keeping: exact never loses to greedy, since where they differ it
+is greedy's approximation that lost; and only the exhaustive search can report
+`alternative_regimens`. `:greedy` stays registered and selectable — it is what the
+equivalence property is asserted *against*, so retiring it would delete the evidence
+for the flip.
+
+Note what the flip does **not** fix. `exact(:lexicographic)` is greedy's objective
+computed exactly, so it returns meropenem for the §1.1 case too: carbapenem-first is
+a property of the objective, not of the approximation. Only `:spectrum-sparing`
+(slice 4) changes that answer. What slice 2 fixes is the *false statement* — the
+payload now carries what else covered, so "no narrower agent exists" is no longer
+something a reader can conclude from silence.
 
 **Prompt- and code-side claims (David, 2026-08-13 — decided).** §1.1's point 2 is a
 stale-claim failure that reached a clinician through the narration layer, so it is

@@ -80,9 +80,10 @@
            ;; (exact-solver-design.md §4).
            (:file "solver-common" :depends-on ("protocol" "kb"))
            (:file "greedy-solver" :depends-on ("solver-common"))
+           (:file "exact-solver" :depends-on ("solver-common"))
            ;; HTTP surface for the therapy phase (design doc step (c)); depends on
            ;; the solver protocol + the canonical KB it recommends over.
-           (:file "bridge" :depends-on ("greedy-solver" "knowledge-base"))))))))
+           (:file "bridge" :depends-on ("greedy-solver" "exact-solver" "knowledge-base"))))))))
 
 ;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
 ;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
@@ -109,6 +110,9 @@
                      (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
                      (:file "therapy-tests")
+                     ;; The exact solver + the ALTERNATIVES both solvers report;
+                     ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.
+                     (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))
   :perform (asdf:test-op (o c)

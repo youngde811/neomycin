@@ -158,7 +158,7 @@
   },
   {
     "name": "recommend_therapy",
-    "description": "Ask the deterministic therapy solver for an antimicrobial regimen covering the organisms currently identified in working memory. Call this ONLY after inference has produced organism conclusions (run get_conclusions first). The solver — not you — chooses the drugs: it runs a greedy weighted set cover that picks the fewest drugs covering every organism whose identification belief clears the coverage threshold, applies patient contraindications, and reports anything it cannot cover. You NEVER pick, add, or substitute a drug; your job is only to relay the patient's contraindications and narrate the regimen the solver returns, citing coverage, doses, and exclusions. NOT FOR CLINICAL USE — the pharmacology knowledge base is schematic and illustrative.",
+    "description": "Ask the deterministic therapy solver for an antimicrobial regimen covering the organisms currently identified in working memory. Call this ONLY after inference has produced organism conclusions (run get_conclusions first). The solver — not you — chooses the drugs: it computes a minimum set cover, picking the fewest drugs covering every organism whose identification belief clears the coverage threshold, applies patient contraindications, and reports anything it cannot cover. Its objective is drug COUNT only — it has no notion of spectrum, so 'fewest' is not 'narrowest' and must not be narrated as stewardship. The response also carries 'alternative_agents' (other drugs that covered but were not chosen) and 'alternative_regimens' (other equally minimal regimens the tiebreak chose against), which is where questions about narrower options are answered from. You NEVER pick, add, or substitute a drug; your job is only to relay the patient's contraindications and narrate what the solver returns, citing coverage, doses, exclusions, and — when asked — what it passed over. NOT FOR CLINICAL USE — the pharmacology knowledge base is schematic and illustrative.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -182,8 +182,8 @@
         },
         "solver": {
           "type": "string",
-          "description": "Which solver to use. Defaults to 'greedy' (the weighted set-cover solver). Omit unless the clinician explicitly asks for a different solver.",
-          "enum": ["greedy"]
+          "description": "Which solver to use. Defaults to 'exact', which enumerates every minimum-size regimen and so can also report the ones it chose against. 'greedy' is the original approximation, kept selectable for comparison; it returns the same-size regimen but no alternative_regimens. Omit unless the clinician explicitly asks for a different solver.",
+          "enum": ["exact", "greedy"]
         },
         "gate": {
           "type": "string",
