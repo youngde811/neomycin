@@ -35,7 +35,7 @@
 (in-package :neomycin-therapy)
 
 (defstruct (therapy-kb (:constructor %make-therapy-kb))
-  ;; drug id -> plist (:class :route :dose)
+  ;; drug id -> plist (:class :route :dose :spectrum)
   (drugs (make-hash-table :test #'eq))
   ;; (organism . drug) -> susceptibility (belief-valued: a number or a DS interval)
   (sensitivities (make-hash-table :test #'equal))
@@ -200,7 +200,8 @@
   (getf (gethash drug (therapy-kb-drugs kb)) :route))
 
 (defun kb-drug-spectrum (kb drug)
-  "DRUG's declared spectrum-breadth tier, or NIL if unauthored. Authored data only:
-   NO solver consults this yet. The objective that will (:spectrum-sparing) is
-   designed in exact-solver-design.md 3.2 and not implemented."
+  "DRUG's declared spectrum-breadth tier, or NIL if unauthored. Read ONLY by the
+   opt-in *OBJECTIVE* :spectrum-sparing; the default objective ignores it entirely.
+   An unauthored tier is treated as broader than :very-broad by that objective, so a
+   gap in the KB is never rewarded -- see REGIMEN-BREADTH."
   (getf (gethash drug (therapy-kb-drugs kb)) :spectrum))

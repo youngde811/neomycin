@@ -232,6 +232,20 @@
         (:midpoint :midpoint))
       :belief))
 
+(defun parse-objective (raw)
+  "The requested objective keyword, defaulting to :lexicographic when unset.
+   Accepts lexicographic | spectrum-sparing; anything else signals an error the
+   handler surfaces, rather than silently falling back to the default and returning
+   a regimen the caller did not ask for.
+
+   Defaults to :lexicographic deliberately: turning the objective dial CHANGES the
+   recommendation, so it stays opt-in (exact-solver-design.md 3.5)."
+  (if (and raw (stringp raw) (plusp (length raw)))
+      (ecase (intern (string-upcase raw) :keyword)
+        (:lexicographic :lexicographic)
+        (:spectrum-sparing :spectrum-sparing))
+      :lexicographic))
+
 ;;; ------------------------------------------------------------------
 ;;; Handler: POST /recommend-therapy
 ;;; ------------------------------------------------------------------
@@ -243,11 +257,13 @@
              (patient (parse-patient-state (and body (gethash "patient" body))))
              (solver-name (parse-solver-name (and body (gethash "solver" body))))
              (gate (parse-gate (and body (gethash "gate" body))))
+             (objective (parse-objective (and body (gethash "objective" body))))
              (conclusions (conclusions-for-solver)))
         (use-solver solver-name)
-        ;; Dynamically bind the coverage-gate dial for this request only, so a
-        ;; per-request `gate` never leaks into later sessions.
+        ;; Dynamically bind the two policy dials for this request only, so a
+        ;; per-request `gate` or `objective` never leaks into later sessions.
         (let* ((*susceptibility-gate* gate)
+               (*objective* objective)
                (result (recommendation->json
                         (recommend conclusions (therapy-kb) patient))))
           ;; Echo the operative context so the response is self-describing.
@@ -255,6 +271,7 @@
                 (belief:belief-system-name belief:*belief-system*))
           (setf (gethash "solver" result) (key->name solver-name))
           (setf (gethash "gate" result) (key->name gate))
+          (setf (gethash "objective" result) (key->name objective))
           (lisa-bridge:json-response result)))
     (error (e)
       (lisa-bridge:error-response

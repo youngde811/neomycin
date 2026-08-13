@@ -238,20 +238,36 @@ is exactly the kind of number that looks measured and isn't.
 
 ### 3.6 What the authored tiers actually imply — measured, not predicted
 
-Slice 3 authored the eleven tiers. Before slice 4 commits to an objective, here is
-what those tiers *would* produce, obtained by simulating "minimise summed spectrum
-rank, ties by summed susceptibility × belief" over the canonical KB. §3.2 guessed at
-this; these are the runs.
+Slice 3 authored the eleven tiers; slice 4 built the objective. This table is the
+real solver under both settings on the canonical KB — every row a golden in
+`exact-solver-tests.lisp`.
 
-| Case | `:lexicographic` | `:spectrum-sparing` (simulated) |
-|---|---|---|
-| E. coli 0.64 (§1.1) | meropenem | **gentamicin** |
-| klebsiella 0.40 alone | meropenem | **gentamicin** |
-| pseudomonas 0.76 alone | meropenem | **ceftazidime** |
-| culture-1 pair | meropenem | **ceftazidime** |
-| S. aureus 0.60 alone | vancomycin | vancomycin (unchanged) |
-| S. aureus + klebsiella | meropenem, vancomycin | **gentamicin**, vancomycin |
-| bacteroides + S. aureus | meropenem, vancomycin | **metronidazole**, vancomycin |
+These are **solver-level** runs over hand-specified conclusion sets, not engine-driven
+scenarios: they isolate the objective from what the rulebase happens to conclude.
+Some rows are not reachable end to end — see the note after finding 3.
+
+> **Corrected 2026-08-13.** The first version of this table was produced by a
+> throwaway simulation before slice 4 existed, and its `:lexicographic` column was
+> wrong: the script sorted one list destructively and then read the aliased original.
+> On that basis it claimed bacteroides + S. aureus as a spectrum-sparing win. It is
+> not — the default already returns metronidazole + vancomycin there. The corrected
+> row is pinned by a test named for the mistake, and the real wins are in the table
+> below. Findings 1 and 3 survive; finding 3 turned out to be worse than reported.
+
+| Case | `:lexicographic` | `:spectrum-sparing` | |
+|---|---|---|---|
+| E. coli 0.64 (§1.1) | meropenem | **gentamicin** | diverges |
+| klebsiella 0.40 alone | meropenem | **gentamicin** | diverges |
+| enterobacteriaceae 0.80 | meropenem | **gentamicin** | diverges |
+| pseudomonas 0.76 alone | meropenem | **ceftazidime** | diverges |
+| culture-1 pair | meropenem | **ceftazidime** | diverges |
+| salmonella 0.65 | meropenem | **ciprofloxacin** | diverges |
+| S. pneumoniae 0.70 | meropenem | **vancomycin** | diverges |
+| enterococcus 0.60 | ampicillin | **linezolid** | diverges |
+| S. aureus + klebsiella | meropenem, vancomycin | **gentamicin**, vancomycin | diverges |
+| three organisms | meropenem, vancomycin | **ceftazidime**, vancomycin | diverges |
+| S. aureus 0.60 alone | vancomycin | vancomycin | same |
+| bacteroides + S. aureus | metronidazole, vancomycin | metronidazole, vancomycin | same |
 
 Three findings, and two of them are problems:
 
@@ -267,19 +283,50 @@ objection arriving in a sharper form than anticipated: not merely a lower covera
 floor (gentamicin 0.64 vs meropenem 0.90) but a choice most clinicians would reject
 outright on grounds the KB does not represent at all.
 
-**3. Breadth cannot see reserve status.** For S. aureus alone the regimen does not
-change — but only by luck of the tiebreak. Vancomycin and nafcillin are both
-`:narrow`, so the spectrum key ties and susceptibility decides it: vancomycin 0.88
-beats nafcillin 0.72. A steward would want nafcillin for MSSA and would keep
-vancomycin back. Linezolid, WHO AWaRe **Reserve**, is likewise `:narrow` and would
-win a tie against a broader Access agent. The breadth axis is simply blind to this;
-`knowledge-base.lisp` annotates AWaRe per section but nothing encodes it.
+**3. Breadth cannot see reserve status — and this one actually fires.** Reported
+first as a latent risk; the measured runs show it changing answers.
 
-The genuine win is the last row: **metronidazole + vancomycin** instead of a
-carbapenem for the anaerobe/gram-positive pair, which is exactly the de-escalation
-the objective was wanted for.
+- **enterococcus: ampicillin → linezolid.** Ampicillin is WHO AWaRe **Access** and
+  `:moderate`; linezolid is AWaRe **Reserve** and `:narrow`. Linezolid genuinely *is*
+  the narrower agent, so the objective is working correctly and the outcome is still
+  backwards: narrowing spectrum and escalating reserve status are different things,
+  and optimising the first can worsen the second.
+- **S. pneumoniae: meropenem → vancomycin.** Narrower, and not what a steward wants
+  reached for first.
+- **S. aureus alone** does not change, but only by luck: vancomycin and nafcillin are
+  both `:narrow`, so breadth ties and susceptibility decides (0.88 vs 0.72). The
+  reserved agent wins a tie it should lose.
 
-**Open, for decision before slice 4** — three ways to take this:
+`knowledge-base.lisp` annotates AWaRe per section; nothing encodes it, and this tier
+must not be read as though it did.
+
+**Reserve-blindness is not exclusive to `:spectrum-sparing`** — found by driving the
+enterococcus case end to end through the bridge rather than the solver alone. The
+engine does not produce enterococcus in isolation: the bile-esculin/salt-tolerance
+rule fires alongside the gram-positive-cocci-in-chains rule, so working memory
+carries **both** `streptococcus` 0.7 and `enterococcus` 0.8, and the regimen must
+cover both. Linezolid and ampicillin each cover the pair; linezolid wins on
+susceptibility (1.094 vs 1.038) — so **`:lexicographic` also reaches for the Reserve
+agent**, and `:spectrum-sparing` merely agrees with it for a different reason.
+Ampicillin appears in `alternative_regimens`, which is exactly the case for having
+that field.
+
+The lesson generalises: a solver-level golden can isolate an objective, but only an
+engine-driven run shows which conclusion sets the rulebase actually produces. The
+single-organism rows above are legitimate solver tests and several of them are not
+reachable through the corpus as it stands.
+
+The genuine wins are **salmonella → ciprofloxacin**, **culture-1 and pseudomonas →
+ceftazidime**, and **three organisms → ceftazidime + vancomycin** — real
+de-escalations off a carbapenem, which is what the objective was wanted for. Note
+that the anaerobe pair is *not* among them: `:lexicographic` already picks
+metronidazole + vancomycin there, because the narrow agents happen to carry the best
+susceptibility figures. The objective gets no credit for an answer the default
+already gives.
+
+**DECIDED (David, 2026-08-13): (a) — ship it as measured.** Slice 4 implements
+`:spectrum-sparing` exactly as tabled above, gentamicin and linezolid included, with
+the narration required to state the trade. The three options considered:
 - **(a) Ship it as measured.** `:spectrum-sparing` means what it says, gentamicin
   included, and the narration states the trade. Honest, and arguably the most useful
   demonstration: the objective is a *dial*, and this is what turning it does.
@@ -379,10 +426,8 @@ follow-on slice, not this one.
 
 ## 6. Slice plan
 
-**Status: slices 1, 2 and 3 are DONE (2026-08-13).** Suite 860/154 → 1053/174.
-Slice 4 is next, and is **blocked on the §3.6 decision** — the authored tiers turn
-out to imply things §3.2 did not anticipate, and the objective's shape depends on
-which of (a)/(b)/(c) is chosen.
+**Status: slices 1–5 are DONE (2026-08-13).** Suite 860/154 → 1074/182. Only slice 6
+(docs) remains. §3.6 was decided (a): ship the objective as measured.
 
 1. **Extract shared phase A** from greedy; suite green, no behaviour change.
 2. **Exact solver, `:lexicographic`** + registration + goldens + the equivalence
@@ -394,7 +439,7 @@ which of (a)/(b)/(c) is chosen.
    illustrative caveat. *Authored data only — deliberately not exposed on the bridge
    or mentioned in the prompt, since nothing consumes it and describing an axis the
    solver does not use is the §1.1 failure in advance.*
-4. **`:spectrum-sparing` objective** + divergence goldens. **Blocked on §3.6.**
+4. **`:spectrum-sparing` objective** + divergence goldens, per §3.6 decision (a).
 5. **Bridge/tool/prompt surface**: `solver` enum, `objective` parameter, narration
    guidance for stating the trade — *"narrower agent, lower coverage floor."*
 6. Docs: scenario contrasting the two objectives on one case; runbook note.

@@ -33,9 +33,10 @@
 ;; WHY EXACT, given greedy's answers here are already minimum-cardinality: not
 ;; optimality. It is to make the objective an explicit, named, comparable thing --
 ;; the same move this fork already made for the belief algebra (CF vs DS) and the
-;; coverage gate (belief / plausibility / midpoint). :lexicographic is today's
-;; behaviour promoted from an implementation detail to a declared policy; a
-;; spectrum-sparing objective is designed and NOT implemented here.
+;; coverage gate (belief / plausibility / midpoint). Two objectives are implemented,
+;; selected by *OBJECTIVE*: :lexicographic (the default, greedy's policy declared
+;; rather than incidental) and :spectrum-sparing (narrowest-first). Cardinality is
+;; primary under both -- the dial only decides how ties on drug count break.
 ;;
 ;; NO DOMINANCE PRUNING, deliberately, though the design sketch lists it. Pruning
 ;; drops a drug whose coverage is a subset of another's -- which is exactly a drug
@@ -153,14 +154,45 @@
                   when orgs collect (cons d (nreverse orgs)))
             total)))
 
-(defun lexicographic-better-p (a b)
-  "Compare two scored subsets, each (SUBSET . WEIGHT). Higher weight wins; an exact
-   tie is broken by drug-name order, which is total, so the winner is DETERMINISTIC."
+(defun subset-name-key (subset)
+  "A total, stable string key for SUBSET -- the last tiebreak under every objective,
+   so no comparison can ever fall through to an arbitrary order."
+  (format nil "~{~A~^,~}" (mapcar #'symbol-name subset)))
+
+(defun regimen-breadth (kb subset)
+  "Summed declared spectrum rank over SUBSET -- lower is narrower.
+
+   A drug with NO authored tier counts as one step BROADER than :very-broad. Ranking
+   it narrowest would let unauthored data win the objective outright, which is the
+   failure mode where a gap in the KB reads as a clinical virtue. Under-known is
+   treated as unfavoured, never as preferred."
+  (let ((unknown (length *spectrum-tiers*)))
+    (loop for d in subset
+          sum (or (spectrum-rank (kb-drug-spectrum kb d)) unknown))))
+
+(defun objective-better-p (kb a b)
+  "Compare two scored subsets under the active *OBJECTIVE*. Each argument is
+   (SUBSET . WEIGHT), WEIGHT being summed susceptibility x identification belief.
+
+   Cardinality is not compared here: both candidates are already minimum-size, which
+   is what makes this a TIEBREAK dial rather than a different search. Every branch
+   ends at SUBSET-NAME-KEY, so every objective is deterministic."
   (let ((wa (cdr a)) (wb (cdr b)))
-    (cond ((> wa wb) t)
-          ((< wa wb) nil)
-          (t (string< (format nil "~{~A~^,~}" (mapcar #'symbol-name (car a)))
-                      (format nil "~{~A~^,~}" (mapcar #'symbol-name (car b))))))))
+    (ecase *objective*
+      (:lexicographic
+       (cond ((> wa wb) t)
+             ((< wa wb) nil)
+             (t (string< (subset-name-key (car a)) (subset-name-key (car b))))))
+      (:spectrum-sparing
+       (let ((ba (regimen-breadth kb (car a)))
+             (bb (regimen-breadth kb (car b))))
+         (cond ((< ba bb) t)
+               ((> ba bb) nil)
+               ;; Equal breadth -- fall back to the lexicographic key, so the two
+               ;; objectives agree wherever spectrum has nothing to say.
+               ((> wa wb) t)
+               ((< wa wb) nil)
+               (t (string< (subset-name-key (car a)) (subset-name-key (car b))))))))))
 
 ;;; ============================================================
 ;;; The solver
@@ -205,7 +237,7 @@
                                        (assign-organisms kb s universe #'belief-of)
                                      (list s assignment total))))
              (ranked (sort (mapcar #'(lambda (e) (cons (first e) (third e))) scored)
-                           #'lexicographic-better-p))
+                           #'(lambda (a b) (objective-better-p kb a b))))
              (winner (car (first ranked)))
              (winning-assignment (second (find winner scored :key #'first :test #'equal))))
         (make-recommendation

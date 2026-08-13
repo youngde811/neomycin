@@ -109,11 +109,17 @@
 ;; reading only :spectrum would happily reach for a Reserve agent. That is a real
 ;; limitation of the axis, recorded here rather than discovered later.
 ;;
-;; NOTHING READS THIS YET. No solver consults :spectrum; the objective that will
-;; (:spectrum-sparing) is designed in exact-solver-design.md 3.2 and unimplemented.
-;; See 3.6 there for what these particular tiers imply for that objective -- the
-;; naive reading of them prefers aminoglycoside or fluoroquinolone monotherapy for
-;; gram-negative bacteraemia, which is narrow and not therefore better.
+;; CONSUMED BY *OBJECTIVE* :SPECTRUM-SPARING, and by nothing else. That objective is
+;; OPT-IN: the default (:lexicographic) ignores these tiers entirely.
+;;
+;; What they do when turned on is tabled in exact-solver-design.md 3.6, and two rows
+;; are worth knowing before authoring against them. The tiers prefer GENTAMICIN
+;; monotherapy for gram-negative bacteraemia -- narrower, and not therefore better.
+;; And because breadth is blind to reserve status, they move enterococcus from
+;; ampicillin (WHO AWaRe Access) to linezolid (AWaRe RESERVE): narrowing spectrum
+;; can escalate reserve status, and this axis cannot see it happening. Both were
+;; shipped as measured rather than patched, so the dial's failure modes stay
+;; visible; the narration is required to state the trade.
 ;;
 ;; Vocabulary is KEYWORDS end to end. Organism keywords match the engine's
 ;; keyword organism-identity values exactly (same global objects, no conversion),

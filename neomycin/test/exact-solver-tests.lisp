@@ -293,6 +293,174 @@
                   solver)))))
 
 ;;; ------------------------------------------------------------------
+;;; 2b. The :spectrum-sparing objective (slice 4, design doc 3.5 / 3.6)
+;;;
+;;; These goldens pin a DIVERGENCE, so nobody can quietly "improve" the objective
+;;; back to carbapenem-first -- and, equally, so nobody quietly patches away the
+;;; awkward answer it gives. Both were shipped knowingly (3.6, option (a)).
+;;; ------------------------------------------------------------------
+
+(defmacro with-objective ((objective) &body body)
+  `(let ((therapy:*objective* ,objective)) ,@body))
+
+(deftest spectrum-sparing-default-is-lexicographic ()
+  ;; The dial must default to today's behaviour: turning it on is opt-in, exactly
+  ;; like the coverage gate and the belief system.
+  (is (eq :lexicographic therapy:*objective*) "the objective defaults to :lexicographic"))
+
+(deftest spectrum-sparing-diverges-klebsiella-to-gentamicin ()
+  ;; design doc 3.6, finding 1 + 2. THE awkward golden. Klebsiella alone moves from
+  ;; meropenem to GENTAMICIN -- not to ceftriaxone, which 3.2 assumed before the
+  ;; tiers were authored: ceftriaxone is :broad and gentamicin :moderate, so the
+  ;; objective walks past the cephalosporin entirely.
+  ;;
+  ;; The coverage-confidence cost is asserted alongside, because that is the trade
+  ;; the narration is required to state: a narrower agent with a LOWER floor.
+  (belief:use-system :dempster-shafer)
+  (let ((conclusions '((:klebsiella . 0.40))))
+    (with-objective (:lexicographic)
+      (is (equal '(:meropenem)
+                 (regimen-drugs (solve-with :exact conclusions (therapy:therapy-kb))))
+          ":lexicographic returns the carbapenem"))
+    (with-objective (:spectrum-sparing)
+      (let* ((rec (solve-with :exact conclusions (therapy:therapy-kb)))
+             (susc (therapy:susceptibility-item-value
+                    (first (therapy:regimen-item-susceptibility
+                            (first (therapy:recommendation-regimen rec)))))))
+        (is (equal '(:gentamicin) (regimen-drugs rec))
+            ":spectrum-sparing returns gentamicin, NOT ceftriaxone (3.6 finding 1)")
+        (is (approx= 0.64 (belief:ds-belief-bel susc))
+            "at a coverage floor of 0.64 -- against meropenem's 0.90")
+        (is (< (belief:ds-belief-bel susc) 0.90)
+            "narrowing costs coverage confidence, and the payload shows it")))))
+
+(deftest spectrum-sparing-de-escalates-salmonella-and-culture-1 ()
+  ;; design doc 3.6, the cases where the objective clearly earns its keep: both
+  ;; move off the carbapenem to an agent a clinician would recognise as reasonable.
+  (belief:use-system :dempster-shafer)
+  (with-objective (:lexicographic)
+    (is (equal '(:meropenem) (regimen-drugs (solve-with :exact '((:salmonella . 0.65))
+                                                        (therapy:therapy-kb))))
+        "salmonella: :lexicographic reaches for the carbapenem"))
+  (with-objective (:spectrum-sparing)
+    (is (equal '(:ciprofloxacin) (regimen-drugs (solve-with :exact '((:salmonella . 0.65))
+                                                            (therapy:therapy-kb))))
+        "salmonella: de-escalates to ciprofloxacin")
+    (is (equal '(:ceftazidime)
+               (regimen-drugs (solve-with :exact '((:pseudomonas . 0.76) (:klebsiella . 0.40))
+                                          (therapy:therapy-kb))))
+        "culture-1: de-escalates to ceftazidime, as 3.2 predicted")))
+
+(deftest spectrum-sparing-agrees-where-narrow-already-won ()
+  ;; bacteroides + S. aureus does NOT diverge: :lexicographic ALREADY returns
+  ;; metronidazole + vancomycin, because the narrow agents happen to carry the best
+  ;; susceptibility figures for their organisms. Pinned deliberately -- an earlier
+  ;; draft of design doc 3.6 claimed this pair as a spectrum-sparing win, which was
+  ;; an artifact of a buggy simulation rather than a real divergence. The objective
+  ;; does not deserve credit for an answer the default already gives.
+  (belief:use-system :dempster-shafer)
+  (let ((conclusions '((:bacteroides . 0.55) (:staphylococcus-aureus . 0.60))))
+    (flet ((run (obj) (with-objective (obj)
+                        (sort (copy-list (regimen-drugs
+                                          (solve-with :exact conclusions
+                                                      (therapy:therapy-kb))))
+                              #'string< :key #'symbol-name))))
+      (is (equal '(:metronidazole :vancomycin) (run :lexicographic))
+          ":lexicographic already picks the narrow pair here")
+      (is (equal (run :lexicographic) (run :spectrum-sparing))
+          "so the objectives agree -- no divergence to claim"))))
+
+(deftest spectrum-sparing-keeps-cardinality-primary ()
+  ;; design doc 7's open question, answered "no for now": the objective may NOT buy
+  ;; narrowness with an extra drug. Two narrow agents must lose to one broad one.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :one-broad :dose "1g" :spectrum :very-broad)
+    (therapy:add-drug kb :narrow-a :dose "1g" :spectrum :very-narrow)
+    (therapy:add-drug kb :narrow-b :dose "1g" :spectrum :very-narrow)
+    (therapy:add-sensitivity kb :bug-1 :one-broad 0.8)
+    (therapy:add-sensitivity kb :bug-2 :one-broad 0.8)
+    (therapy:add-sensitivity kb :bug-1 :narrow-a 0.9)
+    (therapy:add-sensitivity kb :bug-2 :narrow-b 0.9)
+    (with-objective (:spectrum-sparing)
+      (is (equal '(:one-broad)
+                 (regimen-drugs (solve-with :exact '((:bug-1 . 0.7) (:bug-2 . 0.7)) kb)))
+          "one very-broad drug still beats two very-narrow ones -- count stays primary"))))
+
+(deftest spectrum-sparing-unauthored-tier-is-not-preferred ()
+  ;; A drug with no authored tier must not win on breadth. Ranking the unknown as
+  ;; narrowest would make a GAP IN THE KB read as a clinical virtue.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :untiered :dose "1g")                      ; no :spectrum
+    (therapy:add-drug kb :known-broad :dose "1g" :spectrum :broad)
+    (therapy:add-sensitivity kb :bug :untiered 0.9)
+    (therapy:add-sensitivity kb :bug :known-broad 0.8)
+    (with-objective (:spectrum-sparing)
+      (is (equal '(:known-broad) (regimen-drugs (solve-with :exact '((:bug . 0.7)) kb)))
+          "an authored :broad beats an unauthored tier, despite lower susceptibility"))))
+
+(deftest spectrum-sparing-agrees-where-spectrum-is-silent ()
+  ;; When every candidate shares a tier, the objective must fall through to the
+  ;; lexicographic key -- the two dials should differ only where breadth differs.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :a-drug :dose "1g" :spectrum :moderate)
+    (therapy:add-drug kb :b-drug :dose "1g" :spectrum :moderate)
+    (therapy:add-sensitivity kb :bug :a-drug 0.7)
+    (therapy:add-sensitivity kb :bug :b-drug 0.9)
+    (let ((lex (with-objective (:lexicographic)
+                 (regimen-drugs (solve-with :exact '((:bug . 0.7)) kb))))
+          (spare (with-objective (:spectrum-sparing)
+                   (regimen-drugs (solve-with :exact '((:bug . 0.7)) kb)))))
+      (is (equal '(:b-drug) lex) "lexicographic takes the stronger agent")
+      (is (equal lex spare) "equal breadth -> the objectives agree"))))
+
+(deftest spectrum-sparing-cannot-see-reserve-status ()
+  ;; design doc 3.6, finding 3 -- pinned as a KNOWN LIMITATION, not an aspiration.
+  ;;
+  ;; This does not merely lurk; it FIRES. For enterococcus the objective moves off
+  ;; ampicillin (WHO AWaRe *Access*, :moderate) onto linezolid (AWaRe *Reserve*,
+  ;; :narrow), because linezolid is genuinely the narrower agent and breadth is the
+  ;; only axis the objective can see. Narrowing spectrum and escalating reserve
+  ;; status are different things, and optimising the first can worsen the second.
+  ;;
+  ;; Shipped as measured (3.6, option (a)) rather than patched: the honest
+  ;; demonstration of a policy dial includes what it gets wrong.
+  (belief:use-system :dempster-shafer)
+  (with-objective (:lexicographic)
+    (is (equal '(:ampicillin) (regimen-drugs (solve-with :exact '((:enterococcus . 0.60))
+                                                         (therapy:therapy-kb))))
+        "enterococcus: the default picks ampicillin (AWaRe Access)"))
+  (with-objective (:spectrum-sparing)
+    (is (equal '(:linezolid) (regimen-drugs (solve-with :exact '((:enterococcus . 0.60))
+                                                        (therapy:therapy-kb))))
+        "enterococcus: spectrum-sparing escalates to linezolid (AWaRe Reserve)"))
+  (let ((kb (therapy:therapy-kb)))
+    (is (< (therapy:spectrum-rank (therapy:kb-drug-spectrum kb :linezolid))
+           (therapy:spectrum-rank (therapy:kb-drug-spectrum kb :ampicillin)))
+        "and it is not a bug in the search: linezolid really is the narrower agent")
+    (is (eq (therapy:kb-drug-spectrum kb :nafcillin)
+            (therapy:kb-drug-spectrum kb :vancomycin))
+        "the axis likewise cannot separate nafcillin from vancomycin"))
+  ;; And the blindness is not the objective's alone. The engine never produces
+  ;; enterococcus in isolation -- the bile-esculin rule fires alongside the
+  ;; gram-positive-cocci-in-chains rule, so a real case carries streptococcus 0.7 AND
+  ;; enterococcus 0.8. Both linezolid and ampicillin cover that pair, and linezolid
+  ;; wins on susceptibility, so :LEXICOGRAPHIC reaches for the Reserve agent too
+  ;; (design doc 3.6). Pinned here so the limitation is not filed under
+  ;; "spectrum-sparing's fault".
+  (let ((pair '((:streptococcus . 0.7) (:enterococcus . 0.8))))
+    (dolist (obj '(:lexicographic :spectrum-sparing))
+      (with-objective (obj)
+        (is (equal '(:linezolid) (regimen-drugs (solve-with :exact pair
+                                                            (therapy:therapy-kb))))
+            (format nil "~A picks linezolid for the streptococcus/enterococcus pair"
+                    obj))))
+    (with-objective (:lexicographic)
+      (is (member '(:ampicillin)
+                  (alt-regimen-drugsets (solve-with :exact pair (therapy:therapy-kb)))
+                  :test #'equal)
+          "and ampicillin, the Access agent, is reported as an equally minimal option"))))
+
+;;; ------------------------------------------------------------------
 ;;; 3. The equivalence property (design doc 5)
 ;;; ------------------------------------------------------------------
 

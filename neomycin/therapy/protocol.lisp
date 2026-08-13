@@ -123,6 +123,35 @@
    divergence is legible precisely because the interval is explicit -- a question
    the certainty-factor world cannot even pose.")
 
+(defvar *objective* :lexicographic
+  "Which objective the exact solver optimises among minimum-size regimens -- the
+   THIRD policy dial, alongside BELIEF:*BELIEF-SYSTEM* and *SUSCEPTIBILITY-GATE*
+   (exact-solver-design.md 3.5). Cardinality is primary under both settings; this
+   chooses only how ties on drug count are broken.
+
+     :lexicographic    -- DEFAULT. Maximise summed susceptibility x identification
+                          belief, then drug name. This is the greedy solver's
+                          policy, promoted from an implementation detail to a
+                          declared one. It is NOT stewardship: it has no notion of
+                          spectrum, and because breadth correlates with
+                          susceptibility by construction it tends to pick the
+                          broadest agent available (1, 1.1).
+     :spectrum-sparing -- Minimise summed declared spectrum breadth, then fall back
+                          to the above. Implements the narrow-spectrum preference
+                          the project had claimed but never built.
+
+   Turning this dial CHANGES THE RECOMMENDATION, and sometimes toward a drug a
+   clinician would reject: with the canonical tiers it prefers gentamicin
+   monotherapy for gram-negative bacteraemia, which is narrower and not better
+   (measured in 3.6). That was shipped knowingly rather than patched -- a dial that
+   visibly does the wrong thing for a stateable reason is more honest than one
+   quietly constrained until it looks sensible. The narration MUST state the trade;
+   it must never present a spectrum-sparing regimen as simply better.
+
+   Spectrum breadth is also blind to RESERVE status: vancomycin and linezolid are
+   narrow-spectrum and are exactly the agents a steward holds back. Do not read a
+   low summed breadth as low stewardship cost.")
+
 ;;; ============================================================
 ;;; Solver base class + protocol generic function
 ;;; ============================================================
