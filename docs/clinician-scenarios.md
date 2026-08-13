@@ -746,6 +746,80 @@ Sample transcript: `neomycin/clinician-samples/strep-hemolysis-conflict-rule-cat
 
 ---
 
+## Scenario 15 — The same case under two stewardship objectives
+
+*The therapy solver's **objective** is a policy dial, like the belief system and the
+coverage gate. This scenario turns it and watches one case give two defensible
+answers. It is also the case from `exact-solver-design.md` §1.1 — the one where a
+clinician asked for a narrower agent and was told, falsely, that none existed. Worth
+running for that reason alone: it is the bug, the fix, and the dial, on one culture.*
+
+> "Aerobic gram-negative rods in the blood. Biochemicals are back — lactose
+> fermenter, indole positive. No host risk factors, no allergies."
+
+**Facts to extract**: `culture-site=blood`, `gram=neg`, `morphology=rod`,
+`aerobicity=aerobic`, `lactose=fermenter`, `indole=positive`.
+
+**Identification**: **E. coli, bel 0.64, pl 1.0, ignorance 0.36** — chained through
+the derived enterobacteriaceae class (0.8 × the 0.8 species rule). One rule fires;
+nothing argues against it, so plausibility stays at the ceiling.
+
+**Therapy, default objective** (`recommend_therapy`, no `objective` passed):
+
+| | drug | dose | `bel` | `pl` | ignorance |
+|---|---|---|---|---|---|
+| regimen | **meropenem** | 1 g IV q8h | 0.90 | 0.99 | 0.09 |
+
+`alternative_agents`: ceftazidime (0.66), ceftriaxone (0.72), ciprofloxacin (0.62),
+gentamicin (0.64), piperacillin-tazobactam (0.70).
+
+**Therapy, spectrum-sparing** (`objective: "spectrum-sparing"`):
+
+| | drug | dose | `bel` | `pl` | ignorance |
+|---|---|---|---|---|---|
+| regimen | **gentamicin** | 5-7 mg/kg IV q24h | 0.64 | 0.90 | 0.26 |
+
+`alternative_agents` now lists **meropenem (0.90)** in gentamicin's place.
+
+**What the contrast teaches.** Three things, in rising order of interest:
+
+1. **The trade is quantified, not asserted.** Narrowing costs coverage floor —
+   0.90 → 0.64 — *and* certainty: ignorance widens 0.09 → 0.26. The narrower agent is
+   not merely less covering, it is less *known*. Both numbers are in the payload, so
+   the clinician weighs the trade rather than taking the solver's word for it.
+
+2. **The alternatives list is symmetric.** Whichever objective runs, the other
+   objective's answer appears in `alternative_agents`. Neither regimen can imply it
+   was the only option — which is exactly the failure §1.1 records.
+
+3. **The ordering of `alternative_regimens` is itself the objective.** Under the
+   default it runs ceftriaxone → pip-tazo → ceftazidime → gentamicin → ciprofloxacin,
+   strongest coverage first. Under spectrum-sparing it runs ciprofloxacin →
+   ceftriaxone → ceftazidime → meropenem → pip-tazo, narrowest first. Same five drugs,
+   reordered by the policy in force. Ask Claude *"why is meropenem last now?"* — the
+   answer is the dial, and it is visible in the data rather than in prose.
+
+**What Claude must not do**: present the spectrum-sparing regimen as simply better.
+It is narrower *and* less certain, and on other cases it is worse in a second way —
+see the enterococcus note below. The prompt requires the trade stated in both
+directions.
+
+**The dial's known failure, worth demonstrating deliberately.** Spectrum breadth is
+blind to the WHO AWaRe Access/Watch/Reserve axis, which the KB annotates but does not
+encode. On an enterococcus case the objective moves from **ampicillin** (AWaRe
+*Access*) to **linezolid** (AWaRe *Reserve*) — genuinely narrower, and backwards as
+stewardship. That is shipped as measured rather than patched, because a dial that
+visibly does the wrong thing for a stateable reason teaches more than one quietly
+constrained until it looks sensible. Full table and reasoning:
+`docs/exact-solver-design.md` §3.6.
+
+> **⚠️ NOT FOR CLINICAL USE.** Gentamicin monotherapy for gram-negative bacteraemia
+> is a schematic solver's output, not a therapeutic proposal. The objective optimises
+> a declared breadth tier over an illustrative KB; it does not know what this drug
+> does to a kidney, or that aminoglycoside monotherapy is not how this is treated.
+
+---
+
 ## Notes for Investigators
 
 - Scenarios that fire **only one rule per organism** don't exercise belief
