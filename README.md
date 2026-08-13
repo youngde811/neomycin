@@ -408,18 +408,43 @@ responsibilities.
 
 Treatment selection is posed as a **covering problem**. Every organism whose
 belief clears a threshold must be covered by at least one drug the patient can
-actually take. Prescribing fewer drugs is better, because unnecessary
-broad-spectrum use drives resistance — so the objective is the smallest set of
-drugs that covers everything.
+actually take, and the regimen should use as few drugs as possible.
 
-This is a classic set-cover problem, and finding the true optimum is
-computationally hard in general. Neomycin uses a **greedy solver**: repeatedly
-take the drug that covers the most still-uncovered organisms, with ties broken
-deterministically so that the same case always yields the same regimen. Drugs
-the patient cannot take are excluded up front, with the reason recorded. Any
-organism no available drug can cover is reported as uncovered rather than
-quietly dropped. The solver sits behind a small protocol, so an exact solver can
-later be added as a correctness check on the greedy one.
+This is a classic set-cover problem. Finding the true optimum is computationally
+hard in general, but not at this scale — eleven drugs and a handful of organisms —
+so Neomycin searches **exhaustively**: it finds every smallest regimen that covers
+the case, then picks among them by a stated rule. Drugs the patient cannot take are
+excluded up front, with the reason recorded. Any organism no available drug can
+cover is reported as uncovered rather than quietly dropped. A greedy solver is kept
+alongside, and the test suite checks the two agree.
+
+**Fewest drugs is not the same as narrowest drugs**, and the difference turned out to
+matter more than we expected. Using fewer drugs is good; reaching for a
+broad-spectrum agent when a narrow one would do is the thing that drives resistance.
+Those are separate goals, and an early version of this system conflated them: its
+code claimed to practise antimicrobial stewardship while actually optimising drug
+count alone. Because the broadest agents also carry the best coverage numbers, that
+objective reached for a last-line carbapenem almost every time — and, in a recorded
+session, told a clinician who asked for something narrower that no narrower option
+existed. Five did.
+
+So the choice is now a **dial you can turn**, alongside the ones for the belief
+system and for how much certainty to demand. One setting reproduces the original
+behaviour, honestly labelled. The other prefers narrow-spectrum agents. The same case
+under both settings gives two defensible answers, and the system reports what each
+one gave up: the narrower agent usually has a lower, and less certain, chance of
+working.
+
+The dial is also allowed to be visibly wrong. On one case the narrow-spectrum setting
+picks a *reserve* antibiotic — the kind held back precisely so it keeps working —
+because it can see how broad a drug is but not how precious. That could have been
+quietly patched. It wasn't, because a research instrument that shows you where its
+reasoning runs out is worth more than one tidied until it looks authoritative.
+
+Every regimen also lists **what it did not choose**: the other drugs that would have
+covered the case, and the other equally small regimens that lost on the tiebreak. A
+recommendation that shows only its winner invites the reader to assume there was no
+alternative, which is how the false answer above came to be given in the first place.
 
 Susceptibilities — how well a given drug works against a given organism — are
 themselves belief-valued, not booleans, and they can be refined by a **site-local
