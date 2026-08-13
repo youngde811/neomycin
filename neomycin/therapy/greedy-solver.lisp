@@ -22,175 +22,97 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-;; Description: The greedy weighted set-cover therapy solver (design doc 4.3).
+;; Description: The greedy weighted set-cover therapy solver (design doc 4.3) --
+;; phase B only. Phase A (the belief gate, the contraindication filter, and the
+;; scalar reductions both gates read) is solver-independent and lives in
+;; solver-common.lisp; see that file's header for why the boundary sits there.
 ;;
-;; Phase A (belief gate): an organism is an "item to treat" iff its reduced
-;; identification belief >= *coverage-threshold*.
-;; Phase B (set cover): drop contraindicated drugs; then repeatedly pick the drug
-;; covering the most still-uncovered items, ties broken by summed susceptibility x
-;; belief, then by drug name -- a total order, so the result is DETERMINISTIC.
+;; Phase B (set cover): repeatedly pick the drug covering the most still-uncovered
+;; items, ties broken by summed susceptibility x belief, then by drug name -- a
+;; total order, so the result is DETERMINISTIC.
 ;;
-;; Objective: fewest drugs (minimality = stewardship). Interactions are NOT handled
-;; in this increment (design doc 4.3 step 4 is a later, separately-tested addition).
-;; If some item cannot be covered by any candidate drug, it is reported in the
-;; recommendation's UNCOVERED list rather than silently dropped.
+;; Objective: minimum drug COUNT, and nothing beyond it. This is NOT narrow-spectrum
+;; stewardship and must not be described as such. At this KB scale (11 drugs, 1-4
+;; items after the gate) cardinality ties almost immediately, so the tiebreak above --
+;; summed susceptibility x identification belief -- is what actually decides, and
+;; breadth correlates with susceptibility by construction: the agents we reserve are
+;; the ones carrying the best coverage numbers. The effect is carbapenem-first,
+;; including for a single organism already resolved from a family down to a species.
+;; See exact-solver-design.md 1, and 1.1 for that behaviour reaching a clinician.
+;;
+;; This solver has NO notion of spectrum. A declared, selectable objective -- one
+;; option being spectrum-sparing -- is designed in exact-solver-design.md and is NOT
+;; implemented here.
+;;
+;; Interactions are NOT handled in this increment (design doc 4.3 step 4 is a later,
+;; separately-tested addition). If some item cannot be covered by any candidate drug,
+;; it is reported in the recommendation's UNCOVERED list rather than silently dropped.
 
 (in-package :neomycin-therapy)
-
-(defun scalar-of (val)
-  "Reduce an IDENTIFICATION belief to a scalar for the coverage gate and weighting.
-   NIL -> 0.0; a real number is itself (a CF belief); a structured belief (e.g. a
-   DS interval) is reduced through the ACTIVE belief system via BELIEF:BELIEF->NUMBER
-   -- correct here precisely because identification belief IS scored by that algebra.
-
-   For SUSCEPTIBILITY, whose uncertainty is orthogonal to the diagnostic algebra,
-   use SUSCEPTIBILITY->SCALAR instead -- routing a susceptibility through this
-   function errors under CF (see that function's docstring)."
-  (cond ((null val) 0.0)
-        ((realp val) val)
-        (t (belief:belief->number belief:*belief-system* val))))
-
-(defun susceptibility->scalar (susceptibility)
-  "Reduce a (possibly belief-valued) SUSCEPTIBILITY to a scalar for coverage
-   thresholding and weighting.
-
-   Unlike SCALAR-OF, this does NOT route through BELIEF:*BELIEF-SYSTEM*. A drug's
-   susceptibility against an organism is a fact about the antibiogram data, not
-   about the diagnostic algebra that scored identification -- so its reduction must
-   be the same no matter which algebra (CF or DS) is active. Routing it through the
-   active system would ERROR under CF, whose BELIEF->NUMBER has no method for a
-   ds-belief struct; that break is exactly why this reduction is decoupled
-   (susceptibility-belief-design.md 4, decision C).
-
-     NIL         -> 0.0  (no susceptibility recorded -- does not cover)
-     a real      -> itself (a raw scalar, or an equivalent CF-scored susceptibility)
-     a ds-belief -> the interval point chosen by *susceptibility-gate*: `bel`
-                    (conservative default), `pl` (optimistic), or the midpoint.
-                    A scalar has no ignorance, so every gate agrees on it.
-
-   The gate is a stewardship policy dial (see *susceptibility-gate*); the reduction
-   stays decoupled from the identification algebra regardless of gate.
-
-   Any other value is a KB authoring error and is signalled as one."
-  (cond ((null susceptibility) 0.0)
-        ((realp susceptibility) susceptibility)
-        ((belief:ds-belief-p susceptibility)
-         (ecase *susceptibility-gate*
-           (:belief (belief:ds-belief-bel susceptibility))
-           (:plausibility (belief:ds-belief-pl susceptibility))
-           (:midpoint (belief:ds-midpoint susceptibility))))
-        (t (error "Unreducible susceptibility ~S: expected NIL, a real, or a ~
-                   BELIEF:DS-BELIEF interval." susceptibility))))
-
-(defun patient-contraindicates-p (kb drug patient)
-  "True iff any of PATIENT's state tokens triggers a contraindication for DRUG.
-   PATIENT is a list of state tokens (e.g. (:allergy-cephalosporin :renal-impaired))."
-  (and (intersection (kb-contraindication-triggers kb drug) patient) t))
-
-(defun drug-covers (kb drug organisms)
-  "The subset of ORGANISMS that DRUG covers: reduced susceptibility >=
-   *susceptibility-threshold*."
-  (remove-if-not
-   #'(lambda (org)
-       (>= (susceptibility->scalar (kb-susceptibility kb drug org)) *susceptibility-threshold*))
-   organisms))
-
-(defun coverage-weight (kb drug covered belief-of)
-  "Tie-break score for DRUG: sum over COVERED organisms of susceptibility x the
-   organism's identification belief. BELIEF-OF maps an organism to its reduced belief."
-  (loop for org in covered
-        sum (* (susceptibility->scalar (kb-susceptibility kb drug org))
-               (funcall belief-of org))))
-
-(defun susceptibility-item-for (kb drug organism)
-  "Build a SUSCEPTIBILITY-ITEM for ORGANISM under DRUG: the (overlaid) susceptibility
-   plus its antibiogram provenance -- the local sample size and whether a local count
-   contributed (design doc 6). No local count => reference-only (n-tested NIL)."
-  (let ((counts (kb-antibiogram kb organism drug)))
-    (make-susceptibility-item
-     :organism organism
-     :value (kb-susceptibility kb drug organism)
-     :n-tested (and counts (cdr counts))
-     :source (if counts :local-antibiogram :reference))))
 
 (defclass greedy-solver (solver) ()
   (:documentation "Greedy weighted set-cover therapy solver (design doc 4.3).
    Deterministic: fewest drugs, ties broken by summed susceptibility x belief then
-   drug name. No interaction handling in this increment."))
-
-(defun solve-regimen-phase-a (conclusions kb patient)
-  "Solve regimen Phase A: items to treat (belief gate) + candidate drug filter.
-   Returns (values items excluded candidates uncovered regimen) for Phase B --
-   UNCOVERED starts as the full universe, REGIMEN starts empty."
-  (let* ((items (remove-if-not
-                 #'(lambda (pair)
-                     (>= (scalar-of (cdr pair)) *coverage-threshold*))
-                 conclusions))
-         (universe (mapcar #'car items))
-         ;; Candidate filter -- drop contraindicated drugs, recording exclusions.
-         ;; Name-sort so ties later resolve deterministically to the first name.
-         (all-drugs (sort (kb-drug-ids kb) #'string< :key #'symbol-name))
-         (excluded (loop for d in all-drugs
-                         when (patient-contraindicates-p kb d patient)
-                           collect (make-exclusion :drug d :reason :contraindication)))
-         (candidates (remove-if #'(lambda (d)
-                                    (patient-contraindicates-p kb d patient))
-                                all-drugs)))
-    (values items excluded candidates universe '())))
+   drug name -- and at this KB scale the tiebreak is usually what decides, so read
+   the file header on what that does and does not amount to. No notion of spectrum.
+   No interaction handling in this increment."))
 
 (defun solve-regimen-phase-b (kb conclusions items excluded candidates uncovered regimen)
   "Solve Regimen Phase B: greedy weighted set cover. BELIEF-OF is rebuilt here as
    a local closure over CONCLUSIONS -- it is the only consumer."
-  (flet ((belief-of (org)
-           (scalar-of (cdr (assoc org conclusions)))))
-    (loop
-      (when (null uncovered)
-        (return))
-      (let ((best nil) (best-cov '()) (best-n -1) (best-w -1))
-        (dolist (d candidates)
-          (let* ((cov (drug-covers kb d uncovered))
-                 (n (length cov)))
-            (when (plusp n)
-              (let ((w (coverage-weight kb d cov #'belief-of)))
-                ;; Total order: more covered, then higher weight. Candidates are
-                ;; already name-sorted and we only replace on a STRICT win, so a
-                ;; full (n,w) tie keeps the earliest name -> deterministic.
-                (when (or (> n best-n)
-                          (and (= n best-n) (> w best-w)))
-                  (setf best d best-cov cov best-n n best-w w))))))
-        (when (null best)
-          (return)) ; nothing covers any remaining item
-        (push (make-regimen-item
-               :drug best
-               :dose (kb-dose kb best)
-               :covers best-cov
-               ;; Keep the RAW susceptibility (a scalar or a ds-belief interval),
-               ;; not its reduced scalar, so the serializer can surface the
-               ;; interval's {bel, pl, ignorance} to the clinician (S2), plus its
-               ;; antibiogram provenance (design doc 6). Coverage and weighting above
-               ;; still reduce via susceptibility->scalar.
-               :susceptibility (mapcar #'(lambda (o)
-                                           (susceptibility-item-for kb best o))
-                                       best-cov))
-              regimen)
-        (setf uncovered (set-difference uncovered best-cov))
-        (setf candidates (remove best candidates))))
-    (make-recommendation
-     :regimen (nreverse regimen)
-     :items-to-treat (mapcar #'(lambda (p)
-                                 (make-treat-item :organism (car p) :belief (cdr p)))
-                             items)
-     :excluded excluded
-     ;; name-sort the leftovers for a deterministic report
-     :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name))))
+  ;; The loop rebinds CANDIDATES and UNCOVERED as it consumes them, so capture the
+  ;; originals first: ALTERNATIVE-AGENTS is about what was available at the start,
+  ;; not what survived to the end.
+  (let ((all-candidates candidates)
+        (universe uncovered)
+        (chosen '()))
+    (flet ((belief-of (org)
+             (scalar-of (cdr (assoc org conclusions)))))
+      (loop
+        (when (null uncovered)
+          (return))
+        (let ((best nil) (best-cov '()) (best-n -1) (best-w -1))
+          (dolist (d candidates)
+            (let* ((cov (drug-covers kb d uncovered))
+                   (n (length cov)))
+              (when (plusp n)
+                (let ((w (coverage-weight kb d cov #'belief-of)))
+                  ;; Total order: more covered, then higher weight. Candidates are
+                  ;; already name-sorted and we only replace on a STRICT win, so a
+                  ;; full (n,w) tie keeps the earliest name -> deterministic.
+                  (when (or (> n best-n)
+                            (and (= n best-n) (> w best-w)))
+                    (setf best d best-cov cov best-n n best-w w))))))
+          (when (null best)
+            (return)) ; nothing covers any remaining item
+          (push (regimen-item-for kb best best-cov) regimen)
+          (push best chosen)
+          (setf uncovered (set-difference uncovered best-cov))
+          (setf candidates (remove best candidates))))
+      (make-recommendation
+       :regimen (nreverse regimen)
+       :items-to-treat (mapcar #'(lambda (p)
+                                   (make-treat-item :organism (car p) :belief (cdr p)))
+                               items)
+       :excluded excluded
+       ;; name-sort the leftovers for a deterministic report
+       :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)
+       ;; Greedy CAN report this: it is a KB fact about the gated items, not a
+       ;; by-product of the search. It cannot report ALTERNATIVE-REGIMENS, which
+       ;; needs the enumeration only the exact solver performs -- so that field
+       ;; stays empty here rather than being faked from the drugs greedy happened
+       ;; to pass over.
+       :alternative-agents (alternative-agents-for kb all-candidates universe chosen)))))
 
 (defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
   "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
    patient-state tokens. Returns a RECOMMENDATION."
   (declare (ignore solver))
-  (multiple-value-bind (items excluded candidates uncovered regimen)
+  ;; Phase A is shared (solver-common.lisp); the empty regimen accumulator is
+  ;; greedy's own, so it starts here rather than being handed back by phase A.
+  (multiple-value-bind (items excluded candidates universe)
       (solve-regimen-phase-a conclusions kb patient)
-    (solve-regimen-phase-b kb conclusions items excluded candidates uncovered regimen)))
+    (solve-regimen-phase-b kb conclusions items excluded candidates universe '())))
 
 ;; Register on load so (use-solver :greedy) works out of the box.
 (register-solver :greedy (make-instance 'greedy-solver :name "greedy"))

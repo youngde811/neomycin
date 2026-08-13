@@ -46,7 +46,14 @@ echo "$REC" | python3 -c '
 import sys, json
 r = json.load(sys.stdin)
 assert len(r["regimen"]) >= 1, "expected a non-empty regimen"
-assert len(r["items_to_treat"]) == 3, "expected 3 items to treat (pseudomonas, enterobacteriaceae, klebsiella)"
+# TWO items, not three. The enterobacteriaceae family is a therapy backstop only when
+# NO member species clears the coverage gate; here Klebsiella does, so the species is
+# treated and the family is not listed as well (5317e30, 2026-07-29). This assertion
+# read 3 from when the script was authored on 2026-07-20 until that behaviour changed
+# under it -- the smoke test lives outside asdf:test-system, so nothing caught it.
+treated = sorted(i["organism"] for i in r["items_to_treat"])
+assert treated == ["klebsiella", "pseudomonas"], \
+    "expected pseudomonas + klebsiella (family withheld as backstop), got %r" % (treated,)
 assert len(r["uncovered"]) == 0, "expected nothing uncovered, got %r" % (r["uncovered"],)
 assert "solver" in r and "belief_system" in r, "response should echo solver + belief_system"
 print("  OK: %d-drug regimen, %d items treated, none uncovered" % (len(r["regimen"]), len(r["items_to_treat"])))
@@ -67,6 +74,44 @@ assert all(rx["drug"] != "ceftazidime" for rx in r["regimen"]), "ceftazidime mus
 assert len(r["uncovered"]) == 0, "expected full coverage by an alternative, got %r" % (r["uncovered"],)
 print("  OK: ceftazidime excluded, still fully covered by an alternative")
 ' || fail "contraindication recommendation did not meet expectations"
+
+echo ""
+echo "--- Objective dial: same case, two stewardship policies ---"
+# The objective is a policy dial (exact-solver-design.md 3.5). Both settings must
+# cover the case; spectrum-sparing should reach for a narrower agent, and each
+# response must report the OTHER one's pick under alternative_agents -- the payload
+# property that makes "is there a narrower option?" answerable (1.1).
+LEX=$(curl -sf -X POST "$BASE_URL/recommend-therapy" -d '{"patient":[],"objective":"lexicographic"}')
+SPARE=$(curl -sf -X POST "$BASE_URL/recommend-therapy" -d '{"patient":[],"objective":"spectrum-sparing"}')
+
+python3 -c '
+import sys, json
+lex, spare = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+for label, r in (("lexicographic", lex), ("spectrum-sparing", spare)):
+    assert r["objective"] == label, "response must echo the objective it used"
+    assert len(r["uncovered"]) == 0, "%s left something uncovered: %r" % (label, r["uncovered"])
+    assert "alternative_agents" in r, "%s: payload must carry alternative_agents" % label
+lex_drugs   = sorted(d["drug"] for d in lex["regimen"])
+spare_drugs = sorted(d["drug"] for d in spare["regimen"])
+# Each regimen must appear in the other'"'"'s alternatives, so neither can imply it
+# was the only option.
+lex_alts   = {a["drug"] for a in lex["alternative_agents"]}
+spare_alts = {a["drug"] for a in spare["alternative_agents"]}
+if lex_drugs != spare_drugs:
+    assert set(spare_drugs) & lex_alts, "spectrum-sparing pick absent from default alternatives"
+    assert set(lex_drugs) & spare_alts, "default pick absent from spectrum-sparing alternatives"
+    print("  OK: objectives diverge (%s vs %s), each listed in the other'"'"'s alternatives"
+          % (",".join(lex_drugs), ",".join(spare_drugs)))
+else:
+    print("  OK: objectives agree on %s (no divergence for this case)" % ",".join(lex_drugs))
+' "$LEX" "$SPARE" || fail "objective dial did not meet expectations"
+
+echo ""
+echo "--- Rejecting an unknown objective ---"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/recommend-therapy" \
+       -d '{"objective":"cheapest"}')
+[ "$CODE" = "500" ] || fail "an unknown objective should error, got HTTP $CODE"
+echo "  OK: unknown objective rejected (HTTP $CODE) rather than silently defaulting"
 
 echo ""
 echo "=== Therapy smoke test PASSED ==="

@@ -158,7 +158,7 @@
   },
   {
     "name": "recommend_therapy",
-    "description": "Ask the deterministic therapy solver for an antimicrobial regimen covering the organisms currently identified in working memory. Call this ONLY after inference has produced organism conclusions (run get_conclusions first). The solver — not you — chooses the drugs: it runs a greedy weighted set cover that picks the fewest drugs covering every organism whose identification belief clears the coverage threshold, applies patient contraindications, and reports anything it cannot cover. You NEVER pick, add, or substitute a drug; your job is only to relay the patient's contraindications and narrate the regimen the solver returns, citing coverage, doses, and exclusions. NOT FOR CLINICAL USE — the pharmacology knowledge base is schematic and illustrative.",
+    "description": "Ask the deterministic therapy solver for an antimicrobial regimen covering the organisms currently identified in working memory. Call this ONLY after inference has produced organism conclusions (run get_conclusions first). The solver — not you — chooses the drugs: it computes a minimum set cover, picking the fewest drugs covering every organism whose identification belief clears the coverage threshold, applies patient contraindications, and reports anything it cannot cover. Its objective is drug COUNT only — it has no notion of spectrum, so 'fewest' is not 'narrowest' and must not be narrated as stewardship. The response also carries 'alternative_agents' (other drugs that covered but were not chosen) and 'alternative_regimens' (other equally minimal regimens the tiebreak chose against), which is where questions about narrower options are answered from. You NEVER pick, add, or substitute a drug; your job is only to relay the patient's contraindications and narrate what the solver returns, citing coverage, doses, exclusions, and — when asked — what it passed over. NOT FOR CLINICAL USE — the pharmacology knowledge base is schematic and illustrative.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -182,13 +182,18 @@
         },
         "solver": {
           "type": "string",
-          "description": "Which solver to use. Defaults to 'greedy' (the weighted set-cover solver). Omit unless the clinician explicitly asks for a different solver.",
-          "enum": ["greedy"]
+          "description": "Which solver to use. Defaults to 'exact', which enumerates every minimum-size regimen and so can also report the ones it chose against. 'greedy' is the original approximation, kept selectable for comparison; it returns the same-size regimen but no alternative_regimens. Omit unless the clinician explicitly asks for a different solver.",
+          "enum": ["exact", "greedy"]
         },
         "gate": {
           "type": "string",
           "description": "Coverage-gate policy for belief-valued (interval) susceptibilities — a stewardship dial. 'belief' (default) is conservative: an agent covers only if the LOWER bound of its susceptibility interval clears the threshold. 'plausibility' is optimistic: it covers unless there is evidence against (uses the upper bound). 'midpoint' splits the difference. Omit for the conservative default; pass a different value only if the clinician wants to explore how the regimen changes under optimistic vs conservative stewardship. The response echoes the gate used.",
           "enum": ["belief", "plausibility", "midpoint"]
+        },
+        "objective": {
+          "type": "string",
+          "description": "Which objective breaks ties among equally minimal regimens. Drug COUNT is primary either way; this only chooses the tiebreak. 'lexicographic' (default) maximizes susceptibility × identification belief — today's behavior, which tends to pick the broadest agent because breadth and susceptibility correlate. 'spectrum-sparing' minimizes declared spectrum breadth first, implementing narrow-spectrum preference. Pass 'spectrum-sparing' only when the clinician asks about narrowing or de-escalation, and NEVER present its result as simply better: it buys narrowness with a lower coverage floor, and because breadth is blind to WHO AWaRe reserve status it can escalate a reserved agent (e.g. enterococcus moves from ampicillin, an Access drug, to linezolid, a Reserve drug). Narrate the trade in both directions. The response echoes the objective used.",
+          "enum": ["lexicographic", "spectrum-sparing"]
         }
       },
       "required": []

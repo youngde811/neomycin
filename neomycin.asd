@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.7.0"
+  :version "0.8.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -74,10 +74,16 @@
            ;; reference, and a deployment/demo LOADs its own counts file to overlay
            ;; local data onto the current *therapy-kb*.
            (:file "stub-solver" :depends-on ("protocol"))
-           (:file "greedy-solver" :depends-on ("protocol" "kb"))
+           ;; Shared phase A (belief gate, contraindication filter, the scalar
+           ;; reductions both gates read) -- solver-independent, so every solver
+           ;; gates identically and comparisons between them stay meaningful
+           ;; (exact-solver-design.md §4).
+           (:file "solver-common" :depends-on ("protocol" "kb"))
+           (:file "greedy-solver" :depends-on ("solver-common"))
+           (:file "exact-solver" :depends-on ("solver-common"))
            ;; HTTP surface for the therapy phase (design doc step (c)); depends on
            ;; the solver protocol + the canonical KB it recommends over.
-           (:file "bridge" :depends-on ("greedy-solver" "knowledge-base"))))))))
+           (:file "bridge" :depends-on ("greedy-solver" "exact-solver" "knowledge-base"))))))))
 
 ;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
 ;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
@@ -104,6 +110,9 @@
                      (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
                      (:file "therapy-tests")
+                     ;; The exact solver + the ALTERNATIVES both solvers report;
+                     ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.
+                     (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests"))))))
   :perform (asdf:test-op (o c)
@@ -111,7 +120,7 @@
                (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :neomycin0.7.0 *features*)
+  (pushnew :neomycin0.8.0 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*
