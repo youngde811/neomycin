@@ -5,6 +5,21 @@ of the identification + therapy narration. They are **verbatim records of real r
 on the dates shown**, not living documentation — the output is preserved as captured
 rather than re-synced, so an older one can lag the current rulebase.
 
+> **⚠️ Every transcript here that recommends therapy predates v0.8.0, and its therapy
+> narration is superseded.** Each calls a single broad-spectrum agent the
+> *"stewardship-optimal"* answer. That was wrong: the solver optimised drug **count**
+> and had no notion of spectrum, so "fewest drugs" was never "narrowest drugs"
+> (`docs/exact-solver-design.md` §1) — and in a later session that same reasoning
+> produced a false statement to a clinician (§1.1). The files carry the same warning
+> inline and are **left exactly as captured**, because they are evidence of what the
+> system said and editing them would falsify it. Treat the therapy passages as
+> specimens, not as models to imitate. The identification and DS-narration passages
+> are unaffected, and are what these captures are kept for.
+>
+> For current therapy narration — including the `objective` dial and the
+> `alternative_agents` reporting that closes §1.1 — see `docs/clinician-scenarios.md`
+> Scenario 15 and `docs/runbook.md` demo 6.
+
 ## Current
 
 - **`strep-hemolysis-conflict-rule-catalogue.md`** (2026-08-11) — a respiratory

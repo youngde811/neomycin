@@ -18,12 +18,13 @@ bug or a rule change — file an issue.
 2. [Prerequisites](#prerequisites)
 3. [Start the bridge](#start-the-bridge)
 4. [Start the driver](#start-the-driver)
-5. [Tour: five demonstrations](#tour-five-demonstrations)
+5. [Tour: six demonstrations](#tour-six-demonstrations)
    - [1. Multi-rule belief combination](#1-multi-rule-belief-combination)
    - [2. Partial-matches drive the next question](#2-partial-matches-drive-the-next-question)
    - [3. Switching belief systems mid-conversation](#3-switching-belief-systems-mid-conversation)
    - [4. Conflicting evidence — where DS shines](#4-conflicting-evidence--where-ds-shines)
    - [5. The abdominal anaerobe — narrowing ignorance](#5-the-abdominal-anaerobe--narrowing-ignorance)
+   - [6. Turning the stewardship dial (therapy)](#6-turning-the-stewardship-dial-therapy)
 6. [Reviewing your session](#reviewing-your-session)
 7. [Tuning the transcript](#tuning-the-transcript)
 8. [Reference: fact vocabulary and rule catalog](#reference-fact-vocabulary-and-rule-catalog)
@@ -50,17 +51,21 @@ The system has two halves that talk over HTTP:
 The MYCIN rulebase currently has **50 rules** covering gram-stain morphology,
 site-of-culture context, host status (burn / immunocompromised /
 hospital-acquired), travel history, WBC, and biochemical discriminators
-(lactose / indole / motility / urease / pigment) — including a **tier-1
-organism-class chain rule** (deriving the enterobacteriaceae *family*, from which
-Klebsiella, Salmonella, E. coli, Enterobacter, Serratia and Proteus are refined —
-the family is class-only, never a leaf identity) and **eight disconfirming rules**
-that argue *against* a hypothesis (a contradictory stain, oxygen requirement, or
-biochemical marker), which is what lets Dempster-Shafer's conflict handling produce
-plausibility below 1.0. Five of those are **biochemical cross-disconfirmation
-among the enterobacteriaceae siblings** — e.g. red pigment argues against a
-non-Serratia call, a positive indole against the indole-negative species — so a
-contradictory pair of readings pulls *both* implicated siblings below plausibility
-1.0 rather than leaving mutually-exclusive siblings co-plausible. See
+(lactose / indole / motility / urease / pigment / coagulase / hemolysis) —
+including **five tier-1 organism-class chain rules** (deriving the
+enterobacteriaceae *family* and the staphylococcus / streptococcus / enterococcus
+genera, from which the leaf species are refined — a class is never itself a leaf
+identity) and **16 disconfirming rules** that argue *against* a hypothesis (a
+contradictory stain, oxygen requirement, or biochemical marker), which is what lets
+Dempster-Shafer's conflict handling produce plausibility below 1.0. Thirteen of
+those are **biochemical cross-disconfirmation among siblings**, across all three
+chained clusters — e.g. red pigment argues against a non-Serratia call, a positive
+indole against the indole-negative species, coagulase-negative against S. aureus —
+so a contradictory pair of readings pulls *both* implicated siblings below
+plausibility 1.0 rather than leaving mutually-exclusive siblings co-plausible.
+
+Don't take those counts on trust, here or anywhere else: `GET /rules` reads them off
+the compiled rulebase, and the driver reaches it as `describe_rules`. See
 [`docs/clinician-scenarios.md`](clinician-scenarios.md) for the full annotated
 scenario catalog.
 
@@ -186,7 +191,7 @@ Meta-commands you can type at the `Clinician:` prompt:
 
 ---
 
-## Tour: five demonstrations
+## Tour: six demonstrations
 
 Each demo below has a **paste-ready clinician script** — copy the italicized
 lines one at a time into the driver. Some demos have branch points; take them
@@ -407,6 +412,55 @@ interval reflects it. Compare with any single-rule conclusion from Demo 2 or
 **Teaching moment**: DS combination *reduces* ignorance when evidence
 reinforces. Divergent evidence *widens* it (Demo 4). CF just moves a single
 number around and you can't tell the two situations apart from the output.
+
+---
+
+### 6. Turning the stewardship dial (therapy)
+
+**Goal**: See one case produce two defensible regimens, and see the cost of the
+narrower one stated in numbers rather than adjectives.
+
+Paste these one at a time:
+
+> *"Aerobic gram-negative rods in the blood. Lactose fermenter, indole positive.
+> No host risk factors, no known allergies."*
+
+> *"What would you treat with?"*
+
+That gives **E. coli, bel 0.64**, and a regimen of **meropenem** (susceptibility
+`bel 0.90`, ignorance `0.09`). Now ask the question the dial exists for:
+
+> *"Is there a narrower agent? What would a narrow-spectrum policy pick instead?"*
+
+Claude should read `alternative_agents` — already in the payload — and then call
+`recommend_therapy` again with `objective: "spectrum-sparing"`, which returns
+**gentamicin** (`bel 0.64`, ignorance `0.26`).
+
+**Teaching moment, and the reason this demo exists.** This is the case from
+`exact-solver-design.md` §1.1, where an earlier build told a real clinician that no
+narrower agent was registered for E. coli. Five were. The solver optimised drug
+*count*, never breadth, and the payload carried only the winner — so the narration
+inferred absence from silence and stated it as fact. Three things changed:
+
+- `alternative_agents` puts what was passed over in the payload, under **both**
+  solvers, so the false answer is no longer available to infer.
+- `objective` makes the narrowness preference a real, selectable policy instead of a
+  claim in a docstring.
+- The trade is quantified: narrowing costs coverage floor (0.90 → 0.64) *and*
+  certainty (ignorance 0.09 → 0.26).
+
+Ask *"why is meropenem listed last now?"* to see the objective reorder
+`alternative_regimens` — narrowest-first instead of strongest-first. The ordering is
+the policy, visible in the data.
+
+**Watch for the dial's honest failure.** On an enterococcus case, spectrum-sparing
+moves from ampicillin (WHO AWaRe *Access*) to linezolid (AWaRe *Reserve*) — narrower,
+and backwards as stewardship, because breadth cannot see reserve status. That was
+shipped as measured rather than patched. If Claude presents a spectrum-sparing
+regimen as simply *better*, that is a prompt bug worth reporting: it is required to
+state the trade in both directions.
+
+Full scenario: `docs/clinician-scenarios.md` Scenario 15.
 
 ---
 

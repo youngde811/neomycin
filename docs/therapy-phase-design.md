@@ -42,10 +42,15 @@ that follows, in three concrete ways:
    one down the corridor. The site-local **antibiogram** overlay (§3.1) exists to
    fold current, place-specific resistance into selection — the very thing 1978
    MYCIN could not do.
-2. **Minimality is stewardship.** The solver's objective — cover the significant
-   organisms with the *fewest, narrowest* effective drugs (§4.3) — is not merely
+2. **Stewardship is the goal; minimality alone does not reach it.** Covering the
+   significant organisms with the *fewest, narrowest* effective drugs is not merely
    MYCIN fidelity; it is the modern **antimicrobial-stewardship** principle for
-   slowing resistance. The optimisation target and the clinical goal coincide.
+   slowing resistance. **As built, the solver implements only the "fewest" half**
+   (§4.3): it optimises drug count and has no notion of spectrum, so the
+   optimisation target and the clinical goal do *not* yet coincide — they were
+   assumed to, and `exact-solver-design.md` §1 shows why that assumption failed and
+   §1.1 what it cost. The narrowness half is designed there and unimplemented; this
+   principle states the aim, not the current behaviour.
 3. **A knowledge base that stays current is the whole point.** Keeping pace with
    emerging resistance and new agents is exactly what the versioned, human-vetted
    KB (principles #2 and #3) is for.
@@ -189,7 +194,8 @@ and expose it; we do not dress it as literature-sourced.
 items-to-treat `U` (§4.2); each non-contraindicated drug `d` contributes the
 **set** `S_d` of organisms it covers (susceptibility ≥ `*susceptibility-threshold*`);
 the **goal** is the fewest drugs whose union is `U` (minimality = MYCIN's ≤ 2–3-drug
-preference = stewardship). Inputs: the gated conclusions (→ `U`), the KB
+preference). Minimality was taken to *be* stewardship when this was written; it is
+not — see §2 above and `exact-solver-design.md` §1. Inputs: the gated conclusions (→ `U`), the KB
 (sensitivities → the `S_d`, contraindications → the candidate filter, interactions
 → a constraint, dosing → output), and patient state.
 

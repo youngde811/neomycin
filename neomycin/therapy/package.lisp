@@ -43,6 +43,9 @@
    #:recommendation #:make-recommendation #:recommendation-p
    #:recommendation-regimen #:recommendation-items-to-treat #:recommendation-excluded
    #:recommendation-uncovered
+   #:recommendation-alternative-agents #:recommendation-alternative-regimens
+   #:alternative-regimen #:make-alternative-regimen #:alternative-regimen-p
+   #:alternative-regimen-drugs
    #:regimen-item #:make-regimen-item #:regimen-item-drug #:regimen-item-dose
    #:regimen-item-covers #:regimen-item-susceptibility
    #:susceptibility-item #:make-susceptibility-item #:susceptibility-item-organism
@@ -53,16 +56,18 @@
    #:therapy-kb #:make-therapy-kb #:therapy-kb-p
    #:add-drug #:add-sensitivity #:add-contraindication #:add-antibiogram #:add-family-member
    #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers #:kb-antibiogram
-   #:kb-dose #:kb-drug-class #:kb-drug-route #:kb-family-of
+   #:kb-dose #:kb-drug-class #:kb-drug-route #:kb-drug-spectrum #:kb-family-of
+   #:*spectrum-tiers* #:spectrum-rank
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
    #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram #:deffamily
-   #:with-therapy-kb #:therapy-kb #:with-greedy-solver
+   #:with-therapy-kb #:therapy-kb #:with-greedy-solver #:with-exact-solver
    ;; --- solvers ---
-   #:greedy-solver
+   #:greedy-solver #:exact-solver
    ;; --- bridge glue (design doc step (c); HTTP handler registers itself) ---
    #:conclusions-for-solver #:recommendation->json
    ;; --- policy dials (design doc 4.2; per-session tunable, NOT clinical constants) ---
    #:*coverage-threshold* #:*susceptibility-threshold* #:*susceptibility-gate*
+   #:*objective*
    ;; --- antibiogram overlay: empirical interval from isolate counts (design doc 3) ---
    #:*antibiogram-concentration* #:counts->interval #:combine-susceptibility))

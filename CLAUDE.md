@@ -97,9 +97,17 @@ neomycin/
     knowledge-base.lisp — canonical schematic KB (belief-valued susceptibilities)
     antibiogram.lisp  — counts→interval (IDM) + Bayesian combine-susceptibility
     antibiogram-data.lisp — schematic site-local counts; OPT-IN, NOT loaded by default
-    stub-solver.lisp / greedy-solver.lisp — solvers (greedy weighted set-cover)
+    solver-common.lisp — SHARED phase A (belief gate, contraindication filter, the two
+                        scalar reductions) + alternative-agents. Solver-independent, so
+                        every solver gates identically and comparisons stay meaningful
+    stub-solver.lisp / greedy-solver.lisp / exact-solver.lisp — solvers. `exact` is the
+                        DEFAULT (ascending-k enumeration over coverage bitmasks); `greedy`
+                        is the original approximation, kept because the equivalence
+                        property is asserted against it
     bridge.lisp       — /recommend-therapy handler + recommendation→JSON (with provenance)
-  test/               — neomycin/test system: therapy + antibiogram tests + repointed goldens
+  test/               — neomycin/test system: therapy + antibiogram + exact-solver tests
+                        (the latter carrying the greedy/exact equivalence property and the
+                        §1.1 regression) + repointed goldens
                         + property-tests.lisp (corpus-WIDE invariants checked by
                         introspecting the compiled rulebase, so a new rule is covered the
                         moment it is authored — sketch §8) + prompt-tests.lisp (guards
@@ -152,7 +160,7 @@ bin/
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
 | `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its belief, kind, conclusions, premises, `chained_from`, ruling-out `targets`, and `:provenance`; plus a corpus `summary` (counts, organism-classes, the `clusters` map, every identity). Filters (ANDed): `?name=`, `?kind=confirming\|disconfirming`, `?concludes=`, `?premises=`, `?cluster=`. Needs no inference — it describes the corpus, not working memory |
 | `/why` | GET/POST | Authoritative belief explanation for a concluded organism (`?organism=` or `{organism}`): the engine-recorded derivation — each firing's composition arithmetic, recursive chained premises (organism-class → species), and the rule's two-axis `:provenance` (origin + verified `evidence` citations + `belief_basis`) |
-| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`) |
+| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Echoes `solver`, `gate`, `objective` |
 | `/reset` | POST | Clear working memory and entity registry |
 
 ## Testing the Bridge
@@ -160,7 +168,8 @@ bin/
 ```bash
 # Start the bridge first (see Build & Load above), then:
 ./bin/test-culture-1.sh     # identification: culture-1 → pseudomonas + klebsiella
-./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen with belief-valued susceptibilities
+./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen, plus the objective dial
+                            #   NB: bin/*.sh are NOT part of asdf:test-system and drift silently
 ./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (composition arithmetic + citations)
 ./bin/test-rules.sh         # catalogue: /rules corpus shape + the staphylococcus cluster (no inference needed)
 ```
@@ -190,14 +199,17 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~860 assertions / 154 tests): both belief algebras (CF and DS) directly; all six
+Coverage (~1074 assertions / 182 tests): both belief algebras (CF and DS) directly; all six
 `culture-*` scenarios under each system (against neomycin's rulebase) with hand-verified
 golden values; DS clamp / total-conflict / malformed-input edge cases; **each of the 50
 rules fired in isolation**; the composition law (species belief = class belief × rule
-belief) stated once per chained cluster; the therapy solver (greedy set-cover, coverage
-gating, contraindications, belief-valued susceptibilities); and the **antibiogram overlay**
-(IDM counts→interval, Bayesian combination under both algebras, JSON provenance). If a
-belief computation changes intentionally, re-capture and update the goldens in
+belief) stated once per chained cluster; both therapy solvers (coverage gating,
+contraindications, belief-valued susceptibilities) plus the **greedy/exact equivalence
+property** — same regimen size, gated items and uncovered set across 12 conclusion sets ×
+3 patient states, so a KB change that breaks greedy's approximation is caught by a test
+rather than by a clinician; the `:spectrum-sparing` objective's divergence goldens; and the
+**antibiogram overlay** (IDM counts→interval, Bayesian combination under both algebras,
+JSON provenance). If a belief computation changes intentionally, re-capture and update the goldens in
 `neomycin/test/scenarios.lisp`.
 
 **Corpus-wide property tests** (`neomycin/test/property-tests.lisp`, sketch §8) complement
@@ -228,7 +240,7 @@ Identification and therapy both run end to end:
 - **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt carrying the MYCIN clinical ontology and the corpus's *shape* (the rulebase itself is queried via `describe_rules`, not transcribed — see "Rule catalogue" below), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
 - **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — beliefs, premises, ruling-out targets, provenance, and the cluster map — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (chaining and composition, class-is-never-a-leaf, what a negative belief means, the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts. Design: `docs/rule-catalogue-design.md`.
 - **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
-- **Therapy phase**: a deterministic greedy weighted set-cover solver (`neomycin/therapy/`) picks a minimal covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug.
+- **Therapy phase**: a deterministic **exact** set-cover solver (`neomycin/therapy/`) picks a minimum covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug. **The objective is the third policy dial** (`*objective*`, alongside the belief system and the coverage gate): `:lexicographic` (default — drug count, then susceptibility × belief; this is *not* stewardship and has no notion of spectrum) or `:spectrum-sparing` (narrowest-first over declared `:spectrum` tiers). Turning it changes the recommendation and the narration must state the trade — narrower agents have lower coverage floors, and breadth is blind to WHO AWaRe reserve status. Design + the measured divergence table: `docs/exact-solver-design.md` §§1, 1.1, 3.6.
 
 ### Running the Clinician Driver
 

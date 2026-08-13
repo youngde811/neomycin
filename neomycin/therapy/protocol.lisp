@@ -63,13 +63,33 @@
   drug
   reason)          ; :contraindication | :interaction
 
+(defstruct (alternative-regimen (:constructor make-alternative-regimen))
+  "Another regimen of the SAME minimum size the solver could have returned, but
+   did not -- the objective's tiebreak chose against it.
+
+   Reported because a tiebreak no clinician stated is not a clinical judgement, and
+   presenting only the winner implies a decisiveness the solver does not have. Only
+   an exhaustive search can populate this; a greedy search never learns what it
+   passed over (exact-solver-design.md 4)."
+  (drugs '()))           ; list of regimen-item, exactly as REGIMEN is shaped
+
 (defstruct (recommendation (:constructor make-recommendation))
   "The full therapy recommendation returned by a solver."
   (regimen '())          ; list of regimen-item
   (items-to-treat '())   ; list of treat-item
   (excluded '())         ; list of exclusion
-  (uncovered '()))       ; organisms in U that no candidate drug could cover
+  (uncovered '())        ; organisms in U that no candidate drug could cover
                          ; (an honest failure surfaced, not a silent partial cover)
+  ;; The two "what else was possible" fields (exact-solver-design.md 1.1). Neither
+  ;; is a recommendation: they exist so that "is there a narrower agent?" has a
+  ;; truthful answer. Without them the payload contains only the winner, and a
+  ;; reader -- human or LLM -- infers from its silence that nothing else covered.
+  ;; That inference was drawn, stated to a clinician, and was false.
+  (alternative-agents '())    ; list of regimen-item: candidate drugs NOT chosen that
+                              ; nonetheless cover >= 1 treated organism. Solver-
+                              ; independent -- a KB fact about the gated items, so
+                              ; every solver reports it, greedy included.
+  (alternative-regimens '())) ; list of alternative-regimen; exact search only
 
 ;;; ============================================================
 ;;; Policy dials (design doc 4.2)
@@ -102,6 +122,35 @@
    The same case and KB can yield different regimens under different gates, and the
    divergence is legible precisely because the interval is explicit -- a question
    the certainty-factor world cannot even pose.")
+
+(defvar *objective* :lexicographic
+  "Which objective the exact solver optimises among minimum-size regimens -- the
+   THIRD policy dial, alongside BELIEF:*BELIEF-SYSTEM* and *SUSCEPTIBILITY-GATE*
+   (exact-solver-design.md 3.5). Cardinality is primary under both settings; this
+   chooses only how ties on drug count are broken.
+
+     :lexicographic    -- DEFAULT. Maximise summed susceptibility x identification
+                          belief, then drug name. This is the greedy solver's
+                          policy, promoted from an implementation detail to a
+                          declared one. It is NOT stewardship: it has no notion of
+                          spectrum, and because breadth correlates with
+                          susceptibility by construction it tends to pick the
+                          broadest agent available (1, 1.1).
+     :spectrum-sparing -- Minimise summed declared spectrum breadth, then fall back
+                          to the above. Implements the narrow-spectrum preference
+                          the project had claimed but never built.
+
+   Turning this dial CHANGES THE RECOMMENDATION, and sometimes toward a drug a
+   clinician would reject: with the canonical tiers it prefers gentamicin
+   monotherapy for gram-negative bacteraemia, which is narrower and not better
+   (measured in 3.6). That was shipped knowingly rather than patched -- a dial that
+   visibly does the wrong thing for a stateable reason is more honest than one
+   quietly constrained until it looks sensible. The narration MUST state the trade;
+   it must never present a spectrum-sparing regimen as simply better.
+
+   Spectrum breadth is also blind to RESERVE status: vancomycin and linezolid are
+   narrow-spectrum and are exactly the agents a steward holds back. Do not read a
+   low summed breadth as low stewardship cost.")
 
 ;;; ============================================================
 ;;; Solver base class + protocol generic function

@@ -126,10 +126,11 @@ LISA_BELIEF_SYSTEM=cf sbcl --load neomycin.lisp
 | `/reset` | POST | Clear working memory; optionally switch belief system |
 | `/recommend-therapy` | POST | Regimen for the current conclusions (therapy phase) |
 
-`POST /recommend-therapy` takes `{"patient": [state-tokens], "solver": "greedy"}`
-(both optional) and returns `regimen`, `items_to_treat`, `excluded`, `uncovered`,
-and echoes `belief_system` + `solver`. Patient state tokens are contraindication
-triggers, e.g. `"allergy-cephalosporin"`.
+`POST /recommend-therapy` takes `{"patient": [state-tokens], "solver": "exact"}`
+(both optional; `solver` defaults to `exact`, with `greedy` still selectable) and
+returns `regimen`, `items_to_treat`, `excluded`, `uncovered`, `alternative_agents`,
+`alternative_regimens`, and echoes `belief_system` + `solver`. Patient state tokens
+are contraindication triggers, e.g. `"allergy-cephalosporin"`.
 
 ---
 
@@ -203,10 +204,19 @@ A recommendation is an auditable object — nothing here is inferred by a model:
 - **`items_to_treat`** — organisms significant enough to cover: those whose belief
   clears `*coverage-threshold*` (default 0.2). Each carries its identification
   belief.
-- **`regimen`** — the drugs chosen by the greedy weighted set cover: the fewest
-  drugs that cover every item (minimality = stewardship), ties broken
-  deterministically. Each entry lists what it `covers`, its `dose`, and per-organism
-  `susceptibility`.
+- **`regimen`** — the drugs chosen by the minimum set cover: the fewest
+  drugs that cover every item, ties broken deterministically by summed
+  susceptibility × belief. Each entry lists what it `covers`, its `dose`, and
+  per-organism `susceptibility`. Note that fewest is *not* narrowest — the solver
+  has no notion of spectrum, and at this KB scale the tiebreak usually decides,
+  which tends to favour broad agents (`exact-solver-design.md` §1).
+- **`alternative_agents`** — other drugs that also covered a treated organism but
+  were not chosen, each in the same shape as a `regimen` entry. Name-sorted, not
+  ranked: the solver never compared them. This is where "is there a narrower
+  option?" is answered from.
+- **`alternative_regimens`** — other complete regimens of the same minimum size
+  that the tiebreak chose against. Populated by the `exact` solver only; `greedy`
+  never enumerates, so it honestly reports none.
 - **`excluded`** — drugs ruled out, with a `reason` (e.g. `contraindication`).
 - **`uncovered`** — items no candidate drug could cover, surfaced honestly rather
   than dropped.
