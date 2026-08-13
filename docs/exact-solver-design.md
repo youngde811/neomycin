@@ -13,8 +13,12 @@
 > **Amended 2026-08-12** with §1.1 — the carbapenem-first behaviour observed in a
 > live clinician session, where it produced a false statement to the clinician. It
 > changes no accepted decision, but it makes `alternatives` reporting a requirement
-> rather than a nicety (§4) and proposes pulling it earlier in the slice plan (§6,
-> **awaiting review**).
+> rather than a nicety (§4).
+>
+> **Decisions taken (David, 2026-08-13):** `alternatives` moves into **slice 2**
+> (§6). And a standing rule, applied first to the stale claims §1.1 exposed:
+> **code and prompt must not describe behaviour that does not exist.** Noting a
+> planned enhancement is fine; phrasing it as current behaviour is not.
 
 ## 1. Why — greedy does not optimize what the codebase says it does
 
@@ -272,7 +276,8 @@ now **required**, not optional (§1.1):
   mode is not a hedge but a confident false negative. Each entry should carry the
   same susceptibility intervals as `regimen`, so the trade a clinician is being asked
   to weigh — *narrower agent, lower coverage floor* — is visible in the payload
-  rather than asserted in prose.
+  rather than asserted in prose. **Lands in slice 2** (§6); see the open sub-question
+  there on whether it enumerates alternative *regimens* or alternative *agents*.
 - `objective` — echoed in the payload, like `gate` already is.
 
 **Gate interaction.** The exact search can do something greedy structurally cannot:
@@ -293,49 +298,69 @@ follow-on slice, not this one.
   the coverage-confidence cost (0.68 vs 0.90) asserted, so nobody can quietly
   "improve" the objective back to carbapenem-first.
 - **The §1.1 regression**: E. coli alone at bel 0.64. Two assertions, one per slice.
-  From the slice that lands `alternatives`: the payload names all five non-meropenem
-  covering agents, so the *"no narrower agent exists"* answer becomes unstateable.
-  Under B: the regimen itself moves off meropenem. This is the case a clinician
-  actually asked about, so it is the one worth pinning by name.
+  From **slice 2**: the payload names all five non-meropenem covering agents, so the
+  *"no narrower agent exists"* answer becomes unstateable. Under B (slice 4): the
+  regimen itself moves off meropenem. This is the case a clinician actually asked
+  about, so it is the one worth pinning by name.
 
 ## 6. Slice plan
 
 1. **Extract shared phase A** from greedy; suite green, no behaviour change.
 2. **Exact solver, `:lexicographic`** + registration + goldens + the equivalence
-   property test. Nothing user-visible changes.
+   property test, **plus `alternatives` reporting** (moved here from slice 4; see the
+   amendment below). No recommendation changes; the payload gains a field, and with
+   it the narration guidance to use the field — shipping the data without the
+   guidance would recreate §1.1 in miniature.
 3. **`:spectrum` on `defdrug`** for all 11 drugs, with provenance notes and the
    illustrative caveat.
-4. **`:spectrum-sparing` objective** + divergence goldens + `alternatives` reporting.
+4. **`:spectrum-sparing` objective** + divergence goldens.
 5. **Bridge/tool/prompt surface**: `solver` enum, `objective` parameter, narration
    guidance for stating the trade — *"narrower agent, lower coverage floor."*
 6. Docs: scenario contrasting the two objectives on one case; runbook note.
 
-**Proposed amendment (§1.1), for review — not yet accepted.** Move `alternatives`
-reporting out of slice 4 and into **slice 2**, where it costs almost nothing: the
-ascending-k search already enumerates every minimum-size cover, so reporting the
-losers is a serialization change, not a search change. Two reasons to pull it
-forward:
+**Amendment (David, 2026-08-13) — ACCEPTED.** `alternatives` moved from slice 4 into
+slice 2 above. It costs almost nothing there: ascending-k already enumerates every
+minimum-size cover, so reporting the losers is a serialization change, not a search
+change. It needs none of the spectrum authoring in slices 3–4, and it is the only
+part of this plan that fixes §1.1 *without changing any recommendation*. The price,
+accepted knowingly: slice 2 is no longer a pure equivalence check — it is now "no
+recommendation changes, but the payload stops implying the chosen drug is the only
+one."
 
-- It does not depend on the spectrum axis. Slices 3–4 are the expensive ones (11
-  drugs to author with provenance, goldens to re-capture); `alternatives` needs none
-  of that, and the §1.1 failure is live in the meantime.
-- It is the only part of this plan that fixes §1.1 *without* changing any
-  recommendation. Slice 2 is specified as "nothing user-visible changes" — this makes
-  it "no recommendation changes, but the payload stops implying the chosen drug is
-  the only one." That is a strictly honest improvement available before the objective
-  question is settled at all.
+**Open sub-question for slice 2 — what `alternatives` ranges over.** Two readings,
+and they differ in who gets the §1.1 fix:
 
-The cost is that slice 2 is no longer a pure equivalence check, which was its point.
-Alternative: keep slice 2 clean and insert `alternatives` as **2a**, still ahead of
-the spectrum work. Either ordering fixes §1.1 roughly two slices earlier than the
-current plan.
+| | Alternative *regimens* | Alternative *agents* |
+|---|---|---|
+| Definition | other drug sets of the same minimum size | other candidate drugs that cover a treated organism |
+| Computed from | the exact search's enumeration | phase A output + a KB filter |
+| Available to | `:exact` only | **both solvers**, greedy included |
+| Answers §1.1's question | for the 1-organism case, yes | always |
 
-One prompt-side item this surfaces, independent of the solver work: §1.1's point 2
-is a stale-docstring failure that reached a clinician through the narration layer.
-`greedy-solver.lisp`'s header and the system prompt's stewardship line should be
-corrected to describe what greedy *does* (cardinality, then susceptibility-weighted
-tiebreak) as soon as anyone touches this area — the prompt tests guard the rulebase
-claims, but nothing guards the therapy claims.
+The doc has assumed the first. But the default solver is `greedy`, and §1.1's session
+ran on the default — so under the first reading the clinician who hit this bug still
+would not get the fix unless `:exact` also becomes the default, which is not in the
+accepted plan. The second reading is solver-independent and strictly cheaper.
+They are not exclusive; the honest payload may want both, and for a single treated
+organism they coincide. **Decide before writing slice 2.**
+
+**Prompt- and code-side claims (David, 2026-08-13 — decided).** §1.1's point 2 is a
+stale-claim failure that reached a clinician through the narration layer, so it is
+fixed ahead of slice 1 rather than whenever the area is next touched. The standing
+rule: **do not describe behaviour that does not exist.** A planned enhancement may be
+noted *as planned*; it may not be phrased as current behaviour. Three sites, all
+corrected:
+- `greedy-solver.lisp`'s header — *"fewest drugs (minimality = stewardship)"*.
+- `system-prompt.md` *"Fewer drugs is the point: narrow-spectrum minimalism is
+  antimicrobial stewardship"* — conflates cardinality with spectrum, which is the
+  precise error the narration then made.
+- `system-prompt.md` *"If one broad agent covers everything… it's the
+  stewardship-optimal answer"* — this one is not merely stale but actively
+  instructs the failure. It is traceable to the session's *"this single
+  broad-spectrum carbapenem is the stewardship-optimal answer here."*
+
+Nothing guards these the way `prompt-tests.lisp` guards the prompt's rulebase claims;
+a therapy-claim guard is worth considering once the objective is a named dial.
 
 ## 7. Non-goals / open
 
