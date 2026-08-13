@@ -56,7 +56,8 @@
    #:therapy-kb #:make-therapy-kb #:therapy-kb-p
    #:add-drug #:add-sensitivity #:add-contraindication #:add-antibiogram #:add-family-member
    #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers #:kb-antibiogram
-   #:kb-dose #:kb-drug-class #:kb-drug-route #:kb-family-of
+   #:kb-dose #:kb-drug-class #:kb-drug-route #:kb-drug-spectrum #:kb-family-of
+   #:*spectrum-tiers* #:spectrum-rank
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
    #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram #:deffamily

@@ -218,6 +218,81 @@
           "and the equally-minimal regimen it lost to the tiebreak"))))
 
 ;;; ------------------------------------------------------------------
+;;; 2a. Spectrum breadth -- authored data only (slice 3, design doc 3.4)
+;;;
+;;; No solver reads :spectrum yet. These tests guard the DATA: that it is complete,
+;;; validated, and ordinal. The objective that will consume it is slice 4.
+;;; ------------------------------------------------------------------
+
+(deftest spectrum-every-canonical-drug-has-a-tier ()
+  ;; Completeness matters more than it looks: a drug with no tier would be invisible
+  ;; to a breadth ordering, and the failure mode is silent -- it would simply never
+  ;; be preferred, or would sort as though it were narrowest, depending on the
+  ;; comparator. Catch it at authoring time instead.
+  (let ((kb (therapy:therapy-kb)))
+    (dolist (d (therapy:kb-drug-ids kb))
+      (let ((tier (therapy:kb-drug-spectrum kb d)))
+        (is (member tier therapy:*spectrum-tiers*)
+            (format nil "~A carries a valid spectrum tier (got ~S)" d tier))))
+    (is (= 11 (length (therapy:kb-drug-ids kb))) "all 11 canonical drugs present")))
+
+(deftest spectrum-tiers-are-ordinal-narrowest-first ()
+  (is (= 0 (therapy:spectrum-rank :very-narrow)) "very-narrow ranks lowest")
+  (is (< (therapy:spectrum-rank :very-narrow) (therapy:spectrum-rank :narrow))
+      "very-narrow < narrow")
+  (is (< (therapy:spectrum-rank :narrow) (therapy:spectrum-rank :moderate))
+      "narrow < moderate")
+  (is (< (therapy:spectrum-rank :moderate) (therapy:spectrum-rank :broad))
+      "moderate < broad")
+  (is (< (therapy:spectrum-rank :broad) (therapy:spectrum-rank :very-broad))
+      "broad < very-broad")
+  (is (null (therapy:spectrum-rank :not-a-tier)) "an unknown tier has no rank"))
+
+(deftest spectrum-assignments-pin-the-clinical-judgement ()
+  ;; These are judgements, not measurements, so they are pinned: changing one should
+  ;; be a deliberate edit with a visible diff, not a drive-by. The ordering claims
+  ;; that matter for slice 4 are asserted as relations, not just literals.
+  (let ((kb (therapy:therapy-kb)))
+    (flet ((tier (d) (therapy:kb-drug-spectrum kb d))
+           (rank (d) (therapy:spectrum-rank (therapy:kb-drug-spectrum kb d))))
+      (is (eq :very-narrow (tier :metronidazole)) "metronidazole is the narrowest agent")
+      (is (eq :very-broad (tier :meropenem)) "meropenem is very-broad")
+      (is (eq :very-broad (tier :piperacillin-tazobactam)) "pip-tazo is very-broad")
+      (is (< (rank :vancomycin) (rank :ceftriaxone))
+          "vancomycin is NARROWER than ceftriaxone -- gram-positives only")
+      (is (< (rank :gentamicin) (rank :ceftriaxone))
+          "gentamicin is narrower than ceftriaxone (design doc 3.6 finding 1)")
+      (is (< (rank :ceftriaxone) (rank :meropenem))
+          "ceftriaxone is narrower than the carbapenem"))))
+
+(deftest spectrum-rejects-an-unknown-tier-at-authoring-time ()
+  ;; A typo must fail loudly. Reading back as NIL would remove the drug from any
+  ;; breadth ordering silently -- the same class of silent-gap failure the corpus
+  ;; property tests exist to catch on the rulebase side.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (is (block probe
+          (handler-case (progn (therapy:add-drug kb :typo :spectrum :quite-narrow)
+                               nil)
+            (error () t)))
+        "an unknown spectrum tier signals at authoring time")
+    (is (therapy:add-drug kb :fine :spectrum :narrow) "a valid tier is accepted")
+    (is (null (therapy:kb-drug-spectrum kb :unauthored))
+        "an unauthored drug simply has no tier")))
+
+(deftest spectrum-is-not-yet-consumed-by-any-solver ()
+  ;; Guards the claim made in kb.lisp and knowledge-base.lisp that nothing reads
+  ;; :spectrum yet. If a solver starts consuming it, this test should be REPLACED by
+  ;; the objective's own goldens -- not deleted quietly, which would let the docs go
+  ;; stale exactly the way section 1.1 records.
+  (belief:use-system :dempster-shafer)
+  (let ((conclusions (list (cons :e-coli (belief:make-ds-belief 0.64 1.0)))))
+    (dolist (solver '(:greedy :exact))
+      (is (equal '(:meropenem) (regimen-drugs (solve-with solver conclusions
+                                                          (therapy:therapy-kb))))
+          (format nil "~A still ignores spectrum: meropenem, not the narrower agent"
+                  solver)))))
+
+;;; ------------------------------------------------------------------
 ;;; 3. The equivalence property (design doc 5)
 ;;; ------------------------------------------------------------------
 

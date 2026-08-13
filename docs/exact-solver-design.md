@@ -173,8 +173,10 @@ susceptibility; then name.*
 **For**
 - It is the objective the project already claims in two places. Implementing it
   makes the documentation true.
-- It changes the answers, visibly and defensibly: klebsiella alone would move from
-  meropenem to ceftriaxone; culture-1 from meropenem to ceftazidime.
+- It changes the answers, visibly and defensibly: culture-1 would move from meropenem
+  to ceftazidime. *(Written before the tiers were authored. Measured in §3.6:
+  culture-1 → ceftazidime holds, but klebsiella alone goes to **gentamicin**, not the
+  ceftriaxone guessed here.)*
 - It is the clinically interesting comparison, and the one a demo audience
   recognizes — "the same case, under two stewardship policies" is a better story
   than "the same answer, computed exactly."
@@ -233,6 +235,66 @@ carry its own provenance note exactly as rule beliefs do — including the
 would be hard to see later; this project's whole posture is that schematic values
 are labelled as such rather than smuggled in. Deriving breadth from coverage counts
 is exactly the kind of number that looks measured and isn't.
+
+### 3.6 What the authored tiers actually imply — measured, not predicted
+
+Slice 3 authored the eleven tiers. Before slice 4 commits to an objective, here is
+what those tiers *would* produce, obtained by simulating "minimise summed spectrum
+rank, ties by summed susceptibility × belief" over the canonical KB. §3.2 guessed at
+this; these are the runs.
+
+| Case | `:lexicographic` | `:spectrum-sparing` (simulated) |
+|---|---|---|
+| E. coli 0.64 (§1.1) | meropenem | **gentamicin** |
+| klebsiella 0.40 alone | meropenem | **gentamicin** |
+| pseudomonas 0.76 alone | meropenem | **ceftazidime** |
+| culture-1 pair | meropenem | **ceftazidime** |
+| S. aureus 0.60 alone | vancomycin | vancomycin (unchanged) |
+| S. aureus + klebsiella | meropenem, vancomycin | **gentamicin**, vancomycin |
+| bacteroides + S. aureus | meropenem, vancomycin | **metronidazole**, vancomycin |
+
+Three findings, and two of them are problems:
+
+**1. §3.2's prediction was half right.** culture-1 and pseudomonas-alone do move to
+ceftazidime, as guessed. But klebsiella alone moves to **gentamicin, not
+ceftriaxone** — ceftriaxone is `:broad`, gentamicin is `:moderate`, so the breadth
+objective goes past the cephalosporin entirely. The doc's worked example in §3.2 and
+its golden in §5 both need rewriting against this.
+
+**2. It prefers aminoglycoside monotherapy for gram-negative bacteraemia.** That is
+narrow, and it is not better. This is §3.2's "can prefer a *less effective* drug"
+objection arriving in a sharper form than anticipated: not merely a lower coverage
+floor (gentamicin 0.64 vs meropenem 0.90) but a choice most clinicians would reject
+outright on grounds the KB does not represent at all.
+
+**3. Breadth cannot see reserve status.** For S. aureus alone the regimen does not
+change — but only by luck of the tiebreak. Vancomycin and nafcillin are both
+`:narrow`, so the spectrum key ties and susceptibility decides it: vancomycin 0.88
+beats nafcillin 0.72. A steward would want nafcillin for MSSA and would keep
+vancomycin back. Linezolid, WHO AWaRe **Reserve**, is likewise `:narrow` and would
+win a tie against a broader Access agent. The breadth axis is simply blind to this;
+`knowledge-base.lisp` annotates AWaRe per section but nothing encodes it.
+
+The genuine win is the last row: **metronidazole + vancomycin** instead of a
+carbapenem for the anaerobe/gram-positive pair, which is exactly the de-escalation
+the objective was wanted for.
+
+**Open, for decision before slice 4** — three ways to take this:
+- **(a) Ship it as measured.** `:spectrum-sparing` means what it says, gentamicin
+  included, and the narration states the trade. Honest, and arguably the most useful
+  demonstration: the objective is a *dial*, and this is what turning it does.
+- **(b) Add reserve status as a second key** — an AWaRe tier on `defdrug`, ordered
+  Access < Watch < Reserve, applied before or after breadth. Fixes finding 3, does
+  nothing for finding 2, and doubles the authoring judgement.
+- **(c) Keep the objective but constrain candidates** — e.g. a per-drug
+  "not-for-monotherapy" flag. This is the honest name for encoding finding 2, and it
+  is a large step further into clinical assertion than anything else in the KB.
+
+My reading: **(a)**, with §3.6 quoted in the narration guidance. (b) and (c) both
+answer "the objective gave a clinically odd answer" by teaching the KB more medicine,
+which is the direction where a schematic research artifact starts implying an
+authority it does not have. A dial that visibly does the wrong thing for a stateable
+reason is a better teaching object than one quietly patched until it looks sensible.
 
 ### 3.5 Recommendation: make the objective the third dial — ACCEPTED
 
@@ -302,9 +364,13 @@ follow-on slice, not this one.
   differently is legitimate — but a size difference means greedy's approximation
   lost, and that should be a documented counterexample rather than a surprise.
 - **Determinism**: same inputs, same regimen, run twice, both solvers.
-- Under B, a golden that pins the divergence: klebsiella alone → ceftriaxone, with
-  the coverage-confidence cost (0.68 vs 0.90) asserted, so nobody can quietly
-  "improve" the objective back to carbapenem-first.
+- Under B, a golden that pins the divergence, so nobody can quietly "improve" the
+  objective back to carbapenem-first. Per the measured table in §3.6 this is
+  **klebsiella alone → gentamicin** (coverage floor 0.64 vs meropenem's 0.90), not
+  the ceftriaxone this line assumed before the tiers existed. Pin the
+  bacteroides + S. aureus row too — metronidazole + vancomycin instead of a
+  carbapenem is the case where the objective clearly earns its keep, and it deserves
+  a golden as much as the awkward one does.
 - **The §1.1 regression**: E. coli alone at bel 0.64. Two assertions, one per slice.
   From **slice 2**: the payload names all five non-meropenem covering agents, so the
   *"no narrower agent exists"* answer becomes unstateable. Under B (slice 4): the
@@ -313,8 +379,10 @@ follow-on slice, not this one.
 
 ## 6. Slice plan
 
-**Status: slices 1 and 2 are DONE (2026-08-13).** Suite 860/154 → 1024/169. Slice 3
-is next.
+**Status: slices 1, 2 and 3 are DONE (2026-08-13).** Suite 860/154 → 1053/174.
+Slice 4 is next, and is **blocked on the §3.6 decision** — the authored tiers turn
+out to imply things §3.2 did not anticipate, and the objective's shape depends on
+which of (a)/(b)/(c) is chosen.
 
 1. **Extract shared phase A** from greedy; suite green, no behaviour change.
 2. **Exact solver, `:lexicographic`** + registration + goldens + the equivalence
@@ -323,8 +391,10 @@ is next.
    it the narration guidance to use the field — shipping the data without the
    guidance would recreate §1.1 in miniature.
 3. **`:spectrum` on `defdrug`** for all 11 drugs, with provenance notes and the
-   illustrative caveat.
-4. **`:spectrum-sparing` objective** + divergence goldens.
+   illustrative caveat. *Authored data only — deliberately not exposed on the bridge
+   or mentioned in the prompt, since nothing consumes it and describing an axis the
+   solver does not use is the §1.1 failure in advance.*
+4. **`:spectrum-sparing` objective** + divergence goldens. **Blocked on §3.6.**
 5. **Bridge/tool/prompt surface**: `solver` enum, `objective` parameter, narration
    guidance for stating the trade — *"narrower agent, lower coverage floor."*
 6. Docs: scenario contrasting the two objectives on one case; runbook note.

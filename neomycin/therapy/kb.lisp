@@ -62,9 +62,47 @@
 ;;; Builder API (used by fixtures now; by the def* authoring macros later).
 ;;; ------------------------------------------------------------------
 
-(defun add-drug (kb id &key class route dose)
-  "Add drug ID to KB with an optional class, route, and (simulated) dose."
-  (setf (gethash id (therapy-kb-drugs kb)) (list :class class :route route :dose dose))
+;;; ------------------------------------------------------------------
+;;; Spectrum breadth (exact-solver-design.md 3.4)
+;;;
+;;; An ORDINAL tier, DECLARED per drug -- deliberately not derived by counting the
+;;; organisms a drug has KB entries for. Derived breadth is free and ranks plausibly
+;;; today, but it measures curation of a schematic 17-organism KB rather than breadth
+;;; in medicine: it would tie ampicillin with ceftazidime, and silently re-rank every
+;;; drug the moment a species is added to the rulebase. A declared tier is honest
+;;; about being a judgement, is stable under KB growth, and carries its own
+;;; provenance note -- including the illustrative caveat, which applies here in full.
+;;;
+;;; Breadth is NOT reserve status. Vancomycin and linezolid are narrow-spectrum
+;;; (gram-positive only) and simultaneously agents a steward reserves; the WHO AWaRe
+;;; Access/Watch/Reserve axis is a different one, annotated per drug section in
+;;; knowledge-base.lisp but not encoded here. A future objective could carry it; this
+;;; tier must not be read as though it already did.
+;;; ------------------------------------------------------------------
+
+(defparameter *spectrum-tiers*
+  '(:very-narrow :narrow :moderate :broad :very-broad)
+  "The ordinal spectrum-breadth tiers, narrowest first. Position IS the ordering --
+   see SPECTRUM-RANK. Five tiers rather than a number because the underlying
+   judgement does not support finer resolution, and a scalar would invite arithmetic
+   the data cannot bear.")
+
+(defun spectrum-rank (spectrum)
+  "SPECTRUM's position in *SPECTRUM-TIERS*, or NIL when unauthored. Lower is
+   narrower. Ordinal only: rank differences are orderable, NOT subtractable -- the
+   gap between :narrow and :moderate is not a measured quantity."
+  (position spectrum *spectrum-tiers*))
+
+(defun add-drug (kb id &key class route dose spectrum)
+  "Add drug ID to KB with an optional class, route, (simulated) dose, and
+   SPECTRUM breadth tier. SPECTRUM must be NIL or a member of *SPECTRUM-TIERS*;
+   a typo fails at authoring time rather than silently reading back as NIL and
+   quietly removing the drug from any breadth ordering."
+  (unless (or (null spectrum) (member spectrum *spectrum-tiers*))
+    (error "Unknown spectrum tier ~S for drug ~S: expected NIL or one of ~S."
+           spectrum id *spectrum-tiers*))
+  (setf (gethash id (therapy-kb-drugs kb))
+        (list :class class :route route :dose dose :spectrum spectrum))
   id)
 
 (defun add-sensitivity (kb organism drug susceptibility)
@@ -160,3 +198,9 @@
 (defun kb-drug-route (kb drug)
   "The route of DRUG (e.g. iv)."
   (getf (gethash drug (therapy-kb-drugs kb)) :route))
+
+(defun kb-drug-spectrum (kb drug)
+  "DRUG's declared spectrum-breadth tier, or NIL if unauthored. Authored data only:
+   NO solver consults this yet. The objective that will (:spectrum-sparing) is
+   designed in exact-solver-design.md 3.2 and not implemented."
+  (getf (gethash drug (therapy-kb-drugs kb)) :spectrum))
