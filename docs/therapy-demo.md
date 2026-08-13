@@ -145,10 +145,18 @@ enterobacteriaceae family is *not* separately treated — the member covers it):
 }
 ```
 
-**The teaching point**: one drug, not two. Minimality *is* the stewardship
-signal — the solver won't stack agents when one covers the field. Ask Claude *"why
-only one drug?"* and it should explain the weighted set cover: fewest drugs that
-cover every above-threshold organism.
+**The teaching point**: one drug, not two — the solver won't stack agents when one
+covers the field. Ask Claude *"why only one drug?"* and it should explain the
+weighted set cover: fewest drugs that cover every above-threshold organism.
+
+**The counter-teaching point, which matters just as much**: fewest is not narrowest.
+The solver optimizes drug *count* and has no notion of spectrum, so this is not the
+stewardship result it resembles. At this KB scale count ties almost immediately and
+the tiebreak — summed susceptibility × belief — is what really chooses, which
+systematically favours the broad agents, because those carry the best coverage
+numbers. The same behaviour is indefensible one slice over: a *single* organism,
+already resolved to a species, still returns a carbapenem. See
+`exact-solver-design.md` §1 for the mechanism and §1.1 for a clinician meeting it.
 
 **Also note the susceptibility intervals.** Each is `{bel, pl, ignorance}`, not a
 bare number — the same visible-uncertainty idea as identification, now on the

@@ -204,9 +204,11 @@ A recommendation is an auditable object — nothing here is inferred by a model:
   clears `*coverage-threshold*` (default 0.2). Each carries its identification
   belief.
 - **`regimen`** — the drugs chosen by the greedy weighted set cover: the fewest
-  drugs that cover every item (minimality = stewardship), ties broken
-  deterministically. Each entry lists what it `covers`, its `dose`, and per-organism
-  `susceptibility`.
+  drugs that cover every item, ties broken deterministically by summed
+  susceptibility × belief. Each entry lists what it `covers`, its `dose`, and
+  per-organism `susceptibility`. Note that fewest is *not* narrowest — the solver
+  has no notion of spectrum, and at this KB scale the tiebreak usually decides,
+  which tends to favour broad agents (`exact-solver-design.md` §1).
 - **`excluded`** — drugs ruled out, with a `reason` (e.g. `contraindication`).
 - **`uncovered`** — items no candidate drug could cover, surfaced honestly rather
   than dropped.

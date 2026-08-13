@@ -30,10 +30,22 @@
 ;; covering the most still-uncovered items, ties broken by summed susceptibility x
 ;; belief, then by drug name -- a total order, so the result is DETERMINISTIC.
 ;;
-;; Objective: fewest drugs (minimality = stewardship). Interactions are NOT handled
-;; in this increment (design doc 4.3 step 4 is a later, separately-tested addition).
-;; If some item cannot be covered by any candidate drug, it is reported in the
-;; recommendation's UNCOVERED list rather than silently dropped.
+;; Objective: minimum drug COUNT, and nothing beyond it. This is NOT narrow-spectrum
+;; stewardship and must not be described as such. At this KB scale (11 drugs, 1-4
+;; items after the gate) cardinality ties almost immediately, so the tiebreak above --
+;; summed susceptibility x identification belief -- is what actually decides, and
+;; breadth correlates with susceptibility by construction: the agents we reserve are
+;; the ones carrying the best coverage numbers. The effect is carbapenem-first,
+;; including for a single organism already resolved from a family down to a species.
+;; See exact-solver-design.md 1, and 1.1 for that behaviour reaching a clinician.
+;;
+;; This solver has NO notion of spectrum. A declared, selectable objective -- one
+;; option being spectrum-sparing -- is designed in exact-solver-design.md and is NOT
+;; implemented here.
+;;
+;; Interactions are NOT handled in this increment (design doc 4.3 step 4 is a later,
+;; separately-tested addition). If some item cannot be covered by any candidate drug,
+;; it is reported in the recommendation's UNCOVERED list rather than silently dropped.
 
 (in-package :neomycin-therapy)
 
@@ -116,7 +128,9 @@
 (defclass greedy-solver (solver) ()
   (:documentation "Greedy weighted set-cover therapy solver (design doc 4.3).
    Deterministic: fewest drugs, ties broken by summed susceptibility x belief then
-   drug name. No interaction handling in this increment."))
+   drug name -- and at this KB scale the tiebreak is usually what decides, so read
+   the file header on what that does and does not amount to. No notion of spectrum.
+   No interaction handling in this increment."))
 
 (defun solve-regimen-phase-a (conclusions kb patient)
   "Solve regimen Phase A: items to treat (belief gate) + candidate drug filter.
