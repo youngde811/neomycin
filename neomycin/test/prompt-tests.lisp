@@ -137,3 +137,17 @@
   (dolist (topic '("set_valued" "other-organism" "conflict"))
     (is (prompt-contains-p topic)
         (format nil "system-prompt.md does not mention the frame payload's ~A" topic))))
+
+(deftest prompt-does-not-describe-negative-beliefs ()
+  ;; The corpus has none left: every claim carries a positive mass and direction is
+  ;; the verb (:supports / :excludes). A prompt telling the LLM to look for a negative
+  ;; belief would send it hunting for something that no longer exists in any payload.
+  (dolist (claim '("negative belief" "negative :belief" "carry a negative"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md still describes ~S" claim))))
+
+(deftest prompt-explains-claims ()
+  ;; The replacement has to be present, not merely the old text absent.
+  (dolist (topic '("claims" "excludes" "supports"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not mention ~A" topic))))

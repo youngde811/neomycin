@@ -397,18 +397,72 @@
          (fallback (lisa-bridge::rule->json
                     (lisa:find-rule (lisa:inference-engine)
                                     'lisa-user::enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli)))
-         (df (gethash "focal_set" declared))
-         (ff (gethash "focal_set" fallback)))
-    (is df "a rule reports its focal set")
+         (df (gethash "claims" declared))
+         (ff (gethash "claims" fallback)))
+    (is (and df (= 1 (length df))) "a rule reports its claims as a list")
     (when df
-      (is (string= (gethash "source" df) "supports") "declared via :supports")
-      (is (= 8 (gethash "size" df)) "the widened aerobic gram-negative rod set")
-      (is (find "pseudomonas" (gethash "supports" df) :test #'string=)
-          "which includes pseudomonas -- the slice D correction"))
+      (let ((c (aref df 0)))
+        (is (string= (gethash "source" c) "supports") "declared via :supports")
+        (is (= 8 (gethash "size" c)) "the widened aerobic gram-negative rod set")
+        (is (find "pseudomonas" (gethash "supports" c) :test #'string=)
+            "which includes pseudomonas -- the slice D correction")))
     (when ff
-      (is (string= (gethash "source" ff) "asserted")
-          "an unconverted rule falls back to what it asserts")
-      (is (= 1 (gethash "size" ff))))))
+      (let ((c (aref ff 0)))
+        (is (string= (gethash "source" c) "asserted")
+            "an unconverted rule falls back to what it asserts")
+        (is (= 1 (gethash "size" c)))))))
+
+(deftest frame-rules-catalogue-reports-excluding-claims ()
+  ;; A converted ruling-out rule reports a positive mass on a COMPLEMENT, sourced as
+  ;; :excludes -- no negative number anywhere in the payload.
+  (belief:use-system :frame)
+  (let* ((json (lisa-bridge::rule->json
+                (lisa:find-rule (lisa:inference-engine)
+                                'lisa-user::red-pigment-argues-against-non-serratia)))
+         (claims (gethash "claims" json)))
+    (is (and claims (= 1 (length claims))) "one claim")
+    (when claims
+      (let ((c (aref claims 0)))
+        (is (string= (gethash "source" c) "excludes") "reported as an exclusion")
+        (is (plusp (gethash "mass" c)) "with POSITIVE mass -- direction is the verb")
+        (is (= 13 (gethash "size" c)) "on the complement of the five it rules out")
+        (is (not (find "e-coli" (gethash "supports" c) :test #'string=))
+            "and E. coli is not in the set it supports")))
+    (is (string= (gethash "kind" json) "disconfirming")
+        "still catalogued as disconfirming, which it is")))
+
+(deftest frame-rules-catalogue-reports-both-kinds ()
+  ;; A rule that both supports and excludes is reported as `both`, and the corpus
+  ;; summary counts the overlap explicitly. Pinned because an earlier edit to
+  ;; RULE-KIND was silently lost and only caught by checking the live payload -- a
+  ;; passing suite did not notice, because nothing asserted the new behaviour.
+  (belief:use-system :frame)
+  (unwind-protect
+       (progn
+         (lisa-user::defrule kind-probe-both
+             (:claims ((0.6 :supports :serratia)
+                       (0.7 :excludes (:e-coli :klebsiella))))
+           (lisa-user::organism (lisa-user::id ?o))
+           (lisa-user::pigment (lisa-user::value lisa-user::red) (lisa-user::of ?o))
+           lisa:=>)
+         (let ((rule (lisa:find-rule (lisa:inference-engine) 'lisa-user::kind-probe-both)))
+           (is rule "the probe compiled")
+           (when rule
+             (is (lisa:confirming-rule-p rule) "it supports something")
+             (is (lisa:disconfirming-rule-p rule) "and excludes something")
+             (is (string= (lisa-bridge::rule-kind rule) "both")
+                 "so its kind is `both` -- one observation doing two things, which the
+                  single-belief form could not express")
+             (let ((claims (gethash "claims" (lisa-bridge::rule->json rule))))
+               (is (= 2 (length claims)) "and both claims are reported")))))
+    (ignore-errors (lisa:undefrule 'lisa-user::kind-probe-both)))
+  ;; With the probe gone, the real corpus has no such rule, and the summary says so
+  ;; rather than leaving a reader to infer it.
+  (let ((summary (lisa-bridge::rules-summary (lisa-bridge::catalogue-rules))))
+    (is (= 0 (gethash "both" summary))
+        "no rule in the corpus yet states both kinds of claim")
+    (is (= 16 (gethash "disconfirming" summary)) "the 16 excluding rules")
+    (is (= 34 (gethash "confirming" summary)) "and the 34 supporting ones")))
 
 (deftest frame-therapy-runs-unchanged ()
   ;; Design 8's promise: because a fact carries a PROJECTED interval in the existing
