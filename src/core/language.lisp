@@ -47,14 +47,6 @@
                          :opposes ',opposes
                          :auto-focus ,auto-focus))))
 
-(defvar *frame* nil
-  "The active frame of discernment, or NIL when none is declared.
-
-   A rulebase that reasons over a shared frame (Dempster-Shafer on subsets, rather
-   than the dichotomous per-hypothesis frame) declares it once with DEFRAME. Rules
-   then name focal SETS -- elements or subsets of this frame -- instead of each
-   owning a private two-valued hypothesis. See docs/shared-frame-design.md.")
-
 (defmacro deframe (name &body clauses)
   "Declare the frame of discernment NAME reasons over, and install it as *FRAME*.
 
@@ -84,15 +76,15 @@
          (destructuring-bind (name members) (rest clause)
            (push (cons name members) subsets)))))
     (unless seen-elements (error "DEFRAME: no :ELEMENTS clause."))
-    `(setf *frame*
+    `(setf belief:*frame*
            (belief:make-frame
             ',elements
             (list ,@(loop for (subset-name . members) in (nreverse subsets)
                           collect `(cons ',subset-name ',members)))))))
 
 (defun frame-of-discernment ()
-  "The active frame, or NIL. Reader for clients that must not bind *FRAME*."
-  *frame*)
+  "The active frame of discernment, or NIL if none is declared."
+  belief:*frame*)
 
 (defun undefrule (rule-name)
   (with-rule-name-parts (context short-name long-name) rule-name

@@ -109,6 +109,9 @@
                      ;; rulebase; depends on property-tests for DOMAIN-RULES.
                      (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
+                     ;; The shared-frame belief system, end to end. Depends on
+                     ;; provenance-tests for FIND-CONCLUDED-FACT.
+                     (:file "frame-tests" :depends-on ("provenance-tests"))
                      (:file "therapy-tests")
                      ;; The exact solver + the ALTERNATIVES both solvers report;
                      ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.

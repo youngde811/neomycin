@@ -193,7 +193,7 @@
      (values (rule-member-test-values rule) t :ruling-out))
     (t (values nil nil nil))))
 
-(defun rule-focal-set (rule &optional (frame *frame*))
+(defun rule-focal-set (rule &optional (frame belief:*frame*))
   "The frame subset RULE's firing commits mass to, as a mask.
 
    Returns (values MASK KIND), or (values NIL KIND) when no frame is declared or the

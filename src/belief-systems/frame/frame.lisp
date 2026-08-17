@@ -276,27 +276,46 @@
 ;;; Projection -- what a caller actually reads
 ;;; ============================================================
 
-(defun mass-belief (m element)
-  "Bel(element): total mass committed to subsets that imply it. For a singleton
-   hypothesis that is m({element}) alone."
-  (let ((bit (frame-bit (mass-fn-frame m) element)))
-    (if bit (mass-ref m (ash 1 bit)) 0.0d0)))
+(defun mask-belief (m probe)
+  "Bel(PROBE): total mass committed to subsets that IMPLY it -- every focal set
+   contained in PROBE. For a singleton this reduces to m({x}); for a taxonomic subset
+   it is the mass that has settled inside that family, however it is distributed
+   among the members."
+  (let ((sum 0.0d0))
+    (do-mass (mask mass m sum)
+      (when (and (plusp mask) (= mask (logand mask probe)))
+        (incf sum mass)))))
 
-(defun mass-plausibility (m element)
-  "Pl(element): total mass on subsets CONSISTENT with it. This is where free
-   exclusion comes from -- mass committed to a set that excludes ELEMENT lowers its
-   plausibility without any rule having to argue against it."
-  (let ((bit (frame-bit (mass-fn-frame m) element))
-        (sum 0.0d0))
-    (if (null bit)
-        0.0d0
-        (let ((probe (ash 1 bit)))
-          (do-mass (mask mass m sum)
-            (unless (zerop (logand mask probe))
-              (incf sum mass)))))))
+(defun mask-plausibility (m probe)
+  "Pl(PROBE): total mass on subsets CONSISTENT with it -- every focal set that
+   intersects PROBE. This is where free exclusion comes from: mass committed to a set
+   DISJOINT from PROBE lowers its plausibility with no rule arguing against it."
+  (let ((sum 0.0d0))
+    (do-mass (mask mass m sum)
+      (unless (zerop (logand mask probe))
+        (incf sum mass)))))
 
-(defun mass-interval (m element)
-  (values (mass-belief m element) (mass-plausibility m element)))
+(defun hypothesis-mask (m hypothesis)
+  "Mask for HYPOTHESIS -- a frame element or a named subset -- or NIL if it is
+   neither. NIL rather than an error: a projection is asked for speculatively, over
+   whatever facts happen to be in working memory."
+  (let ((f (mass-fn-frame m)))
+    (cond ((integerp hypothesis) hypothesis)
+          ((frame-subset f hypothesis))
+          ((frame-bit f hypothesis) (ash 1 (frame-bit f hypothesis))))))
+
+(defun mass-belief (m hypothesis)
+  "Bel for a frame element OR a named subset. 0 if HYPOTHESIS is neither."
+  (let ((probe (hypothesis-mask m hypothesis)))
+    (if probe (mask-belief m probe) 0.0d0)))
+
+(defun mass-plausibility (m hypothesis)
+  "Pl for a frame element OR a named subset. 0 if HYPOTHESIS is neither."
+  (let ((probe (hypothesis-mask m hypothesis)))
+    (if probe (mask-plausibility m probe) 0.0d0)))
+
+(defun mass-interval (m hypothesis)
+  (values (mass-belief m hypothesis) (mass-plausibility m hypothesis)))
 
 (defun mass-set-valued (m)
   "((mask . mass) ...) for focal sets that are neither singletons, Theta, nor empty
@@ -341,6 +360,11 @@
 (defun pool-empty-p (pool)
   (null (evidence-pool-contributions pool)))
 
+(defvar *frame* nil
+  "The active frame of discernment, or NIL when none is declared. Set by LISA:DEFRAME
+   and read by LISA:FRAME-OF-DISCERNMENT; it lives here because a frame is a
+   belief-system concept and this file loads before the engine.")
+
 (defvar *frame-operator* :cautious
   "How POOL-MASS accumulates: :CAUTIOUS or :CONJUNCTIVE.
 
@@ -373,6 +397,15 @@
             (setf (gethash mask best) support)))))
     best))
 
+(defun pool-conflict (pool &key (operator *frame-operator*))
+  "K -- the mass this pool's evidence assigns to the empty set, BEFORE normalization.
+
+   Must be read here rather than off the result of POOL-MASS: both normalizations
+   resolve conflict away by construction, so a normalized mass function always reports
+   zero. This is the number worth surfacing -- a consultation that renormalized away
+   30% of its mass has told you something about how much its rules disagree."
+  (mass-conflict (pool-mass pool :operator operator :normalization :none)))
+
 (defun pool-mass (pool &key (operator *frame-operator*)
                             (normalization *frame-normalization*))
   "Materialize POOL as a mass function under OPERATOR, then NORMALIZATION.
@@ -397,3 +430,41 @@
                   (mapcar (lambda (s) (simple-support frame (car s) (cdr s)))
                           supports))
      normalization)))
+
+;;; ============================================================
+;;; The belief system
+;;; ============================================================
+;;; Deliberately a SUBCLASS of DEMPSTER-SHAFER-SYSTEM, and deliberately storing a
+;;; DS-BELIEF on each fact.
+;;;
+;;; The evidence pool on the engine is the AUTHORITY; a fact's [Bel, Pl] is a
+;;; PROJECTION of it, refreshed whenever the pool changes. Storing that projection in
+;;; the existing representation means every reader keeps working unchanged --
+;;; /conclusions, the therapy solver's SCALAR-OF, BELIEF->JSON, the test harness --
+;;; and the read-side protocol methods are inherited rather than reimplemented.
+;;;
+;;; What this class does NOT inherit in practice is the accumulation path.
+;;; COMBINE-BELIEFS / WEAKEN-BELIEF / CONJOIN-BELIEFS are bypassed for rule-concluded
+;;; facts, because a rule's contribution goes to the pool as a focal set rather than
+;;; to a fact as a scalar. They remain live for evidence asserted with an explicit
+;;; numeric :belief, which still normalizes to an interval the same way.
+
+(defclass frame-belief-system (dempster-shafer-system)
+  ()
+  (:default-initargs :name "Dempster-Shafer (shared frame)"))
+
+(defgeneric frame-based-p (system)
+  (:documentation "True when SYSTEM accumulates evidence into a per-entity pool over a
+   shared frame, rather than onto each fact independently. The engine branches on
+   this: a frame-based system needs the rule's FOCAL SET, which a per-hypothesis
+   system has no use for.")
+  (:method ((system belief-system)) nil)
+  (:method ((system frame-belief-system)) t))
+
+(defun project-mass (m element)
+  "The [Bel, Pl] interval for ELEMENT, in the representation facts already carry."
+  (make-ds-belief (float (mass-belief m element) 1.0)
+                  (float (mass-plausibility m element) 1.0)))
+
+(defvar *frame-system* (make-instance 'frame-belief-system)
+  "Singleton shared-frame system instance.")

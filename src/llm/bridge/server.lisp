@@ -45,6 +45,14 @@
              (string= normalized "dempster-shafer")
              (string= normalized "dempster_shafer"))
          :dempster-shafer)
+        ;; Dempster-Shafer over the SHARED frame of discernment declared with
+        ;; DEFRAME: rules contribute to SUBSETS of one per-entity mass function, so
+        ;; evidence for one organism constrains the others arithmetically. Requires a
+        ;; declared frame; neomycin's is in neomycin/rules/context.lisp.
+        ((or (string= normalized "frame")
+             (string= normalized "shared-frame")
+             (string= normalized "shared_frame"))
+         :frame)
         (t
          (error "Unknown belief system ~S. Expected one of: cf, certainty-factors, ds, dempster-shafer."
                 name))))))
