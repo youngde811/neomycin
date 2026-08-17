@@ -442,6 +442,49 @@
                                  (and m (plusp (logand m designated)))))))
               collect fact))))
 
+(defun contribute-claims-per-hypothesis (rete rule premises)
+  "Honor a rule's claims under a PER-HYPOTHESIS belief system (CF, Barnett DS).
+
+   Those systems have no notion of mass on a set: a belief lives on one hypothesis at
+   a time. An :excludes claim still translates exactly, though -- it is what the old
+   ruling-out rules did by hand. For every hypothesis the claim names that has a fact
+   for this entity, apply the claim's mass as NEGATIVE evidence against it.
+
+   A :supports claim on a rule that asserts nothing has no per-hypothesis translation
+   and is skipped: there is no fact to carry the belief, and these systems cannot hold
+   a hypothesis that no rule concluded. That limit is not an oversight -- it is the
+   representational gap the shared frame exists to close, showing up in miniature."
+  (dolist (claim (rule-declared-claims rule))
+    (destructuring-bind (mass verb designator) claim
+      (when (member verb '(:excludes :exclude :opposes :oppose))
+        (let ((targets (if (listp designator) designator (list designator)))
+              (entity (premise-entity rule premises)))
+          (dolist (fact (loop for f being the hash-values of (rete-fact-table rete)
+                              when (and (equal (fact-entity f) entity)
+                                        (member (fact-hypothesis f) targets)
+                                        ;; Once per (rule, fact). A ruling-out rule
+                                        ;; guards on a live hypothesis, so it fires
+                                        ;; once per raised sibling -- and each firing
+                                        ;; sees ALL the targets. Without this the
+                                        ;; claim would be applied n times over.
+                                        (notany (lambda (r)
+                                                  (eq (derivation-record-rule r)
+                                                      (rule-name rule)))
+                                                (gethash f (rete-derivation-table rete))))
+                                collect f))
+            ;; Exclude the TARGET from its own premise list. A ruling-out rule guards
+            ;; on the live hypothesis, so that fact is in the token -- and conjoining
+            ;; its belief in would make the ruling-out force track how strongly the
+            ;; hypothesis is already held rather than the contradicting observation.
+            ;; ADJUST-BELIEF does the same removal for the assert-driven path; this is
+            ;; the same hazard on the fire-driven one.
+            (let ((before (belief-factor fact))
+                  (evidence (remove fact premises :test #'eq)))
+              (setf (belief-factor fact)
+                    (belief:adjust-belief evidence (- (abs mass)) before))
+              (record-derivation rete fact rule evidence before
+                                 (belief-factor fact)))))))))
+
 (defun contribute-unasserted-claims (rete rule premises)
   "Contribute the claims of a rule that asserted nothing.
 

@@ -113,14 +113,22 @@
     (unbind-rule-activation self tokens)
     (funcall (rule-behavior self) tokens)
     ;; A rule that concluded a fact contributed its claims through that assertion.
-    ;; One that concluded NOTHING is still evidence under a shared frame -- a negative
-    ;; test result excludes without identifying anything -- so it contributes here,
-    ;; after the behavior has run and any facts it does assert exist.
+    ;; One that concluded NOTHING is still evidence -- a negative test result excludes
+    ;; without identifying anything -- so it contributes here, after the behavior has
+    ;; run and any facts it does assert exist.
+    ;;
+    ;; Both belief representations honor claims, by different routes: a frame takes
+    ;; mass on a SET, while a per-hypothesis system applies the same claim as negative
+    ;; evidence against each named hypothesis that has a fact. Keeping both live is
+    ;; what makes CF and Barnett DS usable as comparison baselines at all -- honoring
+    ;; claims only under the frame would quietly delete 16 rules from the others.
     (when (and (not *frame-evidence-contributed*)
-               belief:*frame*
-               (belief:frame-based-p belief:*belief-system*))
-      (contribute-unasserted-claims (rule-engine self) self
-                                    (token-make-fact-list tokens)))))
+               (rule-declared-claims self)
+               belief:*belief-system*)
+      (let ((premises (token-make-fact-list tokens)))
+        (if (and belief:*frame* (belief:frame-based-p belief:*belief-system*))
+            (contribute-unasserted-claims (rule-engine self) self premises)
+            (contribute-claims-per-hypothesis (rule-engine self) self premises))))))
 
 (defun rule-default-name (rule)
   (if (initial-context-p (rule-context rule))

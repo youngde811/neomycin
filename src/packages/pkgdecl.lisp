@@ -67,6 +67,7 @@
           "CLAIM-KIND"
           "CLAIM-DESIGNATOR"
           "RULE-MULTI-CLAIM-P"
+          "CLAIM-VERB-P"
           "RULE-SUPPORTS"
           "RULE-OPPOSES"
           "RULE-ASSERTED-LITERALS"

@@ -50,21 +50,36 @@
   (belief-factor rule))
 
 (defun knowledge-rule-p (rule)
-  "True when RULE declares a belief -- i.e. it asserts domain knowledge rather
-   than performing bookkeeping (reporting, formatting, driving). A corpus-wide
-   query almost always wants these and not, say, a salience -10 print rule."
-  (realp (rule-belief rule)))
+  "True when RULE asserts domain knowledge rather than performing bookkeeping
+   (reporting, formatting, driving) -- i.e. it declares a belief OR states claims.
+   A corpus-wide query almost always wants these and not, say, a salience -10 print
+   rule."
+  (or (realp (rule-belief rule))
+      (and (rule-declared-claims rule) t)))
+
+(defun claim-verb-p (rule &rest verbs)
+  "True when RULE states a claim using one of VERBS."
+  (some (lambda (c) (member (second c) verbs)) (rule-declared-claims rule)))
 
 (defun confirming-rule-p (rule)
-  "True when RULE argues FOR its conclusion (positive belief)."
+  "True when RULE argues FOR a hypothesis.
+
+   Under the older single-belief form that means a positive :belief. Under :claims it
+   means the rule states at least one :supports claim -- and note that a rule may be
+   BOTH confirming and disconfirming, because one observation can support one
+   hypothesis while excluding others. That is not a contradiction; it is what a
+   discriminating test does, and the old form could only express it as two rules."
   (let ((b (rule-belief rule)))
-    (and (realp b) (plusp b))))
+    (or (and (realp b) (plusp b))
+        (claim-verb-p rule :supports :support))))
 
 (defun disconfirming-rule-p (rule)
-  "True when RULE argues AGAINST its conclusion (negative belief) -- the
-   ruling-out shape."
+  "True when RULE argues AGAINST a hypothesis -- a negative :belief under the older
+   form, or at least one :excludes claim under :claims. See CONFIRMING-RULE-P: the
+   two are not mutually exclusive."
   (let ((b (rule-belief rule)))
-    (and (realp b) (minusp b))))
+    (or (and (realp b) (minusp b))
+        (claim-verb-p rule :excludes :exclude :opposes :oppose))))
 
 ;;; ------------------------------------------------------------------
 ;;; Conclusions (RHS).
