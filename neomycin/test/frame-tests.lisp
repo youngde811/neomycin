@@ -244,3 +244,118 @@
   (let ((cf (run-scenario 'lisa-user::culture-1 :certainty-factors)))
     (check-cf cf "pseudomonas" 0.76)
     (check-cf cf "klebsiella" 0.40)))
+;;; ------------------------------------------------------------------
+;;; Slice F -- what the bridge reports
+;;;
+;;; These exercise the serializers directly (the same Lisp path the handlers run,
+;;; minus HTTP), which is how therapy-bridge-tests.lisp covers /recommend-therapy.
+;;; ------------------------------------------------------------------
+
+(deftest frame-conclusions-carry-a-projection ()
+  ;; The per-fact payload cannot show an organism no rule concluded, mass sitting on a
+  ;; SET, or how much conflict was renormalized away. The frame block adds all three
+  ;; ALONGSIDE the existing payload, so nothing reading /conclusions today changes.
+  (frame-run 'lisa-user::culture-1)
+  (let ((frame (lisa-bridge::frame-projection->json)))
+    (is frame "a frame-based run reports a projection")
+    (when frame
+      (is (= 18 (length (gethash "elements" frame)))
+          "every frame element is listed, concluded or not")
+      (let* ((entities (gethash "entities" frame))
+             (e (aref entities 0)))
+        (is (= 1 (length entities)) "culture-1 has one organism entity")
+        (is (approx= (gethash "conflict" e) 0.30)
+            "K is reported UNNORMALIZED -- the mass Dempster renormalized away")
+        (is (string= (gethash "operator" e) "cautious"))
+        (is (= 18 (length (gethash "hypotheses" e)))
+            "every hypothesis is projected, including those with no fact")
+        (is (plusp (length (gethash "set_valued" e)))
+            "the set-valued conclusion is reported")))))
+
+(deftest frame-projection-reports-squeezed-organisms ()
+  ;; The payload's whole reason for existing: S. aureus has no fact in working memory,
+  ;; so the per-fact list cannot mention it, yet the evidence has constrained it.
+  (frame-run 'lisa-user::culture-1)
+  (let* ((frame (lisa-bridge::frame-projection->json))
+         (e (aref (gethash "entities" frame) 0))
+         (aureus (find "staphylococcus-aureus" (gethash "hypotheses" e)
+                       :key (lambda (h) (gethash "value" h)) :test #'string=)))
+    (is aureus "an organism no rule concluded still appears in the projection")
+    (when aureus
+      (is (zerop (gethash "bel" aureus)) "with no positive belief")
+      (is (< (gethash "pl" aureus) 0.99) "but a plausibility the evidence has lowered"))))
+
+(deftest frame-conclusions-omit-projection-under-other-systems ()
+  ;; No false claims: the frame block must not appear when no frame is driving the
+  ;; numbers, or a reader would take a stale projection for the live one.
+  (run-scenario 'lisa-user::culture-1 :dempster-shafer)
+  (is (null (lisa-bridge::frame-projection->json))
+      "the Barnett system reports no frame projection")
+  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (is (null (lisa-bridge::frame-projection->json))
+      "certainty factors report no frame projection"))
+
+(deftest frame-why-names-the-supported-set ()
+  ;; /why must be able to say WHICH hypotheses a firing supported. The scalar
+  ;; before/after pair cannot; `supports` can.
+  (frame-run 'lisa-user::culture-1)
+  (let* ((fact (lisa-bridge::find-organism-identity-fact :klebsiella))
+         (json (lisa-bridge::derivation-record->json
+                (first (lisa:fact-derivation (lisa:inference-engine) fact)))))
+    (is (equalp #("klebsiella") (gethash "supports" json))
+        "the firing names the set it committed mass to")
+    (is (approx= (gethash "focal_mass" json) 0.5) "and how much")
+    (is (approx= (gethash "conflict_after" json) 0.30) "and the pool's K after it")))
+
+(deftest frame-why-narrates-sets-not-scalar-arithmetic ()
+  ;; Under a frame a firing does NOT multiply one hypothesis by a factor, so narrating
+  ;; "0.8 composed with 0.5 = 0.40" would describe an operation that did not happen.
+  ;; The composition string states what actually occurred instead.
+  (frame-run 'lisa-user::culture-1)
+  (let* ((fact (lisa-bridge::find-organism-identity-fact :klebsiella))
+         (composition (gethash "composition"
+                               (lisa-bridge::derivation-record->json
+                                (first (lisa:fact-derivation (lisa:inference-engine) fact))))))
+    (is (search "committed" composition) "it says what was committed")
+    (is (search "klebsiella" composition) "and to which set")
+    (is (not (search "composed with" composition))
+        "and does not claim a multiplication the frame never performed")))
+
+(deftest frame-rules-catalogue-reports-focal-sets ()
+  ;; Now that the engine acts on focal sets, /rules can honestly report them. `source`
+  ;; separates a rule that DECLARES its set from one falling back to what it asserts --
+  ;; the distinction slice D's audit turns on.
+  (belief:use-system :frame)
+  (let* ((declared (lisa-bridge::rule->json
+                    (lisa:find-rule (lisa:inference-engine)
+                                    'lisa-user::aerobic-gram-neg-rod-suggests-enterobacteriaceae-class)))
+         (fallback (lisa-bridge::rule->json
+                    (lisa:find-rule (lisa:inference-engine)
+                                    'lisa-user::enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli)))
+         (df (gethash "focal_set" declared))
+         (ff (gethash "focal_set" fallback)))
+    (is df "a rule reports its focal set")
+    (when df
+      (is (string= (gethash "source" df) "supports") "declared via :supports")
+      (is (= 8 (gethash "size" df)) "the widened aerobic gram-negative rod set")
+      (is (find "pseudomonas" (gethash "supports" df) :test #'string=)
+          "which includes pseudomonas -- the slice D correction"))
+    (when ff
+      (is (string= (gethash "source" ff) "asserted")
+          "an unconverted rule falls back to what it asserts")
+      (is (= 1 (gethash "size" ff))))))
+
+(deftest frame-therapy-runs-unchanged ()
+  ;; Design 8's promise: because a fact carries a PROJECTED interval in the existing
+  ;; representation, the therapy phase needs no change at all. Set-valued hypotheses
+  ;; reaching the solver directly is deliberately left to a later phase.
+  (frame-run 'lisa-user::culture-1)
+  (therapy:use-solver :exact)
+  (let* ((conclusions (therapy::conclusions-for-solver))
+         (rec (therapy:recommend conclusions (therapy::therapy-kb) nil)))
+    (is (= 2 (length conclusions)) "both organisms reach the solver")
+    (dolist (pair conclusions)
+      (is (belief:ds-belief-p (cdr pair))
+          (format nil "~S arrives as a projected interval" (car pair))))
+    (is rec "a regimen is produced under the frame system")
+    (is (null (therapy:recommendation-uncovered rec)) "and it covers both organisms")))

@@ -109,6 +109,17 @@
     ((frame-bit f designator) (ash 1 (frame-bit f designator)))
     (t (error "~S names neither an element nor a subset of ~S." designator f))))
 
+(defun to-double (x)
+  "Widen X to a double-float without dragging single-float noise along.
+
+   A SINGLE-float is rationalized first: promoting 0.6f0 straight to double gives
+   0.6000000238418579d0, and that error then propagates through every combination and
+   out into serialized payloads as 0.30000001192092896. Rule beliefs are written as
+   short decimals in source and read as single-floats, so this is the common case."
+  (if (typep x 'single-float)
+      (float (rationalize x) 1.0d0)
+      (float x 1.0d0)))
+
 (defun frame-size (f)
   (length (frame-elements f)))
 
@@ -205,7 +216,7 @@
   "The only shape a rule can contribute: SUPPORT on MASK, the remainder on Theta.
    In canonical-decomposition terms this is MASK^w with weight w = 1 - SUPPORT,
    which is what makes the cautious rule cheap here (see POOL-MASS)."
-  (let ((s (max 0.0d0 (min 1.0d0 (float support 1.0d0))))
+  (let ((s (max 0.0d0 (min 1.0d0 (to-double support))))
         (m (make-mass-fn frame)))
     (mass-incf m mask s)
     (when (< s 1.0d0)
@@ -354,7 +365,7 @@
 (defun pool-add (pool mask support &optional tag)
   "Record one rule's contribution: SUPPORT on MASK. TAG is opaque here and exists so
    a caller can attribute the contribution later."
-  (push (list mask (float support 1.0d0) tag) (evidence-pool-contributions pool))
+  (push (list mask (to-double support) tag) (evidence-pool-contributions pool))
   pool)
 
 (defun pool-empty-p (pool)
