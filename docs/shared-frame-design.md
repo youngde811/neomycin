@@ -359,7 +359,27 @@ when it lands.
 
 ## 9. What this does not fix, and what it breaks
 
-### 9.1 It does not make illustrative beliefs non-illustrative
+### 9.0 It does not check context-conditioned beliefs
+
+Confirmed by measurement in slice D, and agreed as a known limit (David, 2026-08-17).
+
+The frame checks a rule's focal set against what its premises *license*, which is a
+deductive test. It therefore has nothing to say about a rule whose narrowing is
+**epidemiological**: `gram-neg-rod-in-burn-patient-suggests-pseudomonas` licenses
+nine organisms on its bench premises alone and names one, and that is correct —
+the burn does the narrowing, and widening the rule to nine would delete the only
+thing it says.
+
+Slice D found **8 such rules**, plus 7 more premised on context alone. Their beliefs
+are posteriors conditioned on patient or culture context, and nothing structural
+checks them. This is precisely where `belief-conditional-audit.md`'s five wrong
+conditionals live, and they remain that audit's step 3.
+
+**The frame reduces the surface; it does not eliminate it.** Roughly 15 of 50 rules
+stay in the regime where a belief can quietly answer the wrong question, and only
+evidence — not representation — will settle them.
+
+## 9.1 It does not make illustrative beliefs non-illustrative
 
 Every `:belief-basis :illustrative` stays illustrative. The claim is narrower: the
 numbers become answers to a question an author can state and a reader can check

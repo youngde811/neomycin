@@ -1,8 +1,15 @@
 # Slice D — focal-set width audit, and what to change
 
-> **Status: proposal for review (2026-08-17). No rule edited, no belief changed, no
-> golden moved; suite green at 1475/209.** Phase 1 slice D of
-> `docs/shared-frame-design.md`, promoted out of phase 2 by
+> **Status: APPLIED (2026-08-17). Category A landed; B and C deliberately not.
+> Suite green at 1477/209 — no golden moved, because the engine does not yet
+> accumulate through focal sets (slice E).**
+>
+> David settled the two open questions on 2026-08-17: **D6** — coarse rules include
+> `:other-organism`, fine ones do not, accepted as a judgement call until there is
+> evidence to improve it; **category B** — leave narrow, and note the residual risk in
+> the design. §9 records what was applied and the one refinement D6 needed.
+>
+> Phase 1 slice D of `docs/shared-frame-design.md`, promoted out of phase 2 by
 > `docs/shared-frame-phase0-results.md` §13.
 >
 > Audit tool: `docs/focal-width-audit.lisp` (throwaway, not in any ASDF system).
@@ -36,7 +43,7 @@ premises exclude anything. Burns, neutropenia, hospital acquisition and culture 
 change how *likely* an organism is; they do not make any organism impossible. The
 tool lists both sets explicitly (`*intrinsic-params*`, `*context-params*`).
 
-## 2. Results
+## 2. Results *(as first measured, before category A was applied — §9 has the after)*
 
 | | rules |
 |---|---:|
@@ -76,8 +83,8 @@ Applying the criterion splits the 18 four ways.
 
 ## 4. Category A — widen (4 rules)
 
-Pure deductions whose focal set is narrower than their premises license. **These are
-the proposed changes.**
+Pure deductions whose focal set is narrower than their premises license. **Applied;
+see §9 for exactly what landed.**
 
 | rule | claims | should also license | why |
 |---|---|---|---|
@@ -222,3 +229,49 @@ everything else in this document, and it should be measured before it is fixed.
 Category A does not move a golden by itself, because the engine does not yet
 accumulate through focal sets — that is slice E. Goldens move once, in slice G, with
 every decision already made.
+## 9. What was applied
+
+**Category A landed in full**, plus one new frame subset:
+
+| change | file |
+|---|---|
+| `:subset :gram-pos-cocci-in-chains` (4 streptococci + 2 enterococci) | `neomycin/rules/context.lisp` |
+| `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` → `:supports (:aerobic-gram-neg-rods :other-organism)` | `chain-enterobacteriaceae.lisp` |
+| `gram-pos-cocci-in-chains-suggests-streptococcus-class` → `:supports (:gram-pos-cocci-in-chains :other-organism)` | `chain-gram-pos.lisp` |
+| `gram-pos-cocci-in-clumps-suggests-staphylococcus-class` → `:supports (:staphylococcus :other-organism)` | `chain-gram-pos.lisp` |
+| `staph-coagulase-neg-suggests-staph-epidermidis` → `:supports (:staphylococcus-epidermidis :staphylococcus-saprophyticus)` | `chain-gram-pos.lisp` |
+
+Every rule still asserts the same `organism-class`, so Rete chaining and all 19
+tier-2 species rules are untouched. Only where the mass lands changed.
+
+Re-audited after the change: **0 overclaims, 29 exact (was 25), 12 too narrow (was
+18), 2 differing only by the catch-all.** The remaining 12 are exactly categories B
+(8) and C (4), which is the intended residue.
+
+### 9.1 D6 needed one refinement
+
+"Coarse rules include the catch-all" cannot be applied to a rule that names a single
+organism. Measured directly:
+
+```
+singleton  {pseudomonas}:        Bel=0.400  Pl=1.000
+widened    {pseudomonas, other}: Bel=0.000  Pl=1.000
+```
+
+Mass on `{pseudomonas, other-organism}` says *"one of these two"*, not
+*"pseudomonas"*, so `Bel` collapses to zero and the rule stops supporting its own
+conclusion. **D6 therefore applies only where the focal set is already set-valued** —
+the three stain-and-shape class rules. The two `anaerobic-gram-neg-rod-…-bacteroides`
+rules differ from their licensed set by the catch-all alone and are correct as they
+stand; the audit tool now reports them separately (category 3b) rather than as
+defects.
+
+### 9.2 A correction to the audit tool
+
+The first run after applying category A reported 3 overclaims. That was an artifact,
+not a defect: once `:other-organism` appeared in a confirming rule's focal set, the
+tool recorded properties for it — gram-negative from one rule, gram-positive from
+another — so it then contradicted everything that named it. **The catch-all is
+definitionally property-free**, since it stands for organisms of any description, and
+it is now excluded from the property table in both directions. Overclaims returned
+to 0.

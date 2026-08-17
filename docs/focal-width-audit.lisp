@@ -79,6 +79,12 @@
         append (loop for v in (lisa:rule-premise-values rule param)
                      collect (cons param v))))
 
+(defparameter *catch-all* :other-organism
+  "The frame's catch-all element. It must NEVER acquire properties: it stands for
+   organisms of ANY description, so recording 'other-organism is gram-negative' from
+   one rule and 'gram-positive' from another would make it contradict every rule that
+   names it. Excluded from the property table in both directions.")
+
 (defun build-knowledge ()
   "Derive what the corpus knows about each organism's properties, from both the
    confirming rules' premises and the ruling-out rules' member lists."
@@ -92,12 +98,12 @@
               ;; POSITIVE: a confirming rule's focal set all share its premises.
               ((lisa:confirming-rule-p rule)
                (let ((mask (lisa:rule-focal-set rule f)))
-                 (dolist (org (belief:mask->elements f mask))
+                 (dolist (org (remove *catch-all* (belief:mask->elements f mask)))
                    (loop for (param . value) in premises
                          do (setf (gethash (cons param org) (kb-positive kb)) value)))))
               ;; NEGATIVE: a ruling-out rule's TARGETS lack its premise values.
               ((lisa:disconfirming-rule-p rule)
-               (dolist (org (lisa:rule-member-test-values rule))
+               (dolist (org (remove *catch-all* (lisa:rule-member-test-values rule)))
                  (loop for (param . value) in premises
                        do (pushnew value
                                    (gethash (cons param org) (kb-negative kb)))))))))))))
@@ -184,11 +190,31 @@
                 (string-downcase (string (getf a :rule)))
                 (names (getf a :overclaim)))))
 
+    ;; 3b. Rules that differ from their licensed set ONLY by the catch-all.
+    ;; Decision D6: the catch-all belongs in a COARSE, already set-valued focal set,
+    ;; and not in a rule that names one organism -- adding it to a singleton drops
+    ;; that organism's Bel to ZERO, because mass on {X, other} says "one of these
+    ;; two", not "X". These are therefore correct as they stand.
+    (let* ((catch-all-mask (belief:resolve-mask (frame) *catch-all*))
+           (d6 (remove-if-not (lambda (a)
+                                (and (not (getf a :context-only))
+                                     (getf a :confirming)
+                                     (= (getf a :missing) catch-all-mask)))
+                              audits)))
+      (format t "~&~%--- (3b) DIFFER ONLY BY THE CATCH-ALL (D6): ~D ---~%" (length d6))
+      (format t "Singleton focal sets. Correct as they stand: adding the catch-all to a~%")
+      (format t "singleton would drop its Bel to zero.~%")
+      (dolist (a d6)
+        (format t "  ~,2F ~A -> ~{~A~^, ~}~%"
+                (getf a :belief) (string-downcase (string (getf a :rule)))
+                (names (getf a :focal))))
+
     ;; 3. Too-narrow confirming rules -- the culture-1 defect.
     (let ((narrow (sort (remove-if (lambda (a)
                                      (or (getf a :context-only)
                                          (not (getf a :confirming))
-                                         (zerop (getf a :missing))))
+                                         (zerop (getf a :missing))
+                                         (= (getf a :missing) catch-all-mask)))
                                    audits)
                         #'> :key (lambda (a) (belief:mask-size (getf a :missing))))))
       (format t "~&~%--- (3) TOO NARROW (confirming): ~D ---~%" (length narrow))
@@ -199,7 +225,7 @@
       (dolist (a narrow)
         (format t "~&  ~,2F ~A~%" (getf a :belief) (string-downcase (string (getf a :rule))))
         (format t "      claims:  ~{~A~^, ~}~%" (names (getf a :focal)))
-        (format t "      + also licensed: ~{~A~^, ~}~%" (names (getf a :missing)))))
+        (format t "      + also licensed: ~{~A~^, ~}~%" (names (getf a :missing))))))
 
     ;; 4. Ruling-out rules.
     (let ((ruling (remove-if (lambda (a)

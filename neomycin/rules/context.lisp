@@ -206,6 +206,14 @@
   (:subset :streptococcus (:streptococcus-pneumoniae :streptococcus-pyogenes
                            :streptococcus-agalactiae :streptococcus-viridans))
   (:subset :enterococcus (:enterococcus-faecalis :enterococcus-faecium))
+  ;; Like :aerobic-gram-neg-rods below, this is NOT an organism-class -- no rule
+  ;; concludes it. It is what the premise "gram-positive coccus in chains" actually
+  ;; licenses: the four streptococci AND both enterococci, which are also
+  ;; gram-positive cocci in chains. Slice D found this to be structurally the same
+  ;; defect as the enterobacteriaceae class rule (docs/slice-d-focal-width.md 4).
+  (:subset :gram-pos-cocci-in-chains (:streptococcus-pneumoniae :streptococcus-pyogenes
+                                      :streptococcus-agalactiae :streptococcus-viridans
+                                      :enterococcus-faecalis :enterococcus-faecium))
   ;; NOT an organism-class -- no rule concludes it. It is the set the premise
   ;; "aerobic gram-negative rod" actually licenses, which phase 0.5 found to be the
   ;; single correction that restores culture-1's ranking (results §12). Bacteroides
