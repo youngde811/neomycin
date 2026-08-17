@@ -405,6 +405,74 @@
             do (project-onto fact mass))
     mass))
 
+(defun premise-entity (rule premises)
+  "The entity a rule that asserts NOTHING is talking about.
+
+   A rule that concludes a fact takes its entity from that fact, which is
+   unambiguous. A rule that concludes nothing has only its premises, and those can
+   legitimately span entities -- neomycin matches a patient's burn and an organism's
+   gram stain in one rule. Signals rather than guessing when they do: contributing an
+   organism's evidence to a patient's pool would be silently wrong, and an author
+   should learn that at once."
+  (let ((entities (remove nil (remove-duplicates (mapcar #'fact-entity premises)))))
+    (cond ((null entities) nil)
+          ((null (rest entities)) (first entities))
+          (t (error "Rule ~A states claims but asserts nothing, and its premises span ~
+                     several entities (~{~S~^, ~}); the engine cannot tell which the ~
+                     claims are about. Give the rule a single-entity premise set, or ~
+                     have it assert its conclusion."
+                    (rule-name rule) entities)))))
+
+(defun claim-audience (rete entity claim)
+  "The existing hypothesis facts a CLAIM is ABOUT, for attaching a derivation record.
+
+   The DESIGNATED set, not the focal set: an :excludes claim's focal set is the
+   complement, but the reader who needs the explanation is asking about one of the
+   organisms it excluded. So a red-pigment exclusion is recorded against E. coli and
+   Klebsiella -- exactly where a clinician asking why their plausibility fell will
+   look for it."
+  (let ((designated (ignore-errors
+                     (belief:resolve-mask belief:*frame* (claim-designator claim)))))
+    (when designated
+      (loop for fact being the hash-values of (rete-fact-table rete)
+            when (and (equal (fact-entity fact) entity)
+                      (let ((h (fact-hypothesis fact)))
+                        (and h (let ((m (belief:hypothesis-mask
+                                         (belief:pool-mass (entity-pool rete entity)) h)))
+                                 (and m (plusp (logand m designated)))))))
+              collect fact))))
+
+(defun contribute-unasserted-claims (rete rule premises)
+  "Contribute the claims of a rule that asserted nothing.
+
+   Belief accumulation is normally driven by fact assertion, because a rule that
+   concludes something adjusts that conclusion. Under a shared frame a rule may
+   legitimately conclude NOTHING and still be evidence -- a negative test result
+   excludes without identifying anything -- so those rules contribute here instead.
+   Their derivation is recorded against the hypotheses each claim is about."
+  (let ((claims (rule-claims rule belief:*frame*)))
+    (when claims
+      (let ((entity (premise-entity rule premises)))
+        (when entity
+          (let ((pool (entity-pool rete entity))
+                (strength (raw-premise-strength rete premises))
+                (contributions '()))
+            (dolist (claim claims)
+              (let ((mask (claim-mask claim)))
+                (when (and mask (plusp mask))
+                  (let ((mass (* (claim-mass claim) strength)))
+                    (belief:pool-add pool mask mass (rule-name rule))
+                    (push (cons mask mass) contributions)))))
+            (when contributions
+              (refresh-projections rete entity)
+              (let ((conflict (belief:pool-conflict pool))
+                    (audience (remove-duplicates
+                               (loop for c in claims append (claim-audience rete entity c)))))
+                (dolist (fact audience)
+                  (record-derivation rete fact rule premises nil (belief-factor fact)
+                                     :claims (reverse contributions)
+                                     :conflict conflict))))))))))
+
 (defun accumulate-frame-evidence (rete fact rule premises)
   "Contribute one firing of RULE to the pool for FACT's entity, then re-project.
 
@@ -426,6 +494,7 @@
             (belief:pool-add pool mask mass (rule-name rule))
             (push (cons mask mass) contributions)))))
     (when contributions
+      (setf *frame-evidence-contributed* t)
       (refresh-projections rete entity fact)
       ;; The pool's UNNORMALIZED conflict: both normalizations resolve K away, so
       ;; reading it off the projected mass function would always give zero.

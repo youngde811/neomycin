@@ -108,9 +108,19 @@
 (defmethod fire-rule ((self rule) tokens)
   (let ((*active-rule* self)
         (*active-engine* (rule-engine self))
-        (*active-tokens* tokens))
+        (*active-tokens* tokens)
+        (*frame-evidence-contributed* nil))
     (unbind-rule-activation self tokens)
-    (funcall (rule-behavior self) tokens)))
+    (funcall (rule-behavior self) tokens)
+    ;; A rule that concluded a fact contributed its claims through that assertion.
+    ;; One that concluded NOTHING is still evidence under a shared frame -- a negative
+    ;; test result excludes without identifying anything -- so it contributes here,
+    ;; after the behavior has run and any facts it does assert exist.
+    (when (and (not *frame-evidence-contributed*)
+               belief:*frame*
+               (belief:frame-based-p belief:*belief-system*))
+      (contribute-unasserted-claims (rule-engine self) self
+                                    (token-make-fact-list tokens)))))
 
 (defun rule-default-name (rule)
   (if (initial-context-p (rule-context rule))
