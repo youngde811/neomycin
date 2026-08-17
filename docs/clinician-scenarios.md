@@ -97,7 +97,7 @@ Transcript flags: `--no-transcript`, `--transcript-verbosity {minimal,normal,ful
 - `gram-neg-rod-in-burn-patient-suggests-pseudomonas` (0.4)
 - `gram-neg-rod-in-compromised-host-suggests-pseudomonas` (0.6)
 - `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` (0.8) — derives the family class (tier 1)
-- `enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.5, tier-2) — composes to 0.8×0.5 = 0.40
+- `enterobacteriaceae-in-compromised-host-suggests-klebsiella` (0.5, tier-2) — commits 0.5 to {klebsiella}; under the shared frame the class evidence corroborates rather than discounts, and klebsiella lands at [0.286, 0.571] after conflict (under `ds` it composes multiplicatively to 0.8×0.5 = 0.40)
 
 **Expected differential** (identities in `/conclusions`):
 - **Pseudomonas** — two rules conclude it, so belief combines.

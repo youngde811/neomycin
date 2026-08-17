@@ -1,5 +1,11 @@
 # neomycin — Therapy Demo & Increment Record
 
+> **Historical record (pre-v0.9.0).** The belief figures below were produced by the
+> per-hypothesis Dempster-Shafer system, which was the default until the shared
+> frame of discernment replaced it. They are left as captured rather than rewritten
+> — a transcript is a record of what the system did at the time. Current numbers
+> differ; see `docs/shared-frame-design.md`.
+
 Carrying a case all the way through: from a clinician's plain-English description,
 to organism identification under a belief algebra, to a **deterministic
 antimicrobial regimen** that Claude requests and narrates but never chooses. This

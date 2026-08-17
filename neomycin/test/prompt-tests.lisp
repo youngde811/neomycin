@@ -102,3 +102,38 @@
       (is (equal stated actual)
           (format nil "system-prompt.md says (total confirming disconfirming) = ~S, ~
                        the compiled rulebase has ~S" stated actual)))))
+;;; ------------------------------------------------------------------
+;;; The prompt must not restate what the shared frame made false.
+;;;
+;;; These are NEGATIVE guards, which is unusual but earned: both claims below were
+;;; true of the per-hypothesis system and were stated in the prompt for a year. They
+;;; are the two most natural things for a future edit to reintroduce, and either one
+;;; would have the LLM narrating an arithmetic the engine does not perform.
+;;; ------------------------------------------------------------------
+
+(defun prompt-contains-p (needle)
+  (search needle (system-prompt-text) :test #'char-equal))
+
+(deftest prompt-does-not-claim-the-composition-law ()
+  ;; Under the frame a chained rule contributes unconditional support that the class
+  ;; premise GATES; class and species evidence then COMBINE, so the class corroborates
+  ;; the species rather than discounting it (decision D1). "class belief x rule belief"
+  ;; describes a multiplication the engine no longer performs.
+  (dolist (claim '("class belief × rule belief" "class belief * rule belief"
+                   "composes through its class" "0.64 = 0.8 × 0.8"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md still claims the composition law: ~S" claim))))
+
+(deftest prompt-does-not-equate-low-plausibility-with-ruling-out ()
+  ;; The inference "pl < 1.0 therefore a ruling-out rule fired" was valid only while
+  ;; each hypothesis had its own frame. Now most squeezing comes from RIVAL hypotheses
+  ;; taking up belief, with no rule arguing against anything.
+  (is (not (prompt-contains-p "below 1.0 means a ruling-out rule fired"))
+      "system-prompt.md still equates a lowered plausibility with a ruling-out rule"))
+
+(deftest prompt-explains-the-frame-payload ()
+  ;; The positive counterpart: the frame block carries answers the per-organism list
+  ;; cannot give, and the prompt has to say so or the LLM will not look.
+  (dolist (topic '("set_valued" "other-organism" "conflict"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not mention the frame payload's ~A" topic))))

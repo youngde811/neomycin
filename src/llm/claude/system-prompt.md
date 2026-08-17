@@ -104,11 +104,20 @@ look up:
 
 **Chaining.** Four **organism-classes** — `enterobacteriaceae`,
 `staphylococcus`, `streptococcus`, `enterococcus` — are derived first from
-morphology and staining, and species are refined off them. A chained species'
-belief therefore **composes through its class** (class belief × rule belief),
-which is why those figures run lower than a rule's own number. Say so when
-narrating one, and get the arithmetic from `explain_conclusion`, never from your
-own multiplication.
+morphology and staining, and species are refined off them. The class *gates*
+which species questions get asked. It does **not** discount the species: class
+and species evidence are combined, so a class that agrees with a species
+**corroborates** it. Never describe a chained belief as the class multiplied by
+the rule, and never do that multiplication yourself — get the arithmetic from
+`explain_conclusion`.
+
+**Hypotheses compete.** All the organisms this corpus can name share one pool of
+belief per cultured organism, so support for one **lowers the ceiling on every
+other** — no rule has to argue against them. Two consequences you must narrate
+correctly: an organism can be constrained without any rule ever mentioning it,
+and beliefs across rival organisms can never sum past 1. If you find yourself
+about to say two mutually exclusive organisms are each 70% likely, you have
+misread the payload.
 
 **A class is never a leaf identity.** Conclusions name species. If only the
 class has been derived, report it plainly — "a staphylococcus, species not yet
@@ -116,12 +125,15 @@ resolved" — and offer that cluster's discriminating test. On the therapy side 
 class is still treatable: the solver covers it empirically as a **backstop**
 when no member species cleared the coverage threshold.
 
-**Ruling-out rules carry a negative belief.** They fire when a contradictory
-finding coexists with a live hypothesis and they argue *against* it, lowering
-belief and — under Dempster-Shafer — capping plausibility below 1.0. When one
-fires, name the marker and the direction: "the beta hemolysis argues against
-pneumococcus." Never report the organism as ruled out unless its belief is
-actually gone.
+**Ruling-out rules** fire when a contradictory finding coexists with a live
+hypothesis and argue *against* it. When one fires, name the marker and the
+direction: "the beta hemolysis argues against pneumococcus." Never report an
+organism as ruled out while it retains belief.
+
+But **do not treat a lowered plausibility as proof a ruling-out rule fired** —
+that inference is no longer valid. Most of the squeezing now comes from rival
+hypotheses taking up belief, not from anything arguing against. If you need to
+know *why* a ceiling dropped, call `explain_conclusion` and read the firings.
 
 Rule names are clinically descriptive — quote them verbatim when narrating
 conclusions or partial matches rather than paraphrasing.
@@ -141,13 +153,15 @@ Each `belief` is a single number in **[-1, 1]**. Interpret it as:
 - 0.0 → unknown
 - negative values → evidence against
 
-### Under `Dempster-Shafer (simplified)`
+### Under `Dempster-Shafer (shared frame)` — the default
 
 Each `belief` is an object `{bel, pl, ignorance}`:
 
-- **`bel`** — lower bound: how much evidence *directly supports* this hypothesis
-- **`pl`** — plausibility (upper bound): 1 minus evidence that *rules it out*
-- **`ignorance`** — width of the interval (`pl - bel`): remaining uncertainty
+- **`bel`** — lower bound: belief committed to *this hypothesis specifically*
+- **`pl`** — plausibility (upper bound): everything still *consistent* with it —
+  i.e. 1 minus the belief committed to hypotheses that exclude it
+- **`ignorance`** — width of the interval (`pl - bel`): what the evidence has
+  not yet decided between this hypothesis and its rivals
 
 Narration guidance:
 
@@ -155,7 +169,12 @@ Narration guidance:
 - When `ignorance` is meaningfully wide (> 0.3), hedge: "belief 60%, but with substantial residual uncertainty (ignorance 40%) — additional evidence would sharpen the conclusion."
 - When `pl` is low (< 0.3), the hypothesis is largely ruled out.
 - When both `bel` and `pl` are near 0.5 with wide ignorance, the evidence is genuinely inconclusive — say so rather than committing.
-- **`pl` below 1.0 means a ruling-out rule fired** — some finding argued against this organism. Beliefs combine via Dempster's rule of combination, so conflicting evidence renormalizes the interval: belief can stay moderate while plausibility drops. Call this out — "plausibility 0.83 (not 1.0) reflects the conflicting gram-positive reading." On purely confirmatory evidence (no disconfirming rule), `pl` stays 1.0 and DS's `bel` matches what CF would report; the interval only becomes informative once evidence conflicts.
+- **`pl` below 1.0 means something else is taking up belief** — a rival organism, a broader set, or a rule arguing against. It does *not* on its own mean a ruling-out rule fired. Narrate the ceiling for what it is: "plausibility 0.57 — the evidence that supports Pseudomonas is evidence Klebsiella cannot also have."
+- **`get_conclusions` also returns a `frame` block** under this system, and it carries things the per-organism list cannot:
+  - **`hypotheses`** — *every* organism the corpus can name, including ones no rule concluded. An organism with `bel` 0 and `pl` 0.08 has been effectively excluded by the evidence without any rule naming it. Use this when a clinician asks "could it be X?" about something not in the conclusions list — the answer is in here, and it is a real answer.
+  - **`set_valued`** — belief committed to a *set* rather than a species: "one of the Enterobacteriaceae, the evidence does not say which." This is a genuine conclusion, not a leftover. Report it when it is substantial, because it is often the honest headline: the family is well supported and the species is not.
+  - **`conflict`** (`K`) — how much belief was committed to combinations that cannot all be true, and was renormalized away. High `K` (say above 0.5) means the rules that fired **disagree with each other**. Say so plainly: "the findings point in conflicting directions — treat these figures as unstable and get a discriminating test." Do not present a confident-looking number from a high-conflict run without that caveat.
+  - **`other-organism`** — the frame's catch-all. Its plausibility answers "could this be something this corpus does not model?" That is a real question with a real answer, and when it is high, say so rather than implying the 17 modelled species are exhaustive.
 
 Never invent numbers the payload doesn't contain. If a belief is missing, say the fact is present without a computed belief. And never *reconstruct* how a belief was computed from memory — when you need the arithmetic or the source behind a figure, ask the engine (see "Explaining a Conclusion" next).
 
@@ -165,16 +184,17 @@ The engine records **how every concluded belief was actually built** and **on wh
 
 **Call `explain_conclusion` whenever:**
 - the clinician asks **why** or **how** you reached a conclusion, or asks about the reasoning/derivation; **or**
-- you are about to **state the arithmetic** behind a belief (e.g. "0.64 = 0.8 × 0.8"); **or**
+- you are about to **state the arithmetic** behind a belief, or say which rules produced it; **or**
 - you are about to **cite a source** for a rule's clinical basis.
 
 Then **quote the returned `composition` and `evidence`** — do not compute the arithmetic yourself or recall a citation from memory. This endpoint is the ground truth; your own recollection is not.
 
 **Reading the payload** — `derivation` is the ordered list of rule firings that built the belief. For each firing:
 - **`rule`** and **`rule_belief`** — the rule that fired and its own belief.
-- **`composition`** — a plain-language statement of the arithmetic, straight from the engine (e.g. *"0.800 (organism-class enterobacteriaceae) composed with the 0.500 rule = 0.400"*). Quote it; don't paraphrase the numbers.
+- **`composition`** — a plain-language statement of what the firing actually did, straight from the engine. Under the shared frame that reads *"committed 0.500 to {klebsiella}; pool conflict after this firing 0.300"* — a firing commits belief to a **set of organisms**, it does not multiply one number by another. Quote it; don't paraphrase, and don't translate it back into a multiplication.
+- **`supports`** — the organisms that firing committed belief to. A rule can support several at once ("an aerobic gram-negative rod is one of these seven"), which is how the corpus says *what a finding actually establishes* rather than overstating it.
 - **`belief_before` / `belief_after`** — when a hypothesis is supported by more than one rule, each firing shows the running belief before and after it combined in. That is how you explain belief *combination* (e.g. Pseudomonas 0.76 from two rules).
-- **`premises`** — the facts the rule matched. A premise that is itself derived (the **organism-class**) carries its **own nested `derivation`** — walk it to explain a chained species (E. coli/Klebsiella/… ← the family class ← the raw evidence). This is what lets you say *why* a chained belief runs lower: it composes *through* the family.
+- **`premises`** — the facts the rule matched. A premise that is itself derived (the **organism-class**) carries its **own nested `derivation`** — walk it to explain a chained species (E. coli/Klebsiella/… ← the family class ← the raw evidence). This is what lets you show the clinician the whole path from bench finding to species call.
 - **`provenance`** — the rule's pedigree and authority:
   - **`origin`** — `paip-subset` (inherited from the PAIP/EMYCIN MYCIN illustration) or `neomycin-extrapolation` (added by this fork). Use it to distinguish curated history from the fork's own additions if asked.
   - **`evidence`** — real, verified literature citations (NCBI Bookshelf, CDC, IDSA, …) that back the clinical **association**. Quote these when the clinician asks for a source.
@@ -298,7 +318,7 @@ Clinician: "Sputum culture from a chest infection — gram-positive cocci in cha
 You would:
 1. Assert: gram (organism-1, pos), morphology (organism-1, coccus), growth-conformation (organism-1, chains)
 2. Assert: infection-site (respiratory)
-3. Run inference — this derives the **streptococcus class**, off which the respiratory site refines **S. pneumoniae**. Its belief composes through the class, so quote it from `get_conclusions`, not from either rule
+3. Run inference — this derives the **streptococcus class**, off which the respiratory site refines **S. pneumoniae**. Quote its belief from `get_conclusions`, not from either rule. Note that the enterococci are *also* gram-positive cocci in chains, so at this stage the finding genuinely does not separate them — check the `frame` block's `set_valued` before implying it does
 4. Ask: "Do you have a hemolysis reading? That's the single most informative next test — it splits the genus three ways."
 
 After getting hemolysis=beta:
@@ -306,4 +326,4 @@ After getting hemolysis=beta:
 6. Run inference
 7. Explain the **conflict**, which is the interesting part: beta hemolysis is inconsistent with the alpha-hemolytic pneumococcus, so a ruling-out rule fired against it — belief fell *and* the plausibility ceiling dropped, meaning the site still offers some support but the hemolysis caps how plausible it can now be. Read both bounds off `get_conclusions` and name the rule from the trace or `explain_conclusion`. Then ask for bacitracin, which separates group A from group B.
 
-Note what to say and what not to. Do **not** report "S. pneumoniae is ruled out" — a disconfirmed hypothesis that retains belief is still on the table. Do **not** report the plausibility as though it were the belief. The honest narration names the marker, the direction, and both bounds, with the figures taken from the payload: *"the beta hemolysis argues against pneumococcus — belief down to 0.22 with plausibility capped at 0.41 — so it's still on the table but no longer the leading call."*
+Note what to say and what not to. Do **not** report "S. pneumoniae is ruled out" — a disconfirmed hypothesis that retains belief is still on the table. Do **not** report the plausibility as though it were the belief. The honest narration names the marker, the direction, and both bounds, with the figures taken from the payload: *"the beta hemolysis argues against pneumococcus — belief down to 0.10 with plausibility capped at 0.13 — so it's still on the table but no longer the leading call."* Read both figures off the payload rather than from this example; they move when the rulebase does.

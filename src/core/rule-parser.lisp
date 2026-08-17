@@ -289,7 +289,8 @@
 
 ;;; High-level rule definition interfaces...
 
-(defun define-rule (name body &key (salience 0) (context nil) (auto-focus nil) (belief nil) (provenance nil))
+(defun define-rule (name body &key (salience 0) (context nil) (auto-focus nil) (belief nil)
+                                   (provenance nil) (supports nil) (opposes nil))
   (let ((*current-defrule* name))
     (with-rule-components ((doc-string lhs rhs) body)
       (make-rule name (inference-engine) lhs rhs
@@ -298,12 +299,17 @@
                  :context context
                  :belief belief
                  :provenance provenance
+                 :supports supports
+                 :opposes opposes
                  :auto-focus auto-focus))))
 
-(defun redefine-defrule (name body &key (salience 0) (context nil) (belief nil) (auto-focus nil) (provenance nil))
+(defun redefine-defrule (name body &key (salience 0) (context nil) (belief nil) (auto-focus nil)
+                                        (provenance nil) (supports nil) (opposes nil))
   (define-rule name body :salience salience
                :context context
                :belief belief
                :provenance provenance
+               :supports supports
+               :opposes opposes
                :auto-focus auto-focus))
 

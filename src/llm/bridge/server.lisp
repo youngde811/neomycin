@@ -45,17 +45,34 @@
              (string= normalized "dempster-shafer")
              (string= normalized "dempster_shafer"))
          :dempster-shafer)
+        ;; Dempster-Shafer over the SHARED frame of discernment declared with
+        ;; DEFRAME: rules contribute to SUBSETS of one per-entity mass function, so
+        ;; evidence for one organism constrains the others arithmetically. Requires a
+        ;; declared frame; neomycin's is in neomycin/rules/context.lisp.
+        ((or (string= normalized "frame")
+             (string= normalized "shared-frame")
+             (string= normalized "shared_frame"))
+         :frame)
         (t
          (error "Unknown belief system ~S. Expected one of: cf, certainty-factors, ds, dempster-shafer."
                 name))))))
 
 (defun apply-startup-belief-system ()
-  "Honor the LISA_BELIEF_SYSTEM environment variable. Defaults to
-   Dempster-Shafer when unset — it captures ignorance explicitly, which is
-   more informative for the LLM-driven clinician workflow. Called from
-   START."
+  "Honor the LISA_BELIEF_SYSTEM environment variable. Defaults to the SHARED FRAME
+   system when unset.
+
+   The frame is the default because the alternative is wrong in a way that reaches a
+   clinician. Under the per-hypothesis (Barnett) system each organism carries its own
+   {H, not-H} frame, so two organisms' beliefs never interact: culture-1 reports
+   pseudomonas 0.76 AND klebsiella 0.40 for ONE organism -- mutually exclusive
+   hypotheses summing to 1.16 -- and nothing notices. The frame shares one mass
+   function per organism, so evidence for one constrains the others arithmetically,
+   mass is conserved, and an organism no rule mentions still gets a plausibility.
+   `ds` remains available for comparison. See docs/shared-frame-design.md.
+
+   Called from START."
   (let* ((env (uiop:getenv "LISA_BELIEF_SYSTEM"))
-         (choice (or (parse-belief-system-name env) :dempster-shafer)))
+         (choice (or (parse-belief-system-name env) :frame)))
     (belief:use-system choice)))
 
 (defun start (&key (port *bridge-port*))

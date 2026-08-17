@@ -65,6 +65,10 @@
 ;;; ------------------------------------------------------------------
 (defrule gram-pos-cocci-in-clumps-suggests-staphylococcus-class
     (:belief 0.7
+     ;; SLICE D / D6. The three staphylococci are what the corpus models; gram +
+     ;; morphology + clumping is coarse enough that an unmodelled cluster-forming
+     ;; gram-positive coccus is a live possibility, so :other-organism is included.
+     :supports (:staphylococcus :other-organism)
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
                              "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
@@ -79,6 +83,13 @@
 
 (defrule gram-pos-cocci-in-chains-suggests-streptococcus-class
     (:belief 0.7
+     ;; SLICE D, and structurally the same defect as the enterobacteriaceae class
+     ;; rule: ENTEROCOCCI are also gram-positive cocci in chains, so gram + morphology
+     ;; + conformation cannot separate them from the streptococci. Claiming only the
+     ;; four streptococci put this rule in conflict with the enterococcus rule reading
+     ;; the same three findings; widening it drops culture-3's conflict from 0.647 to
+     ;; 0.525 because the two rules now agree instead of fighting.
+     :supports (:gram-pos-cocci-in-chains :other-organism)
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
                              "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
@@ -173,6 +184,14 @@
 ;; see design §8.1 -- the significance/contaminant increment will want it.)
 (defrule staph-coagulase-neg-suggests-staph-epidermidis
     (:belief 0.55
+     ;; SLICE D. The rule's own :note already said this -- "coagulase-negativity
+     ;; identifies the GROUP, not this species" -- and the set it described in prose
+     ;; is now the set it declares. Coagulase-negativity separates S. epidermidis and
+     ;; S. saprophyticus from S. aureus; it does not separate them from each other.
+     ;; NO :other-organism (D6): the premises are specific enough -- already inside the
+     ;; staphylococcus class -- that the modelled species are a near-complete
+     ;; enumeration, and this is a species-level rather than a stain-level rule.
+     :supports (:staphylococcus-epidermidis :staphylococcus-saprophyticus)
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240"
                              "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")

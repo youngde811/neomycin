@@ -52,6 +52,14 @@
    ;; never affects inference.
    (derivation-table :initform (make-hash-table :test #'eq)
                      :accessor rete-derivation-table)
+   ;; EVIDENCE-POOLS (neomycin extension, shared frame of discernment): one pool per
+   ;; ENTITY -- the thing the frame asks its question about. Under a frame-based
+   ;; belief system this is where belief actually lives; the [Bel, Pl] on each fact is
+   ;; a projection of it. Keyed by the entity designator (EQUAL), empty and unused
+   ;; under the per-hypothesis systems, and cleared with the facts.
+   ;; See docs/shared-frame-design.md 5.
+   (evidence-pools :initform (make-hash-table :test #'equal)
+                   :accessor rete-evidence-pools)
    (contexts :initform (make-hash-table :test #'equal)
              :reader rete-contexts)
    (focus-stack :initform (list)
@@ -146,8 +154,10 @@
   (clrhash (rete-fact-table rete))
   (clrhash (fact-id-table rete))
   ;; Derivations belong to facts, so they die with them (each reset starts a fresh
-  ;; consultation with an empty derivation record).
-  (clrhash (rete-derivation-table rete)))
+  ;; consultation with an empty derivation record). Evidence pools likewise: a pool is
+  ;; the accumulated evidence of ONE consultation.
+  (clrhash (rete-derivation-table rete))
+  (clrhash (rete-evidence-pools rete)))
 
 (defun get-fact-list (rete)
   (delete-duplicates
@@ -235,10 +245,18 @@
    time (the fact object lets a reader recurse into a derived premise's own
    derivation); BELIEF-BEFORE / BELIEF-AFTER bracket this firing's contribution
    (BELIEF-BEFORE is NIL on the first firing, so combination across firings is
-   visible)."
-  rule rule-belief premises belief-before belief-after)
+   visible).
 
-(defun record-derivation (rete fact rule premises belief-before belief-after)
+   Under a frame-based belief system three more fields carry what the scalar pair
+   cannot: FOCAL-SET is the frame subset this firing put mass on, FOCAL-MASS how much,
+   and CONFLICT the pool's K after it. Without them a /why narration could not say
+   WHICH hypotheses a firing supported, only how one of them moved. NIL under the
+   per-hypothesis systems."
+  rule rule-belief premises belief-before belief-after
+  focal-set focal-mass conflict)
+
+(defun record-derivation (rete fact rule premises belief-before belief-after
+                          &key focal-set focal-mass conflict)
   "Append a DERIVATION-RECORD for the conclusion FACT under the derivation table.
    Prepended (O(1)); FACT-DERIVATION reverses to firing order on read."
   (push (%make-derivation-record
@@ -246,13 +264,117 @@
          :rule-belief (belief-factor rule)
          :premises (mapcar #'(lambda (p) (cons p (belief-factor p))) premises)
          :belief-before belief-before
-         :belief-after belief-after)
+         :belief-after belief-after
+         :focal-set focal-set
+         :focal-mass focal-mass
+         :conflict conflict)
         (gethash fact (rete-derivation-table rete))))
 
 (defun fact-derivation (rete fact)
   "The ordered list of DERIVATION-RECORDs for FACT, earliest firing first, or NIL if
    FACT was asserted as raw evidence rather than concluded by a rule."
   (reverse (gethash fact (rete-derivation-table rete))))
+
+;;; ------------------------------------------------------------------
+;;; Frame-based accumulation (shared frame of discernment).
+;;;
+;;; Under a frame-based system a rule's firing does NOT set a number on the fact it
+;;; concluded. It contributes mass to a SUBSET of the frame, in the pool belonging to
+;;; the entity the frame is asking about. Every hypothesis for that entity is then
+;;; re-projected, which is where free exclusion comes from: evidence for one organism
+;;; lowers the plausibility of the others by arithmetic, with no rule saying so.
+;;; See docs/shared-frame-design.md 5.
+;;; ------------------------------------------------------------------
+
+(defvar *hypothesis-slot* "VALUE"
+  "Slot naming the hypothesis a fact asserts. The corpus convention RULE-ASSERTED-FACTS
+   already assumes; named here so a rulebase using a different one can rebind it.")
+
+(defvar *entity-slot* "OF"
+  "Slot naming the entity a fact is scoped to -- the thing the frame asks its question
+   about. One evidence pool per distinct value of this slot.")
+
+(defun fact-slot (fact slot-name)
+  (ignore-errors (get-slot-value fact (intern slot-name :lisa-user))))
+
+(defun fact-entity (fact)
+  (fact-slot fact *entity-slot*))
+
+(defun fact-hypothesis (fact)
+  (fact-slot fact *hypothesis-slot*))
+
+(defun entity-pool (rete entity)
+  "The evidence pool for ENTITY, created on first use."
+  (or (gethash entity (rete-evidence-pools rete))
+      (setf (gethash entity (rete-evidence-pools rete))
+            (belief:make-evidence-pool belief:*frame*))))
+
+(defun raw-premise-strength (rete premises)
+  "Strength of the RAW evidence behind a firing -- decision D1.
+
+   Premises that were themselves CONCLUDED (they carry a derivation) are excluded: a
+   chained rule's belief is unconditional support that the class premise GATES, not a
+   conditional to be discounted by it. Composition between the two happens in the pool,
+   by Dempster's rule, rather than by multiplication here. Raw premises carrying no
+   explicit belief count as certain, which is what the per-hypothesis path does too."
+  (let ((strengths
+          (loop for p in premises
+                unless (gethash p (rete-derivation-table rete))
+                  when (belief-factor p)
+                    collect (let ((b (belief-factor p)))
+                              (if (belief:ds-belief-p b)
+                                  (belief:ds-belief-bel b)
+                                  (float b 1.0))))))
+    (if strengths (reduce #'min strengths) 1.0)))
+
+(defun project-onto (fact mass)
+  "Set FACT's belief to its projection from MASS, if its hypothesis is in the frame.
+   Returns true when it projected."
+  (let ((hypothesis (fact-hypothesis fact)))
+    (when (belief:hypothesis-mask mass hypothesis)
+      (setf (belief-factor fact) (belief:project-mass mass hypothesis))
+      t)))
+
+(defun refresh-projections (rete entity &optional new-fact)
+  "Re-project every hypothesis fact scoped to ENTITY from its pool.
+
+   This is the step that has no counterpart under the per-hypothesis systems, and it
+   is the whole point: one firing updates every hypothesis, not just the one the rule
+   named. Facts whose hypothesis is not in the frame are left alone, so raw evidence
+   keeps whatever belief it was asserted with.
+
+   NEW-FACT is projected explicitly because ASSERT-FACT calls ADJUST-BELIEF *before*
+   REMEMBER-FACT, so a fact being concluded for the first time is not yet in the fact
+   table and the loop below would miss it. It is harmless to project it twice."
+  (let* ((pool (entity-pool rete entity))
+         (mass (belief:pool-mass pool)))
+    (when new-fact (project-onto new-fact mass))
+    ;; An ELEMENT (a leaf identity) or a named SUBSET (a taxonomic class) both
+    ;; project; a class's Bel is the mass that has settled inside the family, however
+    ;; it is distributed among the members.
+    (loop for fact being the hash-values of (rete-fact-table rete)
+          when (equal (fact-entity fact) entity)
+            do (project-onto fact mass))
+    mass))
+
+(defun accumulate-frame-evidence (rete fact rule premises)
+  "Contribute one firing of RULE to the pool for FACT's entity, then re-project.
+
+   Returns the pool's mass function, or NIL when the rule designates no focal set (in
+   which case nothing is contributed and belief is left untouched)."
+  (let ((entity (fact-entity fact)))
+    (multiple-value-bind (focal-set kind) (rule-focal-set rule belief:*frame*)
+      (declare (ignore kind))
+      (when (and focal-set (plusp focal-set))
+        (let ((mass-contributed (* (or (rule-focal-mass rule) 0.0)
+                                   (raw-premise-strength rete premises))))
+          (belief:pool-add (entity-pool rete entity) focal-set mass-contributed
+                           (rule-name rule))
+          (refresh-projections rete entity fact)
+          ;; The pool's UNNORMALIZED conflict: both normalizations resolve K away, so
+          ;; reading it off the projected mass function would always give zero.
+          (values (belief:pool-conflict (entity-pool rete entity))
+                  focal-set mass-contributed))))))
 
 (defmethod adjust-belief (rete fact (belief-factor t))
   (when (in-rule-firing-p)
@@ -265,10 +387,24 @@
            ;; hypothesis is already held instead of the contradicting observation.
            (premises (remove fact (token-make-fact-list *active-tokens*) :test #'eq))
            (belief-before (belief-factor fact)))
-      (setf (belief-factor fact)
-            (belief:adjust-belief premises (belief-factor rule) (belief-factor fact)))
-      ;; Record what the engine ACTUALLY did (authoritative, not recomputed later).
-      (record-derivation rete fact rule premises belief-before (belief-factor fact)))))
+      (if (belief:frame-based-p belief:*belief-system*)
+          ;; Shared frame: the rule contributes a focal set to the entity's pool, and
+          ;; every hypothesis for that entity is re-projected from it.
+          (multiple-value-bind (conflict focal-set focal-mass)
+              (accumulate-frame-evidence rete fact rule premises)
+            (when focal-set
+              (record-derivation rete fact rule premises belief-before
+                                 (belief-factor fact)
+                                 :focal-set focal-set
+                                 :focal-mass focal-mass
+                                 :conflict conflict)))
+          ;; Per-hypothesis (CF, Barnett DS): the rule adjusts this fact's own number.
+          (progn
+            (setf (belief-factor fact)
+                  (belief:adjust-belief premises (belief-factor rule) (belief-factor fact)))
+            ;; Record what the engine ACTUALLY did (authoritative, not recomputed later).
+            (record-derivation rete fact rule premises belief-before
+                               (belief-factor fact)))))))
 
 (defmethod assert-fact ((self rete) fact &key belief)
   (let ((duplicate (duplicate-fact-p self fact)))

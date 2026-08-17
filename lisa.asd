@@ -76,7 +76,14 @@
         ((:file "certainty-factors")))
        (:module dempster-shafer
         :components
-        ((:file "dempster-shafer"))))
+        ((:file "dempster-shafer")))
+       ;; Dempster-Shafer over a SHARED frame of discernment (subsets of a declared
+       ;; frame) rather than the dichotomous {H, not-H} frame per hypothesis that
+       ;; dempster-shafer.lisp implements. Algebra only; see
+       ;; docs/shared-frame-design.md.
+       (:module frame
+        :components
+        ((:file "frame"))))
       :serial t)
      (:module reflect
       :components

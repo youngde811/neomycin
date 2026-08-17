@@ -11,7 +11,16 @@
 ;; This file covers all three layers: each class rule in isolation; the composition
 ;; law (species belief = class belief * rule belief) stated once per cluster over
 ;; every isolatable tier-2 rule; and each cross-disconfirming rule fired against a
-;; single live sibling. These tests are neomycin-only (organism-class exists only in
+;; single live sibling.
+;;
+;; SCOPE NOTE. The composition law is a property of the PER-HYPOTHESIS systems (CF and
+;; Barnett DS), which every test here selects explicitly. It does NOT hold under the
+;; shared frame, and is not supposed to: there a chained rule contributes unconditional
+;; support to a focal set and the class evidence composes with it by Dempster's rule
+;; rather than by multiplication, so the class CORROBORATES the species instead of
+;; discounting it (decision D1; docs/shared-frame-design.md 6.1 works the arithmetic --
+;; 0.80 rather than 0.8 x 0.8 = 0.64). These remain valid and valuable as the
+;; comparison baseline; the frame's own chained goldens are in frame-tests.lisp. These tests are neomycin-only (organism-class exists only in
 ;; neomycin/rules/, never in Lisa's examples/mycin.lisp), so they live in
 ;; the neomycin/test system rather than the shared lisa/test rule suite.
 
@@ -239,7 +248,10 @@
   "Assert the composition law for each of CASES against a shared LINEAGE builder.
    Each case is (species-string rule-belief discriminator-builder) and must fire
    exactly ONE tier-2 rule, whose composed belief is CLASS-BELIEF * RULE-BELIEF --
-   CF exactly, DS as [product, 1.0] since nothing argues against it yet."
+   CF exactly, DS as [product, 1.0] since nothing argues against it yet.
+
+   Per-hypothesis systems only; see this file's header for why the shared frame does
+   not and should not satisfy this."
   (dolist (case cases)
     (destructuring-bind (species rule-belief discriminators) case
       (let ((expected (* class-belief rule-belief))

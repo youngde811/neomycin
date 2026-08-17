@@ -61,6 +61,17 @@
 ;;; ------------------------------------------------------------------
 (defrule aerobic-gram-neg-rod-suggests-enterobacteriaceae-class
     (:belief 0.8
+     ;; SLICE D. The premises are gram-neg + rod + aerobic, which license every
+     ;; AEROBIC gram-negative rod -- the six Enterobacteriaceae AND pseudomonas.
+     ;; Bacteroides is excluded because it is an anaerobe. Claiming only the family
+     ;; overstated what three bench findings can conclude, and because the pseudomonas
+     ;; rules read the SAME findings, the two sets were disjoint and manufactured
+     ;; conflict: culture-1's ranking inverted, pseudomonas landing behind klebsiella.
+     ;; :other-organism is D6 -- a gram-negative rod may well be one this corpus does
+     ;; not model, and this rule is coarse enough that saying so is honest.
+     ;; The rule still ASSERTS organism-class :enterobacteriaceae, so Rete chaining and
+     ;; every tier-2 species rule are untouched; only where the mass lands changes.
+     :supports (:aerobic-gram-neg-rods :other-organism)
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Enterobacter Infections, NBK559296")
