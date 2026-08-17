@@ -50,21 +50,36 @@
   (belief-factor rule))
 
 (defun knowledge-rule-p (rule)
-  "True when RULE declares a belief -- i.e. it asserts domain knowledge rather
-   than performing bookkeeping (reporting, formatting, driving). A corpus-wide
-   query almost always wants these and not, say, a salience -10 print rule."
-  (realp (rule-belief rule)))
+  "True when RULE asserts domain knowledge rather than performing bookkeeping
+   (reporting, formatting, driving) -- i.e. it declares a belief OR states claims.
+   A corpus-wide query almost always wants these and not, say, a salience -10 print
+   rule."
+  (or (realp (rule-belief rule))
+      (and (rule-declared-claims rule) t)))
+
+(defun claim-verb-p (rule &rest verbs)
+  "True when RULE states a claim using one of VERBS."
+  (some (lambda (c) (member (second c) verbs)) (rule-declared-claims rule)))
 
 (defun confirming-rule-p (rule)
-  "True when RULE argues FOR its conclusion (positive belief)."
+  "True when RULE argues FOR a hypothesis.
+
+   Under the older single-belief form that means a positive :belief. Under :claims it
+   means the rule states at least one :supports claim -- and note that a rule may be
+   BOTH confirming and disconfirming, because one observation can support one
+   hypothesis while excluding others. That is not a contradiction; it is what a
+   discriminating test does, and the old form could only express it as two rules."
   (let ((b (rule-belief rule)))
-    (and (realp b) (plusp b))))
+    (or (and (realp b) (plusp b))
+        (claim-verb-p rule :supports :support))))
 
 (defun disconfirming-rule-p (rule)
-  "True when RULE argues AGAINST its conclusion (negative belief) -- the
-   ruling-out shape."
+  "True when RULE argues AGAINST a hypothesis -- a negative :belief under the older
+   form, or at least one :excludes claim under :claims. See CONFIRMING-RULE-P: the
+   two are not mutually exclusive."
   (let ((b (rule-belief rule)))
-    (and (realp b) (minusp b))))
+    (or (and (realp b) (minusp b))
+        (claim-verb-p rule :excludes :exclude :opposes :oppose))))
 
 ;;; ------------------------------------------------------------------
 ;;; Conclusions (RHS).
@@ -80,7 +95,12 @@
       (when (and (consp action) (eq (first action) 'assert))
         (let* ((form (second action))
                (class (first form))
-               (value (second (assoc (intern "VALUE" :lisa-user) (rest form)))))
+               ;; The value slot is looked up in the package of the class being
+               ;; asserted, not a hardwired application package, so this reads any
+               ;; application's rulebase rather than only LISA-USER's.
+               (slot (and (symbolp class) (symbol-package class)
+                          (find-symbol "VALUE" (symbol-package class))))
+               (value (and slot (second (assoc slot (rest form))))))
           (push (cons class value) acc))))))
 
 (defun rule-concludes-p (rule class &optional value)
@@ -118,7 +138,8 @@
   "The literal VALUE slots RULE matches for premise facts of CLASS, in pattern
    order. Variables and constraint forms are skipped, so a rule that matches
    (gram (value ?g)) reports no value for GRAM."
-  (let ((value-slot (intern "VALUE" :lisa-user))
+  (let ((value-slot (and (symbolp class) (symbol-package class)
+                         (find-symbol "VALUE" (symbol-package class))))
         (acc '()))
     (dolist (p (rule-premise-patterns rule) (nreverse acc))
       (when (eq (parsed-pattern-class p) class)
@@ -214,3 +235,74 @@
    contributes is |belief|."
   (let ((b (rule-belief rule)))
     (and (realp b) (abs b))))
+
+;;; ------------------------------------------------------------------
+;;; CLAIMS -- the general form.
+;;;
+;;; A rule states one or more claims about what its evidence establishes, each with
+;;; its own strength. One observation, one rule, however many granularities the
+;;; author can honestly assert:
+;;;
+;;;   (:claims ((0.75 :supports :serratia)
+;;;             (0.80 :excludes (:e-coli :klebsiella :salmonella :enterobacter :proteus))))
+;;;
+;;; This replaces having to write the same clinical fact twice -- once as a confirming
+;;; rule and once as a ruling-out rule -- with two independently chosen numbers that
+;;; nothing forces to agree. :supports commits mass to the named set; :excludes commits
+;;; it to the complement. There is no rule KIND: a rule that only excludes is not a
+;;; different sort of thing, it is a rule whose one claim happens to name a complement,
+;;; which is what a negative test result honestly establishes.
+;;;
+;;; Each claim becomes ONE simple support function in the entity's pool. Note what that
+;;; does and does not mean: two claims from one rule are still COMBINED as though
+;;; separable, because 0.75 + 0.80 exceeds 1 and they therefore cannot be a single mass
+;;; assignment. Authoring them together makes the pair visible in one place; it does not
+;;; by itself settle how nested claims from one observation ought to combine.
+;;; ------------------------------------------------------------------
+
+(defstruct (claim (:constructor %make-claim (mass mask kind designator)))
+  "One resolved claim: MASS on MASK. KIND is :SUPPORTS or :EXCLUDES as written (MASK is
+   already the complement for :EXCLUDES), or the fallback that produced it."
+  mass mask kind designator)
+
+(defun %resolve-claim (frame mass verb designator)
+  (let ((mask (belief:resolve-mask frame designator)))
+    (%make-claim (abs (float mass 1.0))
+                 (ecase verb
+                   ((:supports :support) mask)
+                   ((:excludes :exclude :opposes :oppose)
+                    (belief:mask-complement frame mask)))
+                 verb designator)))
+
+(defun rule-claims (rule &optional (frame belief:*frame*))
+  "Every claim RULE makes, resolved against FRAME, as a list of CLAIM structs.
+
+   Normalizes all four authoring forms into one shape, so no consumer has to know
+   which was used:
+
+     :claims ((mass verb designator) ...)   the general form
+     :belief N :supports D                  single-claim shorthand
+     :belief N :opposes D                   single-claim shorthand (complement)
+     :belief N, no declaration              fallback -- the values the rule asserts,
+                                            or the complement of its member-test list
+
+   CLAIM-KIND reports the SOURCE that produced each claim (:supports / :excludes for a
+   declared claim; :supports / :opposes / :asserted / :ruling-out for the shorthand and
+   fallbacks), so a caller can still distinguish a declaration from an inference.
+
+   Returns NIL when no frame is declared or the rule designates nothing."
+  (when frame
+    (let ((declared (rule-declared-claims rule)))
+      (if declared
+          (loop for (mass verb designator) in declared
+                collect (%resolve-claim frame mass verb designator))
+          (multiple-value-bind (designator negatedp source) (rule-focal-designator rule)
+            (when designator
+              (let ((c (%resolve-claim frame (or (rule-focal-mass rule) 0)
+                                       (if negatedp :excludes :supports)
+                                       designator)))
+                (setf (claim-kind c) source)
+                (list c))))))))
+
+(defun rule-multi-claim-p (rule)
+  (> (length (rule-declared-claims rule)) 1))

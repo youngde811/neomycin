@@ -382,24 +382,37 @@ pattern.  Cross-pattern variable consistency is not checked here."
    firing performed. Saying 'X went from 0.4 to 0.76' would be a fiction here; saying
    what was committed to which set, and how much conflict resulted, is what actually
    occurred."
-  (let* ((focal (lisa:derivation-record-focal-set rec))
-         (mass (lisa:derivation-record-focal-mass rec))
-         (k (lisa:derivation-record-conflict rec))
-         (members (belief:mask->elements belief:*frame* focal))
-         (n (length members)))
-    (if (<= n 4)
-        (format nil "committed ~,3F to {~{~A~^, ~}}~
-                     ~@[; pool conflict after this firing ~,3F~]"
-                mass (mapcar #'element-name members) k)
-        (format nil "committed ~,3F to a set of ~D {~{~A~^, ~}, ...}~
-                     ~@[; pool conflict after this firing ~,3F~]"
-                mass n (mapcar #'element-name (subseq members 0 3)) k))))
+  (let ((k (lisa:derivation-record-conflict rec)))
+    (format nil "~{~A~^, and ~}~@[; pool conflict after this firing ~,3F~]"
+            (mapcar (lambda (c) (claim-phrase (car c) (cdr c)))
+                    (lisa:derivation-record-claims rec))
+            k)))
+
+(defun claim-phrase (mask mass)
+  "One claim, in words. A rule may state several -- red pigment means Serratia, and
+   means none of these five -- so each is phrased separately and they are joined."
+  (let* ((members (belief:mask->elements belief:*frame* mask))
+         (n (length members))
+         (frame-size (belief:frame-size belief:*frame*))
+         ;; A claim naming most of the frame is an EXCLUSION; saying which few are out
+         ;; is far more legible than listing the fourteen that are in.
+         (excluded (belief:mask->elements
+                    belief:*frame* (belief:mask-complement belief:*frame* mask))))
+    (cond
+      ((and (> n (/ frame-size 2)) excluded)
+       (format nil "committed ~,3F against {~{~A~^, ~}}"
+               mass (mapcar #'element-name excluded)))
+      ((<= n 4)
+       (format nil "committed ~,3F to {~{~A~^, ~}}" mass (mapcar #'element-name members)))
+      (t
+       (format nil "committed ~,3F to a set of ~D {~{~A~^, ~}, ...}"
+               mass n (mapcar #'element-name (subseq members 0 3)))))))
 
 (defun composition-string (rec)
   "A plain-language, algebra-neutral statement of this firing's arithmetic, built
    from the actual recorded numbers (reduced to scalars). The structured belief
    fields keep the full interval; this is the narratable summary."
-  (when (and (lisa:derivation-record-focal-set rec) belief:*frame*)
+  (when (and (lisa:derivation-record-claims rec) belief:*frame*)
     (return-from composition-string (frame-composition-string rec)))
   (let* ((rule-belief (lisa:derivation-record-rule-belief rec))
          (before (lisa:derivation-record-belief-before rec))
@@ -457,10 +470,19 @@ pattern.  Cross-pattern variable consistency is not checked here."
     ;; before/after pair cannot say which set. These three fields carry what the
     ;; narration otherwise could not state: what was supported, how strongly, and how
     ;; much the pool disagreed with itself afterwards.
-    (let ((focal (lisa:derivation-record-focal-set rec)))
-      (when (and focal belief:*frame*)
-        (setf (gethash "supports" ht) (mask->names focal))
-        (setf (gethash "focal_mass" ht) (lisa:derivation-record-focal-mass rec))
+    (let ((claims (lisa:derivation-record-claims rec)))
+      (when (and claims belief:*frame*)
+        ;; A rule may state several claims at different granularities, so this is a
+        ;; list even when it has one entry -- a reader should never have to branch on
+        ;; how many an author happened to write.
+        (setf (gethash "claims" ht)
+              (coerce (mapcar (lambda (c)
+                                (let ((h (make-hash-table :test #'equal)))
+                                  (setf (gethash "supports" h) (mask->names (car c)))
+                                  (setf (gethash "mass" h) (cdr c))
+                                  h))
+                              claims)
+                      'vector))
         (let ((k (lisa:derivation-record-conflict rec)))
           (when k (setf (gethash "conflict_after" ht) k)))))
     (setf (gethash "premises" ht)
@@ -537,7 +559,16 @@ pattern.  Cross-pattern variable consistency is not checked here."
                  (lisa:get-rule-list (lisa:inference-engine))))
 
 (defun rule-kind (rule)
-  (if (lisa:disconfirming-rule-p rule) "disconfirming" "confirming"))
+  "What a rule does to belief: supports hypotheses, excludes some, or BOTH.
+
+   `both` is not a fudge -- it is what a discriminating test actually does, and what
+   the corpus could not express until a rule could state several claims. The older
+   single-belief form can only be one or the other, because a scalar has one sign."
+  (let ((confirming (lisa:confirming-rule-p rule))
+        (disconfirming (lisa:disconfirming-rule-p rule)))
+    (cond ((and confirming disconfirming) "both")
+          (disconfirming "disconfirming")
+          (t "confirming"))))
 
 (defun rule-chained-from (rule)
   "The organism-class RULE refines from, or NIL if it reads raw evidence. This is
@@ -591,21 +622,27 @@ pattern.  Cross-pattern variable consistency is not checked here."
       (when targets
         (setf (gethash "targets" ht)
               (coerce (mapcar #'value-name targets) 'vector))))
-    ;; The FOCAL SET: the frame subset this rule's firing commits mass to. Reported
-    ;; only when a frame is declared, because only then does the engine act on it.
-    ;; `source` distinguishes a rule that DECLARES its set from one falling back to
-    ;; what it asserts or rules out -- which is exactly the distinction slice D's
-    ;; audit turns on, and the LLM should not have to guess it.
+    ;; Every rule's CLAIMS: what its evidence commits belief to, and how strongly.
+    ;; A list even for a single-claim rule, so a reader never branches on how many the
+    ;; author happened to write. `source` separates a DECLARED claim from one inferred
+    ;; by fallback -- the distinction slice D's focal-width audit turns on, which the
+    ;; LLM should not have to guess. Reported only when a frame is declared, because
+    ;; only then does the engine act on it.
     (when belief:*frame*
-      (multiple-value-bind (mask kind)
-          (ignore-errors (lisa:rule-focal-set rule belief:*frame*))
-        (when (integerp mask)
-          (let ((focal (make-hash-table :test #'equal)))
-            (setf (gethash "supports" focal) (mask->names mask))
-            (setf (gethash "size" focal) (belief:mask-size mask))
-            (setf (gethash "mass" focal) (lisa:rule-focal-mass rule))
-            (setf (gethash "source" focal) (string-downcase (symbol-name kind)))
-            (setf (gethash "focal_set" ht) focal)))))
+      (let ((claims (ignore-errors (lisa:rule-claims rule belief:*frame*))))
+        (when claims
+          (setf (gethash "claims" ht)
+                (coerce
+                 (mapcar (lambda (c)
+                           (let ((h (make-hash-table :test #'equal)))
+                             (setf (gethash "supports" h) (mask->names (lisa:claim-mask c)))
+                             (setf (gethash "size" h) (belief:mask-size (lisa:claim-mask c)))
+                             (setf (gethash "mass" h) (lisa:claim-mass c))
+                             (setf (gethash "source" h)
+                                   (string-downcase (symbol-name (lisa:claim-kind c))))
+                             h))
+                         claims)
+                 'vector)))))
     (let ((prov (provenance->json (lisa:rule-provenance rule))))
       (when prov
         (setf (gethash "provenance" ht) prov)))
@@ -676,9 +713,10 @@ pattern.  Cross-pattern variable consistency is not checked here."
     rules))
 
 (defun concluded-value-names (rules class)
-  "The distinct values RULES conclude for CLASS, as names, confirming rules only
-   -- a disconfirming rule re-asserts a hypothesis to argue against it, and would
-   otherwise look like a way to reach one."
+  "The distinct values RULES conclude for CLASS, as names, confirming rules only.
+   An excluding rule concludes nothing, and one written in the older form re-asserted
+   the hypothesis it argued against -- either way it must not look like a way to
+   reach one."
   (let ((acc '()))
     (dolist (rule rules (coerce (nreverse acc) 'vector))
       (when (lisa:confirming-rule-p rule)
@@ -704,8 +742,15 @@ pattern.  Cross-pattern variable consistency is not checked here."
   (let ((ht (make-hash-table :test #'equal))
         (classes (concluded-value-names rules 'lisa-user::organism-class)))
     (setf (gethash "total" ht) (length rules))
+    ;; A rule may state both supporting and excluding claims, so these need not sum
+    ;; to the corpus size -- `both` counts the overlap explicitly rather than leaving
+    ;; a reader to infer it from a discrepancy.
     (setf (gethash "confirming" ht) (count-if #'lisa:confirming-rule-p rules))
     (setf (gethash "disconfirming" ht) (count-if #'lisa:disconfirming-rule-p rules))
+    (setf (gethash "both" ht)
+          (count-if (lambda (r) (and (lisa:confirming-rule-p r)
+                                     (lisa:disconfirming-rule-p r)))
+                    rules))
     (setf (gethash "organism_classes" ht) classes)
     (setf (gethash "clusters" ht) (clusters->json classes))
     (setf (gethash "identities" ht)

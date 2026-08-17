@@ -27,7 +27,8 @@
 (in-package :lisa)
 
 (defmacro defrule (name (&key (salience 0) (context nil) (belief nil) (auto-focus nil)
-                              (provenance nil) (supports nil) (opposes nil))
+                              (provenance nil) (supports nil) (opposes nil)
+                              (claims nil))
                         &body body)
   (let ((rule-name (gensym)))
     `(let ((,rule-name ,@(if (consp name) `(,name) `(',name))))
@@ -45,6 +46,8 @@
                          ;; PROVENANCE rather than evaluated the way BELIEF is.
                          :supports ',supports
                          :opposes ',opposes
+                         ;; CLAIMS is literal data like PROVENANCE, not an expression.
+                         :claims ',claims
                          :auto-focus ,auto-focus))))
 
 (defmacro deframe (name &body clauses)
