@@ -616,11 +616,16 @@
   (format t "~&~%--- focal-set widening (the variable phase 0 held fixed) ---~%")
   (format t "aerobic-gram-neg-rod class rule: {6 enterobacteriaceae} -> +{pseudomonas}~%")
   (format t "(the 7 aerobic gram-neg rods in the frame; bacteroides is anaerobic)~%~%")
-  (dolist (scenario '(culture-1 culture-1a culture-2 culture-4))
+  (dolist (scenario '(culture-1 culture-1a culture-2 culture-3 culture-4 culture-5))
     (dolist (widened '(nil t))
       (let* ((*focal-widening*
-               (when widened '(("aerobic-gram-neg-rod-suggests-enterobacteriaceae"
-                                . (:pseudomonas)))))
+               (when widened
+                 ;; SLICE D's four proposed corrections (docs/slice-d-focal-width.md).
+                 '(("aerobic-gram-neg-rod-suggests-enterobacteriaceae" . (:pseudomonas))
+                   ("gram-pos-cocci-in-chains-suggests-streptococcus"
+                    . (:enterococcus-faecalis :enterococcus-faecium))
+                   ("staph-coagulase-neg-suggests-staph-epidermidis"
+                    . (:staphylococcus-saprophyticus)))))
              (r (run-one scenario))
              (current (getf r :current))
              (orgs (sort (mapcar #'first current) #'string< :key #'symbol-name)))
