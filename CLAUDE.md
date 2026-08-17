@@ -215,6 +215,24 @@ frame: `Bel` is the mass settled inside the family, here `[0.286, 0.571]`.
 Under `LISA_BELIEF_SYSTEM=ds` the same scenario still gives the old pseudomonas 0.76
 / klebsiella 0.40, which is the comparison the Barnett system is retained for.
 
+## Release check — the layers must agree
+
+The suite, `bin/*.sh` and `prompt-tests.lisp` each test ONE layer. None of them puts
+the model in the loop, and that gap is how three `tools.json` descriptions once went
+stale while the suite stayed green. **Before tagging a release, run the whole stack
+once** — prompt + tool schemas + bridge + engine — and check the narrated numbers
+against a pinned golden:
+
+```bash
+# bridge up (see Build & Load), then:
+python src/llm/claude/driver.py --plain --no-transcript
+# work a scenario from docs/clinician-scenarios.md and confirm the figures the model
+# quotes match the corresponding golden in neomycin/test/frame-tests.lisp
+```
+
+A worked example, with the goldens it reproduces, is
+`neomycin/clinician-samples/frame-end-to-end-burn-icu.md`.
+
 ## Running the Test Suite
 
 Two dependency-free suites (golden-master + belief-algebra, no external framework):
@@ -235,7 +253,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1582 assertions / 238 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~1752 assertions / 257 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; **each of the 50 rules fired in isolation**; the composition
