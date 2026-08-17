@@ -276,10 +276,10 @@
        (let* ((asserted (lisa:rule-asserted-facts rule))
               (ident (cdr (assoc (intern "ORGANISM-IDENTITY" :lisa-user) asserted)))
               (class (cdr (assoc (intern "ORGANISM-CLASS" :lisa-user) asserted))))
-         (cond (ident (values (canonical (list ident)) :identity))
+         (cond (ident (values (widen rule-name (canonical (list ident))) :identity))
                (class (let ((members (cdr (assoc class *classes*))))
                         (if members
-                            (values (canonical members) :class)
+                            (values (widen rule-name (canonical members)) :class)
                             (values nil :unknown-class))))
                (t (values nil :unmapped)))))
       (t (values nil :unmapped)))))
@@ -388,9 +388,7 @@
       (multiple-value-bind (set kind) (rule-focal-set (getf f :rule))
         (if (null set)
             (push (list (getf f :rule) kind) unmapped)
-            (let ((mass (* (abs (float (getf f :belief) 1.0d0))
-                           (getf f :strength))))
-              (push (simple-support set mass) bpas)))))))
+            (push (simple-support set (cdr (firing->spec f))) bpas))))))
 
 ;;; ============================================================
 ;;; 5. Report
@@ -413,6 +411,133 @@
                           (if (belief:ds-belief-p b) (belief:ds-belief-bel b) b)
                           (if (belief:ds-belief-p b) (belief:ds-belief-pl b) 1.0)))))
 
+;;; ============================================================
+;;; 4b. PHASE 0.5 — operators that tolerate dependent evidence
+;;; ============================================================
+;;; Phase 0 found that the corpus's rules are not independent bodies of evidence
+;;; (several read the same observation), which is what Dempster's rule requires.
+;;; These are the candidate responses, measured against the same six scenarios.
+
+(defparameter *focal-widening* nil
+  "Alist (RULE-NAME-SUBSTRING . EXTRA-ELEMENTS) widening a rule's focal set.
+
+   Phase 0 HELD FOCAL SETS AT THE AUTHORED WIDTH deliberately, to measure the
+   representation change alone. This hook relaxes that, to test the hypothesis that
+   the culture-1 inversion comes from co-triggered rules concluding DISJOINT sets
+   from one observation -- which the current representation cannot express, and which
+   design 4.2's :supports is exactly the fix for.")
+
+(defun widen (rule-name set)
+  (let ((extra (loop for (frag . elts) in *focal-widening*
+                     when (search frag (string-downcase (string rule-name)))
+                       append elts)))
+    (if extra (canonical (append set extra)) set)))
+
+(defparameter *class-belief-override* nil
+  "When non-NIL, a single float replacing the declared :belief of every rule that
+   concludes an organism-CLASS. Exists to test whether culture-1's ranking inversion
+   is driven by the three CARRIED-OVER class constants that belief-conditional-audit.md
+   3.2 flagged as answering no conditional at all -- rather than by the choice of
+   combination operator.")
+
+(defun firing->spec (f)
+  "(set . mass) for one firing, or NIL if its rule maps to no focal set."
+  (multiple-value-bind (set kind) (rule-focal-set (getf f :rule))
+    (when set
+      (let ((belief (if (and *class-belief-override* (eq kind :class))
+                        *class-belief-override*
+                        (abs (float (getf f :belief) 1.0d0)))))
+        (cons set (* belief (getf f :strength)))))))
+
+(defun specs-of (firings)
+  (remove nil (mapcar #'firing->spec firings)))
+
+;;; ------------------------------------------------------------
+;;; (b) Denoeux's CAUTIOUS CONJUNCTIVE RULE, exactly.
+;;; ------------------------------------------------------------
+;;; The cautious rule takes the MINIMUM weight per focal set over the canonical
+;;; decompositions of the operands. In general that needs a Mobius transform over
+;;; the superset lattice — intractable on an 18-element frame.
+;;;
+;;; It is exact and cheap HERE because every operand is already a simple support
+;;; function: a rule contributes mass s on one set A and 1-s on Theta, which IS
+;;; A^w with weight w = 1-s, i.e. its own canonical decomposition. So the cautious
+;;; combination of a collection of SSFs is: per focal set take the minimum weight
+;;; (= the MAXIMUM support), then conjunctively combine one SSF per set.
+;;;
+;;; Being idempotent, this makes redundant evidence free: firing the same rule
+;;; twice, or two rules with the same conclusion and the same strength, changes
+;;; nothing. NOTE THE LIMIT, which phase 0.5 exists to test: it only deduplicates
+;;; rules sharing a focal SET. Two rules reading one observation but concluding
+;;; DIFFERENT sets — culture-1's pseudomonas rules versus the enterobacteriaceae
+;;; class rule — are untouched by it.
+
+(defun cautious-combine (specs)
+  "Cautious conjunctive rule over simple support functions (see above)."
+  (let ((best (make-hash-table :test #'equal)))
+    (dolist (s specs)
+      (let ((cur (gethash (car s) best)))
+        (when (or (null cur) (> (cdr s) cur))
+          (setf (gethash (car s) best) (cdr s)))))
+    (combine-all
+     (loop for set being the hash-keys of best using (hash-value mass)
+           collect (simple-support set (min mass 0.999d0))))))
+
+;;; ------------------------------------------------------------
+;;; (c) POOL WITHIN A BODY OF EVIDENCE, combine ACROSS bodies.
+;;; ------------------------------------------------------------
+;;; The structural reading: one body of evidence should induce ONE mass function.
+;;; Where several rules read the same observation they are partial opinions about
+;;; what it means, so they are AVERAGED (Murphy-style) rather than treated as
+;;; independent confirmations. Distinct bodies of evidence are still combined by
+;;; Dempster's rule, so genuinely independent findings still accumulate and still
+;;; conflict.
+;;;
+;;; Averaging deliberately does NOT accumulate: two rules reading one observation
+;;; must not strengthen belief the way two separate observations would. That is the
+;;; point, and it is also why the resulting numbers are lower.
+
+(defun average-bpas (bpas)
+  "Element-wise mean of a list of mass functions."
+  (let ((n (float (length bpas) 1.0d0))
+        (out '()))
+    (dolist (b bpas out)
+      (dolist (e b)
+        (setf out (mass-incf out (car e) (/ (cdr e) n)))))))
+
+(defun pooled-by-component (firings pool-fn)
+  "Partition FIRINGS into entangled evidence components, reduce each to ONE mass
+   function with POOL-FN, then combine the components conjunctively."
+  (combine-all
+   (mapcar (lambda (c) (funcall pool-fn (specs-of (getf c :firings))))
+           (evidence-components firings))))
+
+(defun pool-average (specs)
+  (average-bpas (mapcar (lambda (s) (simple-support (car s) (min (cdr s) 0.999d0)))
+                        specs)))
+
+(defun pool-cautious (specs)
+  (cautious-combine specs))
+
+;;; ------------------------------------------------------------
+;;; Ranking agreement — the metric that matters clinically
+;;; ------------------------------------------------------------
+
+(defun ranking-agreement (current readout)
+  "Fraction of organism PAIRS whose belief ordering READOUT agrees with CURRENT on.
+   Returns (values agreed total). Culture-1's inversion is what this catches."
+  (let ((agreed 0) (total 0))
+    (loop for (a . rest) on current do
+      (dolist (b rest)
+        (let ((cur (- (second a) (second b)))
+              (new (- (bel readout (first a)) (bel readout (first b)))))
+          (incf total)
+          (when (or (and (plusp cur) (plusp new))
+                    (and (minusp cur) (minusp new))
+                    (and (zerop cur) (zerop new)))
+            (incf agreed)))))
+    (values agreed total)))
+
 (defun run-one (scenario)
   (belief:use-system :dempster-shafer)
   (let ((*standard-output* (make-broadcast-stream)))
@@ -430,7 +555,12 @@
              ;; Independence counterfactual (design 9.4).
              (dedup (collapse-components firings))
              (m2 (combine-all (firings->bpas dedup)))
-             (d2 (dempster-readout m2)))
+             (d2 (dempster-readout m2))
+             ;; PHASE 0.5 variants.
+             (specs (specs-of firings))
+             (m-caut (cautious-combine specs))
+             (m-avgc (pooled-by-component firings #'pool-average))
+             (m-cautc (pooled-by-component firings #'pool-cautious)))
         (list :current current :firings firings :unmapped unmapped
               :raw m :dempster d :yager y :conflict (conflict m)
               :focal-count (count-if #'car m)
@@ -439,7 +569,74 @@
               :dedup-n (length dedup)
               :dedup-conflict (conflict m2)
               :dedup-dempster d2
-              :cond-dempster d-cond :cond-conflict (conflict m-cond))))))
+              :cond-dempster d-cond :cond-conflict (conflict m-cond)
+              :cautious (dempster-readout m-caut)   :cautious-k (conflict m-caut)
+              :avg-comp (dempster-readout m-avgc)   :avg-comp-k (conflict m-avgc)
+              :caut-comp (dempster-readout m-cautc) :caut-comp-k (conflict m-cautc))))))
+
+(defun class-belief-sweep (&optional (scenarios '(culture-1 culture-1a)))
+  "Sweep the organism-CLASS rules' belief and report where each scenario's ranking
+   flips, under both the conjunctive and cautious operators. Isolates the carried-over
+   class constants from the choice of operator."
+  (format t "~&~%--- class-belief sensitivity (audit 3.2's carried-over constants) ---~%")
+  (format t "declared: enterobacteriaceae 0.8, staph 0.7, strep 0.7 -- all CARRIED OVER~%~%")
+  (dolist (scenario scenarios)
+    (format t "~&~A:~%" scenario)
+    (format t "  ~9A ~26A ~26A~%" "class bel" "conjunctive (bel/bel)" "cautious (bel/bel)")
+    (dolist (cb '(0.8d0 0.7d0 0.6d0 0.5d0 0.4d0 0.3d0 0.2d0))
+      (let* ((*class-belief-override* cb)
+             (r (run-one scenario))
+             (current (getf r :current))
+             (pairs (sort (mapcar #'first current) #'string< :key #'symbol-name)))
+        (multiple-value-bind (a1 t1) (ranking-agreement current (getf r :dempster))
+          (multiple-value-bind (a2 t2) (ranking-agreement current (getf r :cautious))
+            (format t "  ~9,2F ~{~,3F ~}~5A(~D/~D)~7A~{~,3F ~}~5A(~D/~D)~A~%"
+                    cb
+                    (mapcar (lambda (o) (bel (getf r :dempster) o)) pairs) ""
+                    a1 t1 ""
+                    (mapcar (lambda (o) (bel (getf r :cautious) o)) pairs) ""
+                    a2 t2
+                    (if (and (= a1 t1) (= a2 t2)) "  <== both agree" ""))))))
+    (format t "  (columns are ~{~A~^ / ~})~%"
+            (mapcar (lambda (o) (string-downcase (symbol-name o)))
+                    (sort (mapcar #'first (getf (run-one scenario) :current))
+                          #'string< :key #'symbol-name)))))
+
+(defun widening-experiment ()
+  "THE experiment phase 0 deferred. In culture-1 four rules read one observation --
+   an aerobic gram-negative rod -- and conclude DISJOINT sets: {pseudomonas} twice and
+   the six-member enterobacteriaceae family once. Disjoint conclusions from shared
+   evidence are what manufactures the conflict.
+
+   But 'aerobic gram-negative rod' does not mean 'enterobacteriaceae'. It means one of
+   the seven aerobic gram-negative rods in the frame -- the six family members AND
+   pseudomonas. Bacteroides is excluded: it is an ANAEROBE. Widening the class rule's
+   focal set to what the premise actually licenses is not a fudge; it is stating the
+   rule correctly, which is what design 4.2's :supports keyword is for."
+  (format t "~&~%--- focal-set widening (the variable phase 0 held fixed) ---~%")
+  (format t "aerobic-gram-neg-rod class rule: {6 enterobacteriaceae} -> +{pseudomonas}~%")
+  (format t "(the 7 aerobic gram-neg rods in the frame; bacteroides is anaerobic)~%~%")
+  (dolist (scenario '(culture-1 culture-1a culture-2 culture-4))
+    (dolist (widened '(nil t))
+      (let* ((*focal-widening*
+               (when widened '(("aerobic-gram-neg-rod-suggests-enterobacteriaceae"
+                                . (:pseudomonas)))))
+             (r (run-one scenario))
+             (current (getf r :current))
+             (orgs (sort (mapcar #'first current) #'string< :key #'symbol-name)))
+        (multiple-value-bind (a1 t1) (ranking-agreement current (getf r :dempster))
+          (multiple-value-bind (a2 t2) (ranking-agreement current (getf r :cautious))
+            (format t "  ~11A ~9A K=~,3F/~,3F  conj ~{~,3F ~}(~D/~D)  caut ~{~,3F ~}(~D/~D)~A~%"
+                    (if widened "" (string scenario))
+                    (if widened "WIDENED" "as authored")
+                    (getf r :conflict) (getf r :cautious-k)
+                    (mapcar (lambda (o) (bel (getf r :dempster) o)) orgs) a1 t1
+                    (mapcar (lambda (o) (bel (getf r :cautious) o)) orgs) a2 t2
+                    (if (and (= a1 t1) (= a2 t2)) "  <== both agree" ""))))))
+    (format t "              (~{~A~^ / ~})~%"
+            (mapcar (lambda (o) (string-downcase (symbol-name o)))
+                    (sort (mapcar #'first (getf (run-one scenario) :current))
+                          #'string< :key #'symbol-name)))))
 
 (defun report ()
   (format t "~&~%================================================================~%")
@@ -461,21 +658,31 @@
                 (length (getf r :firings)) (getf r :focal-count) (getf r :conflict))
         (when (getf r :unmapped)
           (format t "!! UNMAPPED RULES: ~S~%" (getf r :unmapped)))
-        (format t "~&~%~28A ~17A ~17A ~17A ~A~%"
-                "organism" "current [bel,pl]" "frame/Dempster" "frame/Yager"
-                "D1-off/Dempster")
-        (format t "~28A ~17A ~17A ~17A ~A~%"
-                (make-string 28 :initial-element #\-) (make-string 17 :initial-element #\-)
-                (make-string 17 :initial-element #\-) (make-string 17 :initial-element #\-)
-                (make-string 17 :initial-element #\-))
+        (format t "~&~%~26A ~15A ~15A ~15A ~15A ~A~%"
+                "organism" "current" "(a) conjunct" "(b) cautious"
+                "(c) avg/cmpnt" "(d) caut/cmpnt")
+        (format t "~26A ~15A ~15A ~15A ~15A ~A~%"
+                (make-string 26 :initial-element #\-) (make-string 15 :initial-element #\-)
+                (make-string 15 :initial-element #\-) (make-string 15 :initial-element #\-)
+                (make-string 15 :initial-element #\-) (make-string 15 :initial-element #\-))
         (dolist (o organisms)
           (let ((cur (assoc o current)))
-            (format t "~28A [~,3F,~,3F]     [~,3F,~,3F]     [~,3F,~,3F]     [~,3F,~,3F]~%"
+            (format t "~26A [~,2F,~,2F]     [~,2F,~,2F]     [~,2F,~,2F]     [~,2F,~,2F]     [~,2F,~,2F]~%"
                     (string-downcase (symbol-name o))
                     (second cur) (third cur)
                     (bel (getf r :dempster) o) (pl (getf r :dempster) o)
-                    (bel (getf r :yager) o) (pl (getf r :yager) o)
-                    (bel (getf r :cond-dempster) o) (pl (getf r :cond-dempster) o))))
+                    (bel (getf r :cautious) o) (pl (getf r :cautious) o)
+                    (bel (getf r :avg-comp) o) (pl (getf r :avg-comp) o)
+                    (bel (getf r :caut-comp) o) (pl (getf r :caut-comp) o))))
+        (format t "~&~26A ~15A" "conflict K" "     --   ")
+        (dolist (k (list (getf r :conflict) (getf r :cautious-k)
+                         (getf r :avg-comp-k) (getf r :caut-comp-k)))
+          (format t "  ~,4F        " k))
+        (format t "~%~26A ~15A" "ranking vs current" "     --   ")
+        (dolist (v (list :dempster :cautious :avg-comp :caut-comp))
+          (multiple-value-bind (ag tot) (ranking-agreement current (getf r v))
+            (format t "  ~D/~D~:[  !!~;    ~]      " ag tot (= ag tot))))
+        (format t "~%")
         ;; The independence diagnostic.
         (when (getf r :shared)
           (format t "~&~%  !! SHARED EVIDENCE (design 9.4) -- one observation, several rules.~%")
@@ -510,5 +717,7 @@
         (format t "~&~%  Pl(:other-organism) = ~,3F   m(Θ) = ~,4F~%"
                 (pl (getf r :dempster) *other*)
                 (mass-of (getf r :dempster) (frame))))))
+  (class-belief-sweep)
+  (widening-experiment)
   (format t "~&~%================================================================~%")
   (values))
