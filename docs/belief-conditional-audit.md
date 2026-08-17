@@ -246,3 +246,25 @@ Genuinely arguable, and a second reader may land differently:
    `:posterior` with an epidemiological rather than laboratory base. I lean toward
    keeping it distinct — the evidence source and its failure modes differ — but it does
    add a category whose only job is documentation.
+
+## David's Thoughts on this Document
+
+I've read this document at least twice, and considered its points. My thoughts:
+
+- Intuition tells me we're being pulled into a black hole now; adding new properties to rules to plug one DS hole, only
+  to likely discover new holes that require new property types.
+- We need to step back and re-consider how we arrived at this point.
+- The KB has mostly confirming rules, with a handful of disconfirming rules. How is a human author to known when to
+  write a disconfirming rule? This approach seems like a large kludge, and I might have made the wrong call when we
+  decided to adopt this approach.
+- Given a forward-chaining rule base of confirming rules only, shouldn't the DS algebra alone be sufficient to identify
+  a pathogen? With the exact solver capable of offering a treatment?
+- If the above "solutions" (guesses really) are required to move forward, and the DS algebra alone is insufficient,
+  perhaps it's time to stop. A system where a rule author must guess as to whether or not to write a complementary
+  disconfirming rule is broken from the beginning.
+- Perhaps attempting to include a pathogen's "class" was a mistake. Perhaps the proper approach is to directly identify
+  the pathogen itself.
+- Claude's writing in these documents is becoming somewhat opaque. I'm a software engineer with somewhat of a background
+  in emerging pathogens. Roughly 14 years in the classic/LLM spaces. I find some of Claude's writing indecipherable,
+  frankly. It's not the math; that's pretty fundamental. The problem is in the way Claude expresses itself with language
+  constructs.
