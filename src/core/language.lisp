@@ -27,7 +27,7 @@
 (in-package :lisa)
 
 (defmacro defrule (name (&key (salience 0) (context nil) (belief nil) (auto-focus nil)
-                              (provenance nil))
+                              (provenance nil) (supports nil) (opposes nil))
                         &body body)
   (let ((rule-name (gensym)))
     `(let ((,rule-name ,@(if (consp name) `(,name) `(',name))))
@@ -40,6 +40,11 @@
                          ;; strings / nested lists), so it is quoted like BODY --
                          ;; not evaluated the way BELIEF is.
                          :provenance ',provenance
+                         ;; SUPPORTS / OPPOSES are literal focal-set designators
+                         ;; (keywords, or a list of them), so they are quoted like
+                         ;; PROVENANCE rather than evaluated the way BELIEF is.
+                         :supports ',supports
+                         :opposes ',opposes
                          :auto-focus ,auto-focus))))
 
 (defvar *frame* nil

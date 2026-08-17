@@ -282,3 +282,116 @@
             (is (belief:frame-member-p f target)
                 (format nil "~A rules out ~S, which is not in the frame"
                         (lisa:rule-short-name rule) target))))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 9 -- every rule's FOCAL SET resolves against the frame.
+;;;
+;;; Under a shared frame a rule's firing commits mass to a subset. LISA:RULE-FOCAL-SET
+;;; resolves that subset from an explicit :supports/:opposes declaration, or -- for a
+;;; corpus that has not been converted yet -- from what the rule asserts, or from its
+;;; ruling-out member list. These assert that the resolution succeeds for every rule
+;;; and produces something usable, which is the precondition for the engine
+;;; accumulating through the frame at all.
+;;; ------------------------------------------------------------------
+
+(deftest property-every-rule-resolves-to-a-focal-set ()
+  (let ((f (the-frame)))
+    (when f
+      (dolist (rule (domain-rules))
+        (multiple-value-bind (mask kind)
+            (handler-case (lisa:rule-focal-set rule f)
+              (error (e) (values :error e)))
+          (is (integerp mask)
+              (format nil "~A: focal set did not resolve (~S / ~A)"
+                      (lisa:rule-short-name rule) kind
+                      (if (eq mask :error) kind ""))))))))
+
+(deftest property-focal-sets-are-non-empty-and-not-the-whole-frame ()
+  ;; An empty focal set is a rule whose evidence bears on nothing -- it would
+  ;; contribute pure conflict. A focal set equal to Theta is a rule that says
+  ;; nothing: mass on the whole frame is indistinguishable from ignorance.
+  (let ((f (the-frame)))
+    (when f
+      (dolist (rule (domain-rules))
+        (let ((mask (lisa:rule-focal-set rule f)))
+          (when (integerp mask)
+            (is (plusp mask)
+                (format nil "~A: focal set is empty" (lisa:rule-short-name rule)))
+            (is (/= mask (belief:frame-theta f))
+                (format nil "~A: focal set is the whole frame, so the rule asserts nothing"
+                        (lisa:rule-short-name rule)))))))))
+
+(deftest property-focal-mass-is-a-usable-magnitude ()
+  ;; A ruling-out rule's negative belief is a DIRECTION, already carried by its focal
+  ;; set being a complement. The mass it contributes is the magnitude.
+  (dolist (rule (domain-rules))
+    (let ((mass (lisa:rule-focal-mass rule)))
+      (is (and (realp mass) (< 0 mass) (<= mass 1))
+          (format nil "~A: focal mass ~S must be in (0, 1]"
+                  (lisa:rule-short-name rule) mass)))))
+
+(deftest property-ruling-out-rules-support-a-complement ()
+  ;; The structural claim that lets ruling-out stop being a separate rule kind: a
+  ;; disconfirming rule puts mass on the complement of what it argues against, which
+  ;; is the SAME mechanism a confirming rule uses. Its focal set must therefore be
+  ;; large (most of the frame) and must exclude every target it names.
+  (let ((f (the-frame)))
+    (when f
+      (dolist (rule (domain-rules))
+        (when (lisa:disconfirming-rule-p rule)
+          (let ((mask (lisa:rule-focal-set rule f)))
+            (dolist (target (lisa:rule-member-test-values rule))
+              (is (zerop (logand mask (belief:resolve-mask f target)))
+                  (format nil "~A: focal set still contains ~S, which it rules out"
+                          (lisa:rule-short-name rule) target)))))))))
+
+(deftest property-declared-focal-sets-override-the-fallback ()
+  ;; The declaration path, exercised on a throwaway rule that is undefined again
+  ;; immediately so the corpus invariants above are unaffected.
+  (let ((f (the-frame)))
+    (when f
+      (unwind-protect
+           (progn
+             (lisa-user::defrule focal-set-declaration-probe
+                 (:belief 0.9 :supports (:e-coli :klebsiella))
+               (lisa-user::organism (lisa-user::id ?o))
+               lisa:=>
+               (lisa:assert (lisa-user::organism-identity
+                             (lisa-user::value :e-coli) (lisa-user::of ?o))))
+             (let ((rule (lisa:find-rule (lisa:inference-engine)
+                                         'lisa-user::focal-set-declaration-probe)))
+               (is rule "the probe rule compiled")
+               (when rule
+                 (multiple-value-bind (mask kind) (lisa:rule-focal-set rule f)
+                   (is (eq kind :supports) ":supports wins over the asserted fallback")
+                   (is (equal '(:e-coli :klebsiella) (belief:mask->elements f mask))
+                       "the declared pair is the focal set, not the asserted singleton")))))
+        (ignore-errors
+         (lisa:undefrule 'lisa-user::focal-set-declaration-probe))))))
+
+(deftest property-opposes-is-sugar-for-the-complement ()
+  (let ((f (the-frame)))
+    (when f
+      (unwind-protect
+           (progn
+             (lisa-user::defrule focal-set-opposes-probe
+                 (:belief 0.6 :opposes (:e-coli :salmonella))
+               (lisa-user::organism (lisa-user::id ?o))
+               lisa:=>
+               (lisa:assert (lisa-user::organism-identity
+                             (lisa-user::value :e-coli) (lisa-user::of ?o))))
+             (let ((rule (lisa:find-rule (lisa:inference-engine)
+                                         'lisa-user::focal-set-opposes-probe)))
+               (when rule
+                 (multiple-value-bind (mask kind) (lisa:rule-focal-set rule f)
+                   (is (eq kind :opposes) ":opposes is reported as such")
+                   (is (zerop (logand mask (belief:resolve-mask f '(:e-coli :salmonella))))
+                       "the opposed organisms are excluded")
+                   (is (= mask (belief:mask-complement
+                                f (belief:resolve-mask f '(:e-coli :salmonella))))
+                       "the focal set is exactly the complement")
+                   ;; and the belief stays POSITIVE -- direction lives in the set now
+                   (is (plusp (lisa:rule-focal-mass rule))
+                       "an opposing rule contributes positive mass to a complement")))))
+        (ignore-errors
+         (lisa:undefrule 'lisa-user::focal-set-opposes-probe))))))
