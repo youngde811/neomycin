@@ -57,7 +57,10 @@
           "maximum": 1.0
         }
       },
-      "required": ["fact_type", "value"]
+      "required": [
+        "fact_type",
+        "value"
+      ]
     }
   },
   {
@@ -71,7 +74,7 @@
   },
   {
     "name": "get_conclusions",
-    "description": "Retrieve diagnostic conclusions from the last inference run. Returns organism identities with their belief factors. Under certainty-factor mode, each belief is a single number in [-1, 1]. Under Dempster-Shafer mode, each belief is an object {bel, pl, ignorance} where bel is the lower bound of support, pl is the plausibility (upper bound), and ignorance is the width of the uncertainty interval (pl - bel). The response also includes a top-level belief_system field naming the active algebra.",
+    "description": "Retrieve diagnostic conclusions from the last inference run. Returns organism identities with their belief factors, plus a top-level belief_system naming the active algebra. Under certainty-factor mode each belief is a single number in [-1, 1]; under either Dempster-Shafer mode it is an object {bel, pl, ignorance}, where bel is belief committed to that organism specifically, pl is everything still consistent with it, and ignorance is the width between them. UNDER THE DEFAULT SHARED-FRAME SYSTEM the response also carries a `frame` block, which holds what the per-organism list cannot: `hypotheses` gives EVERY organism the corpus can name with its interval, including ones no rule concluded -- so 'could it be X?' has a real answer for an organism absent from `conclusions`; `set_valued` gives belief committed to a SET rather than a species ('one of this family, the evidence does not say which'), which is often the honest headline; `conflict` (K) is how much belief was committed to combinations that cannot all be true and was renormalized away, so a high K means the rules that fired DISAGREE and the figures are unstable; and the `other-organism` entry answers whether this could be something the corpus does not model at all. Read the frame block before saying an organism is excluded or that the listed conclusions are exhaustive.",
     "input_schema": {
       "type": "object",
       "properties": {},
@@ -89,7 +92,7 @@
   },
   {
     "name": "explain_conclusion",
-    "description": "Retrieve the AUTHORITATIVE, engine-recorded derivation of a concluded organism's belief — how the number was actually built, and on what published authority. Returns, for the named organism identity, each rule firing that contributed (with that rule's own belief), the premises it matched (a derived premise such as the enterobacteriaceae organism-class carries its OWN nested derivation, so the multi-hop chain is included), the belief before/after each firing, a plain-language `composition` of the arithmetic (e.g. \"0.800 (organism-class enterobacteriaceae) composed with the 0.500 rule = 0.400\"), and each rule's `provenance`: its `origin` (paip-subset | neomycin-extrapolation), verified literature `evidence` (e.g. NCBI Bookshelf / CDC citations), and a `belief_basis`. Call this whenever the clinician asks WHY or HOW you reached a conclusion, or BEFORE you cite a belief figure or a source — then QUOTE the returned composition and evidence. Do NOT reconstruct the arithmetic or recall citations from memory; this endpoint is the ground truth. Requires that inference has already concluded the organism (run get_conclusions first). IMPORTANT: `belief_basis` is 'illustrative' — the certainty NUMBER is a schematic teaching value, while `evidence` verifies the clinical ASSOCIATION; never present the number itself as sourced.",
+    "description": "Retrieve the AUTHORITATIVE, engine-recorded derivation of a concluded organism's belief -- how it was actually built, and on what published authority. Returns, for the named organism, each rule firing that contributed, the premises it matched (a derived premise such as the enterobacteriaceae organism-class carries its OWN nested derivation, so the multi-hop chain is included), and each rule's `provenance`: its `origin` (paip-subset | neomycin-extrapolation), verified literature `evidence` (NCBI Bookshelf / CDC citations), and a `belief_basis`. Under the shared-frame system each firing also reports `claims` -- a LIST of the sets it committed belief to, each with its `mass` -- and `conflict_after`, the pool's K once it had fired; its plain-language `composition` states what actually happened, e.g. \"committed 0.500 to {klebsiella}; pool conflict after this firing 0.300\". A firing commits belief to a SET of organisms; it does NOT multiply one number by another, so never translate a composition back into an arithmetic product. Call this whenever the clinician asks WHY or HOW, or BEFORE you cite a belief figure or a source -- then QUOTE what is returned. Do NOT reconstruct the reasoning or recall citations from memory; this endpoint is the ground truth. Requires that inference has already concluded the organism. IMPORTANT: `belief_basis` is 'illustrative' -- the certainty NUMBER is a schematic teaching value, while `evidence` verifies the clinical ASSOCIATION; never present the number itself as sourced.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -98,12 +101,14 @@
           "description": "The organism identity to explain, exactly as it appears in get_conclusions (e.g. 'klebsiella', 'e-coli', 'pseudomonas', 'serratia'). Must be a conclusion currently in working memory."
         }
       },
-      "required": ["organism"]
+      "required": [
+        "organism"
+      ]
     }
   },
   {
     "name": "describe_rules",
-    "description": "Retrieve the AUTHORITATIVE catalogue of the diagnostic rulebase, read from the compiled rules themselves. Per matching rule: its `belief`, its `kind` (confirming | disconfirming), what it `concludes`, the `premises` it requires with the values they must take, `chained_from` when it refines off a derived organism-class, `targets` for a ruling-out rule (the identities it argues against), and its `provenance` (origin, verified literature `evidence`, `belief_basis`, and a clinical `note` giving the rule's basis and why it is weighted as it is). Every response also carries a corpus `summary`: rule counts, the derived organism-classes, a `clusters` map of which species refine off which class, and every leaf identity. You do NOT hold the rulebase in memory: call this before stating any rule's belief, premises, targets, or citation, and whenever the clinician asks what the system knows, which test would best discriminate, or what would have to be true for an organism to be concluded. Distinct from explain_conclusion, which reports how a belief the engine ACTUALLY reached was built; this reports what the corpus contains whether or not anything has fired.",
+    "description": "Retrieve the AUTHORITATIVE catalogue of the diagnostic rulebase, read from the compiled rules themselves. Per matching rule: its `claims` -- a LIST of what its evidence commits belief to, each entry giving the organisms it `supports`, the `mass`, and a `source` distinguishing a claim the author DECLARED from one inferred from what the rule concludes -- its `kind` (confirming | disconfirming | both, since one observation can support some organisms while excluding others), what it `concludes`, the `premises` it requires with the values they must take, `chained_from` when it refines off a derived organism-class, `targets` for an excluding rule (the identities it argues against), and its `provenance` (origin, verified literature `evidence`, `belief_basis`, and a clinical `note` giving the rule's basis and why it is weighted as it is). Every claim's mass is POSITIVE: direction is carried by whether the claim supports or excludes, never by a sign, so a rule's top-level `belief` may be absent. Every response also carries a corpus `summary`: rule counts (confirming, disconfirming, and `both` for the overlap), the derived organism-classes, a `clusters` map of which species refine off which class, and every leaf identity. You do NOT hold the rulebase in memory: call this before stating any rule's claims, premises, targets, or citation, and whenever the clinician asks what the system knows, which test would best discriminate, or what would have to be true for an organism to be concluded. Distinct from explain_conclusion, which reports how a belief the engine ACTUALLY reached was built; this reports what the corpus contains whether or not anything has fired.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -122,7 +127,10 @@
         "kind": {
           "type": "string",
           "description": "Restrict to confirming rules (positive belief, argue FOR a hypothesis) or disconfirming ones (negative belief, argue AGAINST it and cap plausibility below 1.0).",
-          "enum": ["confirming", "disconfirming"]
+          "enum": [
+            "confirming",
+            "disconfirming"
+          ]
         },
         "name": {
           "type": "string",
@@ -150,7 +158,12 @@
         "belief_system": {
           "type": "string",
           "description": "Optional: switch the active belief system on this reset. 'cf' = certainty factors (Shortliffe-Buchanan); 'ds' = simplified Dempster-Shafer. Omit to keep the current setting.",
-          "enum": ["cf", "certainty-factors", "ds", "dempster-shafer"]
+          "enum": [
+            "cf",
+            "certainty-factors",
+            "ds",
+            "dempster-shafer"
+          ]
         }
       },
       "required": []
@@ -183,17 +196,27 @@
         "solver": {
           "type": "string",
           "description": "Which solver to use. Defaults to 'exact', which enumerates every minimum-size regimen and so can also report the ones it chose against. 'greedy' is the original approximation, kept selectable for comparison; it returns the same-size regimen but no alternative_regimens. Omit unless the clinician explicitly asks for a different solver.",
-          "enum": ["exact", "greedy"]
+          "enum": [
+            "exact",
+            "greedy"
+          ]
         },
         "gate": {
           "type": "string",
           "description": "Coverage-gate policy for belief-valued (interval) susceptibilities — a stewardship dial. 'belief' (default) is conservative: an agent covers only if the LOWER bound of its susceptibility interval clears the threshold. 'plausibility' is optimistic: it covers unless there is evidence against (uses the upper bound). 'midpoint' splits the difference. Omit for the conservative default; pass a different value only if the clinician wants to explore how the regimen changes under optimistic vs conservative stewardship. The response echoes the gate used.",
-          "enum": ["belief", "plausibility", "midpoint"]
+          "enum": [
+            "belief",
+            "plausibility",
+            "midpoint"
+          ]
         },
         "objective": {
           "type": "string",
           "description": "Which objective breaks ties among equally minimal regimens. Drug COUNT is primary either way; this only chooses the tiebreak. 'lexicographic' (default) maximizes susceptibility × identification belief — today's behavior, which tends to pick the broadest agent because breadth and susceptibility correlate. 'spectrum-sparing' minimizes declared spectrum breadth first, implementing narrow-spectrum preference. Pass 'spectrum-sparing' only when the clinician asks about narrowing or de-escalation, and NEVER present its result as simply better: it buys narrowness with a lower coverage floor, and because breadth is blind to WHO AWaRe reserve status it can escalate a reserved agent (e.g. enterococcus moves from ampicillin, an Access drug, to linezolid, a Reserve drug). Narrate the trade in both directions. The response echoes the objective used.",
-          "enum": ["lexicographic", "spectrum-sparing"]
+          "enum": [
+            "lexicographic",
+            "spectrum-sparing"
+          ]
         }
       },
       "required": []

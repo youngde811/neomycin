@@ -68,35 +68,71 @@
 ;;; Invariant 1 -- every domain rule declares a usable belief.
 ;;; ------------------------------------------------------------------
 
-(deftest property-every-rule-belief-is-in-range ()
-  ;; A belief outside [-1, 1] is meaningless to both algebras, and a zero belief is
-  ;; a rule that cannot affect any conclusion -- almost certainly an authoring slip.
-  ;; DS additionally clamps defensively at combination time; this catches the problem
-  ;; at the source instead.
+(deftest property-every-rule-declares-a-usable-strength ()
+  ;; A rule must say how strongly it believes what it says, in one of the two forms.
+  ;;
+  ;; Single-belief form: a real in [-1, 1], non-zero -- outside that range it is
+  ;; meaningless to every algebra, and at zero the rule cannot affect any conclusion,
+  ;; which is almost certainly an authoring slip.
+  ;;
+  ;; Claims form: every claim carries a mass in (0, 1]. Direction lives in the claim's
+  ;; verb, not in the sign, so a negative mass here would be a category error rather
+  ;; than a strong exclusion.
   (dolist (rule (domain-rules))
-    (let ((b (lisa:rule-belief rule)))
-      (is (and (realp b) (<= -1 b 1) (not (zerop b)))
-          (format nil "~A: belief ~S must be a non-zero real in [-1, 1]"
-                  (lisa:rule-short-name rule) b)))))
+    (let ((b (lisa:rule-belief rule))
+          (claims (lisa:rule-declared-claims rule)))
+      (cond
+        (claims
+         (dolist (claim claims)
+           (let ((mass (first claim)) (verb (second claim)))
+             (is (and (realp mass) (< 0 mass) (<= mass 1))
+                 (format nil "~A: claim mass ~S must be a real in (0, 1] -- direction ~
+                              is carried by the verb, not the sign"
+                         (lisa:rule-short-name rule) mass))
+             (is (member verb '(:supports :support :excludes :exclude :opposes :oppose))
+                 (format nil "~A: unknown claim verb ~S"
+                         (lisa:rule-short-name rule) verb)))))
+        (t
+         (is (and (realp b) (<= -1 b 1) (not (zerop b)))
+             (format nil "~A: belief ~S must be a non-zero real in [-1, 1]"
+                     (lisa:rule-short-name rule) b)))))))
 
 ;;; ------------------------------------------------------------------
 ;;; Invariant 2 -- disconfirming rules follow the ruling-out template.
 ;;; ------------------------------------------------------------------
 
-(deftest property-disconfirming-rules-reassert-what-they-match ()
-  ;; The established pattern (corpus sketch §2): a ruling-out rule keys off a LIVE
-  ;; hypothesis plus a contradicting parameter on the same organism, then RE-ASSERTS
-  ;; that hypothesis with a negative belief. A negative-belief rule that asserted
-  ;; something it does not also match would not be disconfirming anything -- it would
-  ;; be quietly creating a hypothesis with negative mass.
+(deftest property-excluding-rules-conclude-nothing ()
+  ;; REPLACES the old "a ruling-out rule must re-assert what it matches" invariant,
+  ;; which is obsolete by design. Re-asserting the hypothesis was pure ceremony: it
+  ;; existed only so the engine's assert-driven belief path would run. A rule stating
+  ;; :excludes claims concludes nothing new and must not pretend to -- asserting a
+  ;; hypothesis one is arguing AGAINST is exactly the shape David objected to.
   (dolist (rule (domain-rules))
-    (when (lisa:disconfirming-rule-p rule)
-      (let ((asserted (mapcar #'car (lisa:rule-asserted-facts rule)))
-            (matched (lisa:rule-premise-classes rule)))
-        (is (and asserted (every (lambda (c) (member c matched)) asserted))
-            (format nil "~A: disconfirming rule must re-assert a fact type it matches ~
-                         (asserts ~S, matches ~S)"
-                    (lisa:rule-short-name rule) asserted matched))))))
+    (when (and (lisa:rule-declared-claims rule)
+               (not (lisa:claim-verb-p rule :supports :support)))
+      (is (null (lisa:rule-asserted-facts rule))
+          (format nil "~A: states only :excludes claims, so it must conclude nothing ~
+                       (it asserts ~S)"
+                  (lisa:rule-short-name rule) (lisa:rule-asserted-facts rule))))))
+
+(deftest property-claim-targets-match-the-guard ()
+  ;; A NEW invariant the conversion makes necessary. An excluding rule now names its
+  ;; targets TWICE: once in its :claims, and once in the (test (member ?value ...))
+  ;; that guards on a live hypothesis. The guard is what sequences the rule after the
+  ;; hypothesis exists, which the per-hypothesis algebras still need -- but two lists
+  ;; of the same thing drift. This pins them together.
+  (dolist (rule (domain-rules))
+    (let ((guard (lisa:rule-member-test-values rule))
+          (claimed (loop for (mass verb designator) in (lisa:rule-declared-claims rule)
+                         when (member verb '(:excludes :exclude :opposes :oppose))
+                           append (if (listp designator) designator (list designator)))))
+      (when (and guard claimed)
+        (is (null (set-difference guard claimed))
+            (format nil "~A: guards on ~S but does not exclude ~S"
+                    (lisa:rule-short-name rule) guard (set-difference guard claimed)))
+        (is (null (set-difference claimed guard))
+            (format nil "~A: excludes ~S but does not guard on ~S"
+                    (lisa:rule-short-name rule) claimed (set-difference claimed guard)))))))
 
 (deftest property-disconfirming-rules-name-only-reachable-identities ()
   ;; THE STALENESS GUARD, and the reason this file exists.
@@ -321,14 +357,21 @@
                 (format nil "~A: focal set is the whole frame, so the rule asserts nothing"
                         (lisa:rule-short-name rule)))))))))
 
-(deftest property-focal-mass-is-a-usable-magnitude ()
-  ;; A ruling-out rule's negative belief is a DIRECTION, already carried by its focal
-  ;; set being a complement. The mass it contributes is the magnitude.
-  (dolist (rule (domain-rules))
-    (let ((mass (lisa:rule-focal-mass rule)))
-      (is (and (realp mass) (< 0 mass) (<= mass 1))
-          (format nil "~A: focal mass ~S must be in (0, 1]"
-                  (lisa:rule-short-name rule) mass)))))
+(deftest property-every-claim-contributes-usable-mass ()
+  ;; Whatever form a rule is written in, what reaches the pool is a positive mass on a
+  ;; set. Direction is carried by the focal set being a complement, never by a sign.
+  (let ((f (the-frame)))
+    (when f
+      (dolist (rule (domain-rules))
+        (let ((claims (lisa:rule-claims rule f)))
+          (is claims (format nil "~A: resolves to no claims at all"
+                             (lisa:rule-short-name rule)))
+          (dolist (claim claims)
+            (is (and (realp (lisa:claim-mass claim))
+                     (< 0 (lisa:claim-mass claim))
+                     (<= (lisa:claim-mass claim) 1))
+                (format nil "~A: claim mass ~S must be in (0, 1]"
+                        (lisa:rule-short-name rule) (lisa:claim-mass claim)))))))))
 
 (deftest property-ruling-out-rules-support-a-complement ()
   ;; The structural claim that lets ruling-out stop being a separate rule kind: a

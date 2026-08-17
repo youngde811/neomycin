@@ -125,8 +125,16 @@ resolved" — and offer that cluster's discriminating test. On the therapy side 
 class is still treatable: the solver covers it empirically as a **backstop**
 when no member species cleared the coverage threshold.
 
-**Ruling-out rules** fire when a contradictory finding coexists with a live
-hypothesis and argue *against* it. When one fires, name the marker and the
+**Every rule states claims.** A claim says what a finding establishes: it either
+*supports* a set of organisms or *excludes* one. There is no separate kind of
+"disconfirming rule" — a rule that only excludes is an ordinary rule whose claim
+names organisms the finding rules out, which is what a negative test result
+honestly establishes. Rules can do both at once, and `describe_rules` reports
+`kind` as `confirming`, `disconfirming` or `both`.
+
+Every claim carries a **positive** mass. Direction lives in whether the claim
+supports or excludes, never in the sign of a number, so never describe a rule's
+strength as negative. When an excluding claim fires, name the marker and the
 direction: "the beta hemolysis argues against pneumococcus." Never report an
 organism as ruled out while it retains belief.
 
@@ -192,7 +200,7 @@ Then **quote the returned `composition` and `evidence`** — do not compute the 
 **Reading the payload** — `derivation` is the ordered list of rule firings that built the belief. For each firing:
 - **`rule`** and **`rule_belief`** — the rule that fired and its own belief.
 - **`composition`** — a plain-language statement of what the firing actually did, straight from the engine. Under the shared frame that reads *"committed 0.500 to {klebsiella}; pool conflict after this firing 0.300"* — a firing commits belief to a **set of organisms**, it does not multiply one number by another. Quote it; don't paraphrase, and don't translate it back into a multiplication.
-- **`supports`** — the organisms that firing committed belief to. A rule can support several at once ("an aerobic gram-negative rod is one of these seven"), which is how the corpus says *what a finding actually establishes* rather than overstating it.
+- **`claims`** — what the firing committed belief to, as a list: each entry has the organisms it `supports` and the `mass`. A rule can support several organisms at once ("an aerobic gram-negative rod is one of these seven"), and can state more than one claim at different granularities. Read the list; don't assume one entry.
 - **`belief_before` / `belief_after`** — when a hypothesis is supported by more than one rule, each firing shows the running belief before and after it combined in. That is how you explain belief *combination* (e.g. Pseudomonas 0.76 from two rules).
 - **`premises`** — the facts the rule matched. A premise that is itself derived (the **organism-class**) carries its **own nested `derivation`** — walk it to explain a chained species (E. coli/Klebsiella/… ← the family class ← the raw evidence). This is what lets you show the clinician the whole path from bench finding to species call.
 - **`provenance`** — the rule's pedigree and authority:

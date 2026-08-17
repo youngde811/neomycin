@@ -41,7 +41,7 @@
 ;;; plausibility drops below 1.0 -- an ambiguous stain becomes a widened, lowered
 ;;; interval. Under certainty factors it simply combines as a negative CF.
 (defrule gram-pos-stain-argues-against-gram-neg-organism
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:pseudomonas :klebsiella :salmonella :e-coli :enterobacter :serratia :proteus :bacteroides)))
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf / StatPearls, Gram Staining, NBK562156"
                              "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
@@ -54,11 +54,10 @@
   ;; never an organism-identity, so it can never match here.
   (test (member ?value '(:pseudomonas :klebsiella :salmonella
                          :e-coli :enterobacter :serratia :proteus :bacteroides)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 (defrule gram-neg-stain-argues-against-gram-pos-organism
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:staphylococcus-aureus :staphylococcus-epidermidis :staphylococcus-saprophyticus :streptococcus-pneumoniae :streptococcus-pyogenes :streptococcus-agalactiae :streptococcus-viridans :enterococcus-faecalis :enterococcus-faecium)))
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf / StatPearls, Gram Staining, NBK562156"
                              "NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553")
@@ -76,11 +75,10 @@
                          :streptococcus-pneumoniae :streptococcus-pyogenes
                          :streptococcus-agalactiae :streptococcus-viridans
                          :enterococcus-faecalis :enterococcus-faecium)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 (defrule aerobic-growth-argues-against-anaerobe
-    (:belief -0.8
+    (:claims ((0.8 :excludes (:bacteroides)))
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobes: General Characteristics), NBK7638"
                              "NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobic Gram-Negative Bacilli, Finegold), NBK8438")
@@ -90,8 +88,7 @@
   (aerobicity (value aerobic) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:bacteroides)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Biochemical disconfirmation among the enterobacteriaceae siblings: a positive
 ;; urease argues AGAINST the urease-negative species (E. coli, Salmonella). This is
@@ -99,7 +96,7 @@
 ;; 1.0 -- the DS-conflict material for near-tied siblings. (Authoritative sources in
 ;; the rule's :provenance :evidence.)
 (defrule urease-pos-argues-against-urease-negative-organism
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:e-coli :salmonella)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017")
@@ -109,15 +106,14 @@
   (urease (value positive) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:e-coli :salmonella)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Red pigment (prodigiosin) is essentially Serratia-specific, so it argues AGAINST
 ;; every OTHER sibling: seeing it makes a non-Serratia call unlikely. -0.8 -- the most
 ;; exclusive of the biochemical markers (prodigiosin has no counterpart in the other
 ;; genera). Closes half the observed session gap (red pigment now pulls E. coli down).
 (defrule red-pigment-argues-against-non-serratia
-    (:belief -0.8
+    (:claims ((0.8 :excludes (:e-coli :klebsiella :salmonella :enterobacter :proteus)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "Scientific Reports 2024, Serratia marcescens prodigiosin red pigment, PMC11291754 (doi:10.1038/s41598-024-68747-3)")
@@ -127,8 +123,7 @@
   (pigment (value red) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:e-coli :klebsiella :salmonella :enterobacter :proteus)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; A positive indole argues AGAINST the characteristically indole-negative siblings
 ;; (Klebsiella, Enterobacter, Salmonella, Serratia). Proteus is deliberately EXCLUDED:
@@ -136,7 +131,7 @@
 ;; the genus (honest scoping). -0.6 -- clean but not absolute. Closes the other half of
 ;; the observed session gap (indole+ now pulls Serratia down).
 (defrule indole-pos-argues-against-indole-negative-species
-    (:belief -0.6
+    (:claims ((0.6 :excludes (:klebsiella :enterobacter :salmonella :serratia)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "J Clin Microbiol (indole-positive vs indole-negative Klebsiella identification), PMC1594763")
@@ -146,13 +141,12 @@
   (indole (value positive) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:klebsiella :enterobacter :salmonella :serratia)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Lactose fermentation argues AGAINST the classic non-fermenters, Salmonella and
 ;; Proteus -- the standard teaching discriminator (MacConkey lactose reaction). -0.7.
 (defrule lactose-fermenter-argues-against-non-fermenters
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:salmonella :proteus)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017")
@@ -162,14 +156,13 @@
   (lactose (value fermenter) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:salmonella :proteus)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; The symmetric complement: NON-fermentation of lactose argues AGAINST the strong
 ;; fermenters (E. coli, Klebsiella, Enterobacter). Serratia is EXCLUDED -- it is a
 ;; slow/variable lactose reactor, so the marker is not clean for it (honest). -0.6.
 (defrule lactose-non-fermenter-argues-against-fermenters
-    (:belief -0.6
+    (:claims ((0.6 :excludes (:e-coli :klebsiella :enterobacter)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298")
@@ -179,8 +172,7 @@
   (lactose (value non-fermenter) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:e-coli :klebsiella :enterobacter)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;;; ------------------------------------------------------------------
 ;;; Cross-disconfirmation among the GRAM-POSITIVE siblings (slice C;
@@ -196,7 +188,7 @@
 ;; Coagulase is the defining split within the staphylococci, so a NEGATIVE coagulase
 ;; is strong evidence against S. aureus. -0.85.
 (defrule coagulase-neg-argues-against-staph-aureus
-    (:belief -0.85
+    (:claims ((0.85 :excludes (:staphylococcus-aureus)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448"
                              "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
@@ -206,13 +198,12 @@
   (coagulase (value negative) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:staphylococcus-aureus)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; The symmetric complement: a POSITIVE coagulase argues against the
 ;; coagulase-negative staphylococci. -0.85.
 (defrule coagulase-pos-argues-against-coagulase-negative-staph
-    (:belief -0.85
+    (:claims ((0.85 :excludes (:staphylococcus-epidermidis :staphylococcus-saprophyticus)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240"
                              "NCBI Bookshelf / StatPearls, Staphylococcus saprophyticus Infection, NBK482367")
@@ -222,14 +213,13 @@
   (coagulase (value positive) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:staphylococcus-epidermidis :staphylococcus-saprophyticus)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Catalase-negative argues against the whole staphylococcus genus -- the textbook
 ;; staph-vs-strep split, entering as a disconfirmer rather than a tier-1 premise so
 ;; that scenarios which never run it are unaffected. -0.7.
 (defrule catalase-neg-argues-against-staphylococci
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:staphylococcus-aureus :staphylococcus-epidermidis :staphylococcus-saprophyticus)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553"
                              "NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448")
@@ -240,13 +230,12 @@
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:staphylococcus-aureus :staphylococcus-epidermidis
                          :staphylococcus-saprophyticus)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Hemolysis is a clean three-way partition, so a BETA reading argues against the
 ;; species that are characteristically alpha-hemolytic. -0.75.
 (defrule beta-hemolysis-argues-against-non-beta-streptococci
-    (:belief -0.75
+    (:claims ((0.75 :excludes (:streptococcus-pneumoniae :streptococcus-viridans)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
                              "NCBI Bookshelf / StatPearls, Streptococcus pneumoniae, NBK470537")
@@ -256,12 +245,11 @@
   (hemolysis (value beta) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:streptococcus-pneumoniae :streptococcus-viridans)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; The reciprocal: an ALPHA reading argues against the beta-hemolytic species. -0.75.
 (defrule alpha-hemolysis-argues-against-beta-hemolytic-streptococci
-    (:belief -0.75
+    (:claims ((0.75 :excludes (:streptococcus-pyogenes :streptococcus-agalactiae)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611"
                              "NCBI Bookshelf / StatPearls, Group B Streptococcus and Pregnancy, NBK482443")
@@ -271,13 +259,12 @@
   (hemolysis (value alpha) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:streptococcus-pyogenes :streptococcus-agalactiae)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Optochin sensitivity is what separates the pneumococcus from the rest of the
 ;; alpha-hemolytic streptococci, so a SENSITIVE result argues against viridans. -0.7.
 (defrule optochin-sensitive-argues-against-viridans
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:streptococcus-viridans)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.13 (Streptococcus, Patterson), NBK7611")
                   :belief-basis :illustrative
@@ -286,14 +273,13 @@
   (optochin (value sensitive) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:streptococcus-viridans)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; A NEGATIVE bile-esculin argues against the enterococci. The mildest of this group
 ;; at -0.6: some non-enterococcal group D streptococci are also bile-esculin positive,
 ;; so the test is a better ruling-in than ruling-out marker.
 (defrule bile-esculin-neg-argues-against-enterococci
-    (:belief -0.6
+    (:claims ((0.6 :excludes (:enterococcus-faecalis :enterococcus-faecium)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("J Clin Microbiol, Presumptive Identification of Group D Streptococci: the Bile-Esculin Test, PMC376909"
                              "J Clin Microbiol, Comparison of Several Laboratory Media for Presumptive Identification of Enterococci and Group D Streptococci, PMC379740")
@@ -303,14 +289,13 @@
   (bile-esculin (value negative) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:enterococcus-faecalis :enterococcus-faecium)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)
 
 ;; Arabinose fermentation argues against E. faecalis, which characteristically does
 ;; NOT ferment it. -0.7, matching the conservative belief on the confirming pair --
 ;; the same contested-source caveat applies (see the species rules above).
 (defrule arabinose-pos-argues-against-e-faecalis
-    (:belief -0.7
+    (:claims ((0.7 :excludes (:enterococcus-faecalis)))
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("Carriage of multidrug resistant Enterococcus faecium and Enterococcus faecalis among apparently healthy humans, PMC5476817")
                   :belief-basis :illustrative
@@ -319,5 +304,4 @@
   (arabinose (value fermenter) (of ?o))
   (organism-identity (value ?value) (of ?o))
   (test (member ?value '(:enterococcus-faecalis)))
-  =>
-  (assert (organism-identity (value ?value) (of ?o))))
+  =>)

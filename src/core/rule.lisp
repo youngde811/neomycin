@@ -81,6 +81,15 @@
    ;; RULE-FOCAL-SET. Both default NIL, and a rule declaring neither falls back to
    ;; what it asserts, so every existing rule is unaffected.
    ;; See docs/shared-frame-design.md 4.2.
+   ;; CLAIMS: the general form. A rule states one or more claims about what its
+   ;; evidence establishes, each with its own strength -- ((0.75 :supports :serratia)
+   ;; (0.80 :excludes (...))). One observation, one rule, however many granularities
+   ;; the author can honestly claim. :belief + :supports/:opposes below is the
+   ;; single-claim shorthand and normalizes into this; RULE-CLAIMS is the accessor
+   ;; every consumer should use. See docs/multi-claim-rules.md.
+   (claims :initarg :claims
+           :initform nil
+           :reader rule-declared-claims)
    (supports :initarg :supports
              :initform nil
              :reader rule-supports)
@@ -99,9 +108,27 @@
 (defmethod fire-rule ((self rule) tokens)
   (let ((*active-rule* self)
         (*active-engine* (rule-engine self))
-        (*active-tokens* tokens))
+        (*active-tokens* tokens)
+        (*frame-evidence-contributed* nil))
     (unbind-rule-activation self tokens)
-    (funcall (rule-behavior self) tokens)))
+    (funcall (rule-behavior self) tokens)
+    ;; A rule that concluded a fact contributed its claims through that assertion.
+    ;; One that concluded NOTHING is still evidence -- a negative test result excludes
+    ;; without identifying anything -- so it contributes here, after the behavior has
+    ;; run and any facts it does assert exist.
+    ;;
+    ;; Both belief representations honor claims, by different routes: a frame takes
+    ;; mass on a SET, while a per-hypothesis system applies the same claim as negative
+    ;; evidence against each named hypothesis that has a fact. Keeping both live is
+    ;; what makes CF and Barnett DS usable as comparison baselines at all -- honoring
+    ;; claims only under the frame would quietly delete 16 rules from the others.
+    (when (and (not *frame-evidence-contributed*)
+               (rule-declared-claims self)
+               belief:*belief-system*)
+      (let ((premises (token-make-fact-list tokens)))
+        (if (and belief:*frame* (belief:frame-based-p belief:*belief-system*))
+            (contribute-unasserted-claims (rule-engine self) self premises)
+            (contribute-claims-per-hypothesis (rule-engine self) self premises))))))
 
 (defun rule-default-name (rule)
   (if (initial-context-p (rule-context rule))
@@ -190,6 +217,7 @@
                        (provenance nil)
                        (supports nil)
                        (opposes nil)
+                       (claims nil)
                        (compiled-behavior nil))
   (flet ((make-rule-binding-set ()
            (delete-duplicates
@@ -207,6 +235,7 @@
        :provenance provenance
        :supports supports
        :opposes opposes
+       :claims claims
        :salience salience
        :context (if (null context)
                     (find-context (inference-engine) :initial-context)
@@ -226,6 +255,7 @@
                     :provenance ,(rule-provenance rule)
                     :supports ,(rule-supports rule)
                     :opposes ,(rule-opposes rule)
+                    :claims ,(rule-declared-claims rule)
                     :auto-focus ,(rule-auto-focus rule))))
     (with-inference-engine (engine)
       (apply #'make-rule

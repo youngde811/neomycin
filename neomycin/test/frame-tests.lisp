@@ -266,16 +266,18 @@
          (records (and fact (lisa:fact-derivation (lisa:inference-engine) fact))))
     (is records "klebsiella has a derivation")
     (when records
-      (let ((r (first records)))
-        (is (integerp (lisa:derivation-record-focal-set r))
-            "the firing recorded which set it supported")
-        (is (plusp (lisa:derivation-record-focal-mass r))
-            "and how much mass it contributed")
+      (let* ((r (first records))
+             (claims (lisa:derivation-record-claims r)))
+        ;; A list even when a rule makes one claim -- a reader should never have to
+        ;; branch on how many an author happened to write.
+        (is (listp claims) "the firing recorded its claims as a list")
+        (is (plusp (length claims)) "and made at least one")
+        (is (integerp (car (first claims))) "each claim names a set")
+        (is (plusp (cdr (first claims))) "and the mass it contributed")
         (is (realp (lisa:derivation-record-conflict r))
-            "and the pool's conflict after it")
+            "and the pool's conflict after the firing")
         (is (member :klebsiella
-                    (belief:mask->elements belief:*frame*
-                                           (lisa:derivation-record-focal-set r)))
+                    (belief:mask->elements belief:*frame* (car (first claims))))
             "klebsiella is in the set its own rule supported")))))
 
 (deftest frame-leaves-raw-evidence-alone ()
@@ -363,9 +365,11 @@
   (let* ((fact (lisa-bridge::find-organism-identity-fact :klebsiella))
          (json (lisa-bridge::derivation-record->json
                 (first (lisa:fact-derivation (lisa:inference-engine) fact)))))
-    (is (equalp #("klebsiella") (gethash "supports" json))
-        "the firing names the set it committed mass to")
-    (is (approx= (gethash "focal_mass" json) 0.5) "and how much")
+    (let ((claims (gethash "claims" json)))
+      (is (= 1 (length claims)) "this rule makes one claim")
+      (is (equalp #("klebsiella") (gethash "supports" (aref claims 0)))
+          "which names the set it committed mass to")
+      (is (approx= (gethash "mass" (aref claims 0)) 0.5) "and how much"))
     (is (approx= (gethash "conflict_after" json) 0.30) "and the pool's K after it")))
 
 (deftest frame-why-narrates-sets-not-scalar-arithmetic ()
@@ -393,18 +397,72 @@
          (fallback (lisa-bridge::rule->json
                     (lisa:find-rule (lisa:inference-engine)
                                     'lisa-user::enterobacteriaceae-lactose-pos-indole-pos-suggests-e-coli)))
-         (df (gethash "focal_set" declared))
-         (ff (gethash "focal_set" fallback)))
-    (is df "a rule reports its focal set")
+         (df (gethash "claims" declared))
+         (ff (gethash "claims" fallback)))
+    (is (and df (= 1 (length df))) "a rule reports its claims as a list")
     (when df
-      (is (string= (gethash "source" df) "supports") "declared via :supports")
-      (is (= 8 (gethash "size" df)) "the widened aerobic gram-negative rod set")
-      (is (find "pseudomonas" (gethash "supports" df) :test #'string=)
-          "which includes pseudomonas -- the slice D correction"))
+      (let ((c (aref df 0)))
+        (is (string= (gethash "source" c) "supports") "declared via :supports")
+        (is (= 8 (gethash "size" c)) "the widened aerobic gram-negative rod set")
+        (is (find "pseudomonas" (gethash "supports" c) :test #'string=)
+            "which includes pseudomonas -- the slice D correction")))
     (when ff
-      (is (string= (gethash "source" ff) "asserted")
-          "an unconverted rule falls back to what it asserts")
-      (is (= 1 (gethash "size" ff))))))
+      (let ((c (aref ff 0)))
+        (is (string= (gethash "source" c) "asserted")
+            "an unconverted rule falls back to what it asserts")
+        (is (= 1 (gethash "size" c)))))))
+
+(deftest frame-rules-catalogue-reports-excluding-claims ()
+  ;; A converted ruling-out rule reports a positive mass on a COMPLEMENT, sourced as
+  ;; :excludes -- no negative number anywhere in the payload.
+  (belief:use-system :frame)
+  (let* ((json (lisa-bridge::rule->json
+                (lisa:find-rule (lisa:inference-engine)
+                                'lisa-user::red-pigment-argues-against-non-serratia)))
+         (claims (gethash "claims" json)))
+    (is (and claims (= 1 (length claims))) "one claim")
+    (when claims
+      (let ((c (aref claims 0)))
+        (is (string= (gethash "source" c) "excludes") "reported as an exclusion")
+        (is (plusp (gethash "mass" c)) "with POSITIVE mass -- direction is the verb")
+        (is (= 13 (gethash "size" c)) "on the complement of the five it rules out")
+        (is (not (find "e-coli" (gethash "supports" c) :test #'string=))
+            "and E. coli is not in the set it supports")))
+    (is (string= (gethash "kind" json) "disconfirming")
+        "still catalogued as disconfirming, which it is")))
+
+(deftest frame-rules-catalogue-reports-both-kinds ()
+  ;; A rule that both supports and excludes is reported as `both`, and the corpus
+  ;; summary counts the overlap explicitly. Pinned because an earlier edit to
+  ;; RULE-KIND was silently lost and only caught by checking the live payload -- a
+  ;; passing suite did not notice, because nothing asserted the new behaviour.
+  (belief:use-system :frame)
+  (unwind-protect
+       (progn
+         (lisa-user::defrule kind-probe-both
+             (:claims ((0.6 :supports :serratia)
+                       (0.7 :excludes (:e-coli :klebsiella))))
+           (lisa-user::organism (lisa-user::id ?o))
+           (lisa-user::pigment (lisa-user::value lisa-user::red) (lisa-user::of ?o))
+           lisa:=>)
+         (let ((rule (lisa:find-rule (lisa:inference-engine) 'lisa-user::kind-probe-both)))
+           (is rule "the probe compiled")
+           (when rule
+             (is (lisa:confirming-rule-p rule) "it supports something")
+             (is (lisa:disconfirming-rule-p rule) "and excludes something")
+             (is (string= (lisa-bridge::rule-kind rule) "both")
+                 "so its kind is `both` -- one observation doing two things, which the
+                  single-belief form could not express")
+             (let ((claims (gethash "claims" (lisa-bridge::rule->json rule))))
+               (is (= 2 (length claims)) "and both claims are reported")))))
+    (ignore-errors (lisa:undefrule 'lisa-user::kind-probe-both)))
+  ;; With the probe gone, the real corpus has no such rule, and the summary says so
+  ;; rather than leaving a reader to infer it.
+  (let ((summary (lisa-bridge::rules-summary (lisa-bridge::catalogue-rules))))
+    (is (= 0 (gethash "both" summary))
+        "no rule in the corpus yet states both kinds of claim")
+    (is (= 16 (gethash "disconfirming" summary)) "the 16 excluding rules")
+    (is (= 34 (gethash "confirming" summary)) "and the 34 supporting ones")))
 
 (deftest frame-therapy-runs-unchanged ()
   ;; Design 8's promise: because a fact carries a PROJECTED interval in the existing
@@ -420,3 +478,197 @@
           (format nil "~S arrives as a projected interval" (car pair))))
     (is rec "a regimen is produced under the frame system")
     (is (null (therapy:recommendation-uncovered rec)) "and it covers both organisms")))
+
+;;; ------------------------------------------------------------------
+;;; Generality of the engine change
+;;;
+;;; The frame machinery is meant to serve any Lisa application, not only this one.
+;;; Everything in it is domain-neutral except one thing: the engine cannot know which
+;;; slot of a fact holds a hypothesis, or which scopes it to the entity being asked
+;;; about. That is the FACT-HYPOTHESIS / FACT-ENTITY protocol, and these test that an
+;;; application whose facts look nothing like neomycin's can drive it.
+;;;
+;;; Worth testing rather than asserting: MYCIN's `value`/`of` param-mixin shape is
+;;; used by exactly one of Lisa's example rulebases. mab.lisp, auto-notify.lisp and
+;;; the rest have no such slots.
+;;; ------------------------------------------------------------------
+
+(defclass alarm-report ()
+  ((suspect :initarg :suspect :reader alarm-suspect)
+   (device  :initarg :device  :reader alarm-device))
+  (:documentation
+   "A deliberately FOREIGN fact schema: root-cause shaped, carrying neither a `value`
+    slot nor an `of` slot. Stands in for any application that is not MYCIN."))
+
+(deftest frame-slot-lookup-uses-the-facts-own-package ()
+  ;; The engine used to intern "VALUE" in LISA-USER by name, which silently assumed
+  ;; every application's facts live in that package. It now looks the slot up in the
+  ;; package of the fact's OWN class.
+  (frame-run 'lisa-user::culture-1)
+  (let ((fact (find-concluded-fact 'lisa-user::organism-identity :klebsiella)))
+    (is fact "culture-1 concluded klebsiella")
+    (when fact
+      (is (eq :klebsiella (lisa::fact-slot-named fact "VALUE"))
+          "the value slot resolves through the fact's own package")
+      (is (null (lisa::fact-slot-named fact "NO-SUCH-SLOT"))
+          "an absent slot is NIL, not an error")
+      ;; FIND-SYMBOL, not INTERN: a query must not create symbols as a side effect.
+      (is (null (find-symbol "DEFINITELY-NOT-A-SLOT-NAME" :lisa-user))
+          "querying an absent slot did not intern it"))))
+
+(deftest frame-protocol-accepts-a-foreign-fact-schema ()
+  ;; The generality claim, exercised. An application whose facts carry neither of
+  ;; neomycin's conventional slots specializes the two generics, and the engine's
+  ;; projection machinery then reads its facts correctly -- with no change to the
+  ;; frame algebra, the pools, or anything else.
+  ;; NOTE the teardown. Every Lisa fact is an instance of one class, so an override
+  ;; REPLACES the default method rather than layering over it -- which is why the
+  ;; protocol's contract is that an application handles its own facts and delegates
+  ;; the rest, as the methods below do. The originals are saved and reinstated.
+  (let ((hyp-method nil) (ent-method nil)
+        (default-hyp (find-method #'lisa:fact-hypothesis '()
+                                  (list (find-class 'lisa:fact)) nil))
+        (default-ent (find-method #'lisa:fact-entity '()
+                                  (list (find-class 'lisa:fact)) nil)))
+    (unwind-protect
+         (progn
+           (setf hyp-method
+                 (defmethod lisa:fact-hypothesis ((f lisa:fact))
+                   (if (eq (lisa:fact-name f) 'alarm-report)
+                       (lisa:get-slot-value f 'suspect)
+                       (lisa::fact-slot-named f lisa::*hypothesis-slot*))))
+           (setf ent-method
+                 (defmethod lisa:fact-entity ((f lisa:fact))
+                   (if (eq (lisa:fact-name f) 'alarm-report)
+                       (lisa:get-slot-value f 'device)
+                       (lisa::fact-slot-named f lisa::*entity-slot*))))
+           (lisa:reset)
+           (let ((belief:*frame* (belief:make-frame '(:link-down :card-fault :power))))
+             (lisa:assert-instance
+              (make-instance 'alarm-report :suspect :card-fault :device :router-7))
+             (let ((fact (find-if (lambda (f) (eq (lisa:fact-name f) 'alarm-report))
+                                  (lisa:get-fact-list (lisa:inference-engine)))))
+               (is fact "the foreign fact was asserted")
+               (when fact
+                 (is (eq :card-fault (lisa:fact-hypothesis fact))
+                     "the engine reads the hypothesis through the protocol")
+                 (is (eq :router-7 (lisa:fact-entity fact))
+                     "and the entity, from a slot neomycin has never heard of")
+                 ;; And the projection machinery acts on it: mass in the entity's pool
+                 ;; lands on this fact, with no neomycin-specific code involved.
+                 (let ((pool (lisa::entity-pool (lisa:inference-engine) :router-7)))
+                   (belief:pool-add pool (belief:resolve-mask belief:*frame* :card-fault) 0.6d0)
+                   (lisa::refresh-projections (lisa:inference-engine) :router-7)
+                   (let ((b (belief:belief-factor fact)))
+                     (is (and b (approx= (belief:ds-belief-bel b) 0.6))
+                         "the foreign fact received its projected belief")
+                     (is (and b (approx= (belief:ds-belief-pl b) 1.0))
+                         "with the plausibility the frame implies")))))))
+      ;; Restore the defaults so the rest of the suite is unaffected.
+      (when hyp-method (remove-method #'lisa:fact-hypothesis hyp-method))
+      (when ent-method (remove-method #'lisa:fact-entity ent-method))
+      (when default-hyp (add-method #'lisa:fact-hypothesis default-hyp))
+      (when default-ent (add-method #'lisa:fact-entity default-ent))
+      (lisa:reset))))
+
+(deftest frame-protocol-defaults-survive-the-override ()
+  ;; The teardown above must actually restore the defaults, or every later test in the
+  ;; suite would be running against a stale method.
+  (let ((c (frame-run 'lisa-user::culture-1)))
+    (check-ds c "pseudomonas" 0.428571 0.714286)))
+
+;;; ------------------------------------------------------------------
+;;; Claims-only rules -- evidence that concludes nothing
+;;;
+;;; Belief accumulation is normally driven by fact assertion, because a rule that
+;;; concludes something adjusts that conclusion. Under a shared frame a rule may
+;;; legitimately conclude NOTHING and still be evidence: a negative test result
+;;; excludes without identifying anything. Those rules contribute at FIRE time.
+;;; ------------------------------------------------------------------
+
+(defun with-probe-rule (definer body)
+  "Define a throwaway rule, run BODY, and undefine it whatever happens."
+  (unwind-protect (progn (funcall definer) (funcall body))
+    (ignore-errors (lisa:undefrule 'lisa-user::claims-only-probe))))
+
+(deftest frame-claims-only-rule-contributes-without-asserting ()
+  ;; The whole point: a rule with no RHS conclusion still moves the numbers.
+  (with-probe-rule
+    (lambda ()
+      (lisa-user::defrule claims-only-probe
+          (:claims ((0.8 :excludes (:e-coli :klebsiella))))
+        (lisa-user::organism (lisa-user::id ?o))
+        (lisa-user::pigment (lisa-user::value lisa-user::red) (lisa-user::of ?o))
+        lisa:=>))
+    (lambda ()
+      (belief:use-system :frame)
+      (lisa:reset)
+      (lisa:assert-instance (make-instance 'lisa-user::organism :id 'lisa-user::o1))
+      (lisa:assert-instance (make-instance 'lisa-user::pigment
+                                           :value 'lisa-user::red :of 'lisa-user::o1))
+      (let ((*standard-output* (make-broadcast-stream))) (lisa:run))
+      (let* ((pool (gethash 'lisa-user::o1
+                            (lisa::rete-evidence-pools (lisa:inference-engine))))
+             (m (and pool (belief:pool-mass pool))))
+        (is pool "a rule that asserted nothing still opened an evidence pool")
+        (when m
+          (is (approx= (belief:mass-plausibility m :e-coli) 0.2)
+              "E. coli is excluded to pl 0.2 by a rule that concluded nothing")
+          (is (approx= (belief:mass-plausibility m :klebsiella) 0.2)
+              "and so is Klebsiella")
+          (is (approx= (belief:mass-plausibility m :serratia) 1.0)
+              "while an organism the claim did not name is untouched"))))))
+
+(deftest frame-claims-only-rule-is-not-double-counted ()
+  ;; A rule that DOES assert contributes through that assertion; the fire-time path
+  ;; must not count it again. Guarded by a flag bound per firing -- and the flag has
+  ;; to be declared special before rule.lisp compiles, or FIRE-RULE's LET binds it
+  ;; lexically and the guard silently never fires.
+  (let ((c (frame-run 'lisa-user::culture-1)))
+    (check-ds c "pseudomonas" 0.428571 0.714286)
+    (check-ds c "klebsiella"  0.285714 0.571429))
+  (is (approx= (belief:pool-conflict (the-pool)) 0.30)
+      "culture-1's conflict is unchanged, so nothing was counted twice"))
+
+(deftest frame-claims-only-rule-refuses-an-ambiguous-entity ()
+  ;; A rule that concludes nothing has only its premises to say what it is about, and
+  ;; neomycin's premises legitimately span a patient, a culture and an organism.
+  ;; Guessing would put an organism's evidence in a patient's pool; the engine
+  ;; signals instead, so an author learns at once.
+  (with-probe-rule
+    (lambda ()
+      (lisa-user::defrule claims-only-probe
+          (:claims ((0.5 :excludes (:e-coli))))
+        (lisa-user::organism (lisa-user::id ?o))
+        (lisa-user::gram (lisa-user::value lisa-user::neg) (lisa-user::of ?o))
+        (lisa-user::burn (lisa-user::value lisa-user::serious) (lisa-user::of ?p))
+        lisa:=>))
+    (lambda ()
+      (belief:use-system :frame)
+      (lisa:reset)
+      (lisa:assert-instance (make-instance 'lisa-user::patient :id 'lisa-user::p1))
+      (lisa:assert-instance (make-instance 'lisa-user::organism :id 'lisa-user::o1))
+      (lisa:assert-instance (make-instance 'lisa-user::gram
+                                           :value 'lisa-user::neg :of 'lisa-user::o1))
+      (lisa:assert-instance (make-instance 'lisa-user::burn
+                                           :value 'lisa-user::serious :of 'lisa-user::p1))
+      (is (nth-value 1 (ignore-errors
+                        (let ((*standard-output* (make-broadcast-stream))) (lisa:run))))
+          "an ambiguous entity is an error, not a guess"))))
+
+(deftest frame-claims-only-derivation-needs-an-existing-fact ()
+  ;; A KNOWN LIMIT, pinned so it is not mistaken for a bug later. A claims-only
+  ;; firing records its derivation against the hypotheses its claims are ABOUT -- so a
+  ;; clinician asking why Klebsiella fell finds the exclusion where they look. But an
+  ;; organism no rule ever concluded has no fact to attach it to, so its exclusion is
+  ;; visible in the frame projection and NOT explainable through /why. Closing that
+  ;; needs derivations keyed by hypothesis rather than by fact.
+  (frame-run 'lisa-user::culture-1)
+  (let ((klebsiella (find-concluded-fact 'lisa-user::organism-identity :klebsiella))
+        (e-coli (find-concluded-fact 'lisa-user::organism-identity :e-coli)))
+    (is klebsiella "klebsiella was concluded, so it has a fact and a derivation")
+    (is (null e-coli)
+        "e-coli was not concluded, so it has no fact -- yet the projection constrains it")
+    (let ((m (pool-projection)))
+      (is (< (belief:mass-plausibility m :e-coli) 0.99)
+          "its plausibility IS constrained, which is what makes the gap worth recording"))))

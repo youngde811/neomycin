@@ -104,7 +104,9 @@ neomycin/
                                  S. agalactiae, viridans, E. faecalis, E. faecium)
     host-factors.lisp   — 5 patient-level belief modifiers (neutropenia, prosthetic
                                  material, IV drug use, neonate, urinary source)
-    disconfirming.lisp  — all 16 ruling-out rules, every cluster
+    disconfirming.lisp  — all 16 EXCLUDING rules, every cluster. Each states a
+                        `:claims ((mass :excludes (...)))` — no negative beliefs
+                        remain anywhere in the corpus
     conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/2/3/4/5/multi drivers
   therapy/            — therapy-recommendation phase (own :neomycin-therapy package, nick :therapy)
     package.lisp      — package definition + exports
@@ -213,6 +215,24 @@ frame: `Bel` is the mass settled inside the family, here `[0.286, 0.571]`.
 Under `LISA_BELIEF_SYSTEM=ds` the same scenario still gives the old pseudomonas 0.76
 / klebsiella 0.40, which is the comparison the Barnett system is retained for.
 
+## Release check — the layers must agree
+
+The suite, `bin/*.sh` and `prompt-tests.lisp` each test ONE layer. None of them puts
+the model in the loop, and that gap is how three `tools.json` descriptions once went
+stale while the suite stayed green. **Before tagging a release, run the whole stack
+once** — prompt + tool schemas + bridge + engine — and check the narrated numbers
+against a pinned golden:
+
+```bash
+# bridge up (see Build & Load), then:
+python src/llm/claude/driver.py --plain --no-transcript
+# work a scenario from docs/clinician-scenarios.md and confirm the figures the model
+# quotes match the corresponding golden in neomycin/test/frame-tests.lisp
+```
+
+A worked example, with the goldens it reproduces, is
+`neomycin/clinician-samples/frame-end-to-end-burn-icu.md`.
+
 ## Running the Test Suite
 
 Two dependency-free suites (golden-master + belief-algebra, no external framework):
@@ -233,7 +253,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1582 assertions / 238 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~1752 assertions / 257 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; **each of the 50 rules fired in isolation**; the composition
@@ -283,7 +303,7 @@ Identification and therapy both run end to end:
 
 - **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, rules, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
 - **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt carrying the MYCIN clinical ontology and the corpus's *shape* (the rulebase itself is queried via `describe_rules`, not transcribed — see "Rule catalogue" below), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
-- **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — beliefs, premises, ruling-out targets, provenance, and the cluster map — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (chaining and composition, class-is-never-a-leaf, what a negative belief means, the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts. Design: `docs/rule-catalogue-design.md`.
+- **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — each rule's `claims` (what it supports or excludes, and how strongly), premises, ruling-out targets, provenance, and the cluster map — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (chaining, class-is-never-a-leaf, that rivals compete for one pool of belief, that every claim carries a positive mass with direction in the verb, the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts. Design: `docs/rule-catalogue-design.md`.
 - **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
 - **Therapy phase**: a deterministic **exact** set-cover solver (`neomycin/therapy/`) picks a minimum covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug. **The objective is the third policy dial** (`*objective*`, alongside the belief system and the coverage gate): `:lexicographic` (default — drug count, then susceptibility × belief; this is *not* stewardship and has no notion of spectrum) or `:spectrum-sparing` (narrowest-first over declared `:spectrum` tiers). Turning it changes the recommendation and the narration must state the trade — narrower agents have lower coverage floors, and breadth is blind to WHO AWaRe reserve status. Design + the measured divergence table: `docs/exact-solver-design.md` §§1, 1.1, 3.6.
 
