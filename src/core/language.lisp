@@ -42,6 +42,53 @@
                          :provenance ',provenance
                          :auto-focus ,auto-focus))))
 
+(defvar *frame* nil
+  "The active frame of discernment, or NIL when none is declared.
+
+   A rulebase that reasons over a shared frame (Dempster-Shafer on subsets, rather
+   than the dichotomous per-hypothesis frame) declares it once with DEFRAME. Rules
+   then name focal SETS -- elements or subsets of this frame -- instead of each
+   owning a private two-valued hypothesis. See docs/shared-frame-design.md.")
+
+(defmacro deframe (name &body clauses)
+  "Declare the frame of discernment NAME reasons over, and install it as *FRAME*.
+
+     (deframe organism-frame
+         (:elements :e-coli :klebsiella ... :other-organism)
+       (:subset :enterobacteriaceae (:e-coli :klebsiella ...))
+       (:subset :staphylococcus (...)))
+
+   Exactly one (:ELEMENTS ...) clause gives the exhaustive, mutually exclusive set
+   of answers. Exhaustive matters: Bel and Pl are only meaningful if the true answer
+   is in the frame, so a catch-all element is the usual way to keep them honest.
+
+   Each (:SUBSET NAME (MEMBERS...)) clause names a distinguished set -- a taxonomy,
+   typically -- so a rule can support a whole family without restating its members,
+   and so retiring a member breaks the subset loudly at load time instead of letting
+   it go quietly stale."
+  (declare (ignore name))
+  (let ((elements nil) (seen-elements nil) (subsets '()))
+    (dolist (clause clauses)
+      (unless (consp clause)
+        (error "DEFRAME: expected a clause list, got ~S" clause))
+      (ecase (first clause)
+        (:elements
+         (when seen-elements (error "DEFRAME: more than one :ELEMENTS clause."))
+         (setf elements (rest clause) seen-elements t))
+        (:subset
+         (destructuring-bind (name members) (rest clause)
+           (push (cons name members) subsets)))))
+    (unless seen-elements (error "DEFRAME: no :ELEMENTS clause."))
+    `(setf *frame*
+           (belief:make-frame
+            ',elements
+            (list ,@(loop for (subset-name . members) in (nreverse subsets)
+                          collect `(cons ',subset-name ',members)))))))
+
+(defun frame-of-discernment ()
+  "The active frame, or NIL. Reader for clients that must not bind *FRAME*."
+  *frame*)
+
 (defun undefrule (rule-name)
   (with-rule-name-parts (context short-name long-name) rule-name
     (forget-rule (inference-engine) long-name)))

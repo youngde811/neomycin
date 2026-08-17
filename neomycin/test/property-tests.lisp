@@ -198,3 +198,87 @@
                      floor; new confirming clusters need paired ruling-out rules ~
                      (corpus-expansion-sketch.md §6)"
                 disconfirming total (* 100.0 (/ disconfirming total))))))
+;;; ------------------------------------------------------------------
+;;; Invariant 8 -- the declared FRAME agrees with the compiled corpus.
+;;;
+;;; The frame (neomycin/rules/context.lisp) is the structural replacement for the
+;;; member-list staleness guard above: once rules name focal SETS drawn from it,
+;;; retiring a species breaks every reference at load time. That only holds if the
+;;; frame and the corpus stay in step, which is what these check. See
+;;; docs/shared-frame-design.md §4.4.
+;;; ------------------------------------------------------------------
+
+(defun the-frame ()
+  (lisa:frame-of-discernment))
+
+(deftest property-frame-is-declared-and-exhaustive ()
+  (let ((f (the-frame)))
+    (is f "a frame of discernment is declared")
+    (when f
+      ;; D4. Without a catch-all, mass belonging to an organism the corpus does not
+      ;; model is distributed among the ones it does, and every number is inflated.
+      (is (belief:frame-member-p f :other-organism)
+          "the frame carries a catch-all element, so Bel/Pl are not overstated"))))
+
+(deftest property-frame-contains-every-concluded-identity ()
+  ;; A leaf identity some rule concludes but the frame does not contain could never
+  ;; receive mass. This is the direction that breaks when a species is ADDED.
+  (let ((f (the-frame)))
+    (when f
+      (dolist (identity (concluded-values 'lisa-user::organism-identity))
+        (is (belief:frame-member-p f identity)
+            (format nil "~S is concluded by a rule but is not in the frame" identity))))))
+
+(deftest property-frame-has-no-elements-the-corpus-cannot-conclude ()
+  ;; The opposite direction, which breaks when a species is RETIRED or promoted to a
+  ;; class. A frame element no rule can ever conclude is dead weight that silently
+  ;; absorbs plausibility. :OTHER-ORGANISM is exempt by construction -- it exists
+  ;; precisely to hold mass no rule claims.
+  (let ((f (the-frame)))
+    (when f
+      (let ((concluded (concluded-values 'lisa-user::organism-identity)))
+        (loop for element across (belief:frame-elements f)
+              unless (eq element :other-organism)
+                do (is (member element concluded)
+                       (format nil "~S is in the frame but no rule concludes it"
+                               element)))))))
+
+(deftest property-frame-subsets-cover-every-organism-class ()
+  ;; Every organism-class the corpus derives must exist as a named subset, because
+  ;; that is what lets a class rule put mass on the FAMILY rather than on a
+  ;; reified pseudo-organism -- the defect that made three class beliefs answer no
+  ;; conditional at all (belief-conditional-audit.md §3.2).
+  (let ((f (the-frame)))
+    (when f
+      (dolist (class (concluded-values 'lisa-user::organism-class))
+        (is (belief:frame-subset f class)
+            (format nil "organism-class ~S has no subset in the frame" class))))))
+
+(deftest property-frame-subsets-are-non-trivial ()
+  ;; A subset must have at least two members and must not be the whole frame.
+  ;; A singleton "family" is a species wearing a taxonomy hat; a subset equal to
+  ;; Theta carries no information and would make every rule using it vacuous.
+  (let ((f (the-frame)))
+    (when f
+      (dolist (name (belief:frame-subset-names f))
+        (let ((mask (belief:frame-subset f name)))
+          (is (> (belief:mask-size mask) 1)
+              (format nil "subset ~S has ~D member(s); a family needs at least two"
+                      name (belief:mask-size mask)))
+          (is (/= mask (belief:frame-theta f))
+              (format nil "subset ~S is the whole frame and carries no information"
+                      name)))))))
+
+(deftest property-disconfirming-targets-resolve-against-the-frame ()
+  ;; The staleness guard restated structurally. Every value a ruling-out rule names
+  ;; in its (test (member ?value '(...))) list must resolve against the frame --
+  ;; which is exactly what will happen automatically once those lists become
+  ;; declared focal sets.
+  (let ((f (the-frame)))
+    (when f
+      (dolist (rule (domain-rules))
+        (when (lisa:disconfirming-rule-p rule)
+          (dolist (target (lisa:rule-member-test-values rule))
+            (is (belief:frame-member-p f target)
+                (format nil "~A rules out ~S, which is not in the frame"
+                        (lisa:rule-short-name rule) target))))))))
