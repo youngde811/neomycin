@@ -286,21 +286,70 @@
 ;;; ------------------------------------------------------------------
 
 (defvar *hypothesis-slot* "VALUE"
-  "Slot naming the hypothesis a fact asserts. The corpus convention RULE-ASSERTED-FACTS
-   already assumes; named here so a rulebase using a different one can rebind it.")
+  "Name of the slot holding the hypothesis a fact asserts, for the DEFAULT method of
+   FACT-HYPOTHESIS. A convention, not a requirement -- it is the shape MYCIN's
+   param-mixin uses, which most Lisa examples do NOT. An application with a different
+   schema either rebinds this and *ENTITY-SLOT*, or specializes the two generics
+   below, which is the general answer.")
 
 (defvar *entity-slot* "OF"
-  "Slot naming the entity a fact is scoped to -- the thing the frame asks its question
-   about. One evidence pool per distinct value of this slot.")
+  "Name of the slot scoping a fact to the thing the frame asks about, for the DEFAULT
+   method of FACT-ENTITY. See *HYPOTHESIS-SLOT*.")
 
-(defun fact-slot (fact slot-name)
-  (ignore-errors (get-slot-value fact (intern slot-name :lisa-user))))
+(defun fact-slot-named (fact slot-name)
+  "Value of FACT's slot called SLOT-NAME (a string), or NIL.
 
-(defun fact-entity (fact)
-  (fact-slot fact *entity-slot*))
+   The symbol is looked up in the package of the FACT'S OWN class, not in a hardwired
+   application package -- so this works for any application, not only one whose facts
+   live in LISA-USER. FIND-SYMBOL rather than INTERN: a query must not create symbols
+   as a side effect."
+  (let* ((name (fact-name fact))
+         (package (and (symbolp name) (symbol-package name)))
+         (slot (and package (find-symbol slot-name package))))
+    (and slot (ignore-errors (get-slot-value fact slot)))))
 
-(defun fact-hypothesis (fact)
-  (fact-slot fact *hypothesis-slot*))
+;;; ------------------------------------------------------------------
+;;; The application protocol.
+;;;
+;;; Frame-based reasoning needs two things from a fact that the engine cannot know
+;;; on its own: WHICH HYPOTHESIS it asserts, and WHICH ENTITY the question is being
+;;; asked about. Everything else in the frame machinery -- the algebra, the pools,
+;;; the projections -- is domain-neutral; this is the one place an application's
+;;; own fact schema has to be consulted.
+;;;
+;;; The default methods implement the value/of convention, so MYCIN-shaped rulebases
+;;; work with no configuration. An application whose facts look different overrides:
+;;;
+;;;   (defmethod lisa:fact-hypothesis ((f lisa:fact))
+;;;     (case (lisa:fact-name f)
+;;;       (my-app::diagnosis (lisa:get-slot-value f 'my-app::condition))
+;;;       (t nil)))
+;;;
+;;; Returning NIL means "this fact asserts no hypothesis" -- raw evidence, context
+;;; wiring -- and such facts are left untouched by projection.
+;;;
+;;; Every Lisa fact is an instance of one class, so an application's method REPLACES
+;;; the default rather than layering over it. That is the right granularity -- an
+;;; application has one fact schema -- but it makes the contract explicit: a method
+;;; must answer for the facts it recognizes and DELEGATE the rest, either by calling
+;;; FACT-SLOT-NAMED as the default does or by returning NIL.
+;;; ------------------------------------------------------------------
+
+(defgeneric fact-hypothesis (fact)
+  (:documentation
+   "The hypothesis FACT asserts -- an element or named subset of the active frame --
+    or NIL if it asserts none. Specialize for an application whose facts do not carry
+    the value/of convention; see *HYPOTHESIS-SLOT*.")
+  (:method ((fact fact))
+    (fact-slot-named fact *hypothesis-slot*)))
+
+(defgeneric fact-entity (fact)
+  (:documentation
+   "The entity FACT is scoped to -- the thing the frame is asking its question about.
+    One evidence pool per distinct value. NIL is a legitimate answer for a rulebase
+    that asks one global question. Specialize alongside FACT-HYPOTHESIS.")
+  (:method ((fact fact))
+    (fact-slot-named fact *entity-slot*)))
 
 (defun entity-pool (rete entity)
   "The evidence pool for ENTITY, created on first use."

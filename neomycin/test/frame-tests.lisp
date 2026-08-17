@@ -424,3 +424,101 @@
           (format nil "~S arrives as a projected interval" (car pair))))
     (is rec "a regimen is produced under the frame system")
     (is (null (therapy:recommendation-uncovered rec)) "and it covers both organisms")))
+
+;;; ------------------------------------------------------------------
+;;; Generality of the engine change
+;;;
+;;; The frame machinery is meant to serve any Lisa application, not only this one.
+;;; Everything in it is domain-neutral except one thing: the engine cannot know which
+;;; slot of a fact holds a hypothesis, or which scopes it to the entity being asked
+;;; about. That is the FACT-HYPOTHESIS / FACT-ENTITY protocol, and these test that an
+;;; application whose facts look nothing like neomycin's can drive it.
+;;;
+;;; Worth testing rather than asserting: MYCIN's `value`/`of` param-mixin shape is
+;;; used by exactly one of Lisa's example rulebases. mab.lisp, auto-notify.lisp and
+;;; the rest have no such slots.
+;;; ------------------------------------------------------------------
+
+(defclass alarm-report ()
+  ((suspect :initarg :suspect :reader alarm-suspect)
+   (device  :initarg :device  :reader alarm-device))
+  (:documentation
+   "A deliberately FOREIGN fact schema: root-cause shaped, carrying neither a `value`
+    slot nor an `of` slot. Stands in for any application that is not MYCIN."))
+
+(deftest frame-slot-lookup-uses-the-facts-own-package ()
+  ;; The engine used to intern "VALUE" in LISA-USER by name, which silently assumed
+  ;; every application's facts live in that package. It now looks the slot up in the
+  ;; package of the fact's OWN class.
+  (frame-run 'lisa-user::culture-1)
+  (let ((fact (find-concluded-fact 'lisa-user::organism-identity :klebsiella)))
+    (is fact "culture-1 concluded klebsiella")
+    (when fact
+      (is (eq :klebsiella (lisa::fact-slot-named fact "VALUE"))
+          "the value slot resolves through the fact's own package")
+      (is (null (lisa::fact-slot-named fact "NO-SUCH-SLOT"))
+          "an absent slot is NIL, not an error")
+      ;; FIND-SYMBOL, not INTERN: a query must not create symbols as a side effect.
+      (is (null (find-symbol "DEFINITELY-NOT-A-SLOT-NAME" :lisa-user))
+          "querying an absent slot did not intern it"))))
+
+(deftest frame-protocol-accepts-a-foreign-fact-schema ()
+  ;; The generality claim, exercised. An application whose facts carry neither of
+  ;; neomycin's conventional slots specializes the two generics, and the engine's
+  ;; projection machinery then reads its facts correctly -- with no change to the
+  ;; frame algebra, the pools, or anything else.
+  ;; NOTE the teardown. Every Lisa fact is an instance of one class, so an override
+  ;; REPLACES the default method rather than layering over it -- which is why the
+  ;; protocol's contract is that an application handles its own facts and delegates
+  ;; the rest, as the methods below do. The originals are saved and reinstated.
+  (let ((hyp-method nil) (ent-method nil)
+        (default-hyp (find-method #'lisa:fact-hypothesis '()
+                                  (list (find-class 'lisa:fact)) nil))
+        (default-ent (find-method #'lisa:fact-entity '()
+                                  (list (find-class 'lisa:fact)) nil)))
+    (unwind-protect
+         (progn
+           (setf hyp-method
+                 (defmethod lisa:fact-hypothesis ((f lisa:fact))
+                   (if (eq (lisa:fact-name f) 'alarm-report)
+                       (lisa:get-slot-value f 'suspect)
+                       (lisa::fact-slot-named f lisa::*hypothesis-slot*))))
+           (setf ent-method
+                 (defmethod lisa:fact-entity ((f lisa:fact))
+                   (if (eq (lisa:fact-name f) 'alarm-report)
+                       (lisa:get-slot-value f 'device)
+                       (lisa::fact-slot-named f lisa::*entity-slot*))))
+           (lisa:reset)
+           (let ((belief:*frame* (belief:make-frame '(:link-down :card-fault :power))))
+             (lisa:assert-instance
+              (make-instance 'alarm-report :suspect :card-fault :device :router-7))
+             (let ((fact (find-if (lambda (f) (eq (lisa:fact-name f) 'alarm-report))
+                                  (lisa:get-fact-list (lisa:inference-engine)))))
+               (is fact "the foreign fact was asserted")
+               (when fact
+                 (is (eq :card-fault (lisa:fact-hypothesis fact))
+                     "the engine reads the hypothesis through the protocol")
+                 (is (eq :router-7 (lisa:fact-entity fact))
+                     "and the entity, from a slot neomycin has never heard of")
+                 ;; And the projection machinery acts on it: mass in the entity's pool
+                 ;; lands on this fact, with no neomycin-specific code involved.
+                 (let ((pool (lisa::entity-pool (lisa:inference-engine) :router-7)))
+                   (belief:pool-add pool (belief:resolve-mask belief:*frame* :card-fault) 0.6d0)
+                   (lisa::refresh-projections (lisa:inference-engine) :router-7)
+                   (let ((b (belief:belief-factor fact)))
+                     (is (and b (approx= (belief:ds-belief-bel b) 0.6))
+                         "the foreign fact received its projected belief")
+                     (is (and b (approx= (belief:ds-belief-pl b) 1.0))
+                         "with the plausibility the frame implies")))))))
+      ;; Restore the defaults so the rest of the suite is unaffected.
+      (when hyp-method (remove-method #'lisa:fact-hypothesis hyp-method))
+      (when ent-method (remove-method #'lisa:fact-entity ent-method))
+      (when default-hyp (add-method #'lisa:fact-hypothesis default-hyp))
+      (when default-ent (add-method #'lisa:fact-entity default-ent))
+      (lisa:reset))))
+
+(deftest frame-protocol-defaults-survive-the-override ()
+  ;; The teardown above must actually restore the defaults, or every later test in the
+  ;; suite would be running against a stale method.
+  (let ((c (frame-run 'lisa-user::culture-1)))
+    (check-ds c "pseudomonas" 0.428571 0.714286)))

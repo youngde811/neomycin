@@ -80,7 +80,12 @@
       (when (and (consp action) (eq (first action) 'assert))
         (let* ((form (second action))
                (class (first form))
-               (value (second (assoc (intern "VALUE" :lisa-user) (rest form)))))
+               ;; The value slot is looked up in the package of the class being
+               ;; asserted, not a hardwired application package, so this reads any
+               ;; application's rulebase rather than only LISA-USER's.
+               (slot (and (symbolp class) (symbol-package class)
+                          (find-symbol "VALUE" (symbol-package class))))
+               (value (and slot (second (assoc slot (rest form))))))
           (push (cons class value) acc))))))
 
 (defun rule-concludes-p (rule class &optional value)
@@ -118,7 +123,8 @@
   "The literal VALUE slots RULE matches for premise facts of CLASS, in pattern
    order. Variables and constraint forms are skipped, so a rule that matches
    (gram (value ?g)) reports no value for GRAM."
-  (let ((value-slot (intern "VALUE" :lisa-user))
+  (let ((value-slot (and (symbolp class) (symbol-package class)
+                         (find-symbol "VALUE" (symbol-package class))))
         (acc '()))
     (dolist (p (rule-premise-patterns rule) (nreverse acc))
       (when (eq (parsed-pattern-class p) class)
