@@ -1,5 +1,15 @@
 # Shared frame of discernment — a design proposal
 
+> **UPDATE 2026-08-17 — decisions settled and phase 0 has run. Read
+> `docs/shared-frame-phase0-results.md` alongside this.** David settled §11 as: D1
+> unconditional, D2 keep Barnett, D3 measure both, D4 add `:other-organism`, D5 phase
+> 0 sufficient. Phase 0 then measured the corpus and found that §9.4 (independence) is
+> not a caveat but the blocking problem: the corpus's rules are not independent bodies
+> of evidence, which manufactures conflict up to `K = 0.84` and inverts the
+> pseudomonas/klebsiella ranking on culture-1. Every other prediction in this document
+> held exactly. **A phase 0.5 now sits in front of phase 1** — see the results doc §7.
+> Sections §6.3, §7 and §9.4 below are superseded by measurements.
+
 > **Status: proposal, no code (2026-08-17).** Written in response to
 > `docs/belief-conditional-audit.md` and David's reply to it. That audit found five
 > rules answering the wrong conditional and three class beliefs answering none, and
