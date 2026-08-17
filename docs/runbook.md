@@ -223,41 +223,58 @@ compromised-host pattern. The `/conclusions` payload includes:
 ```json
 {
   "conclusions": [
-    {"value": "enterobacteriaceae", "belief": {"bel": 0.80, "pl": 1.0, "ignorance": 0.20}},
-    {"value": "pseudomonas",        "belief": {"bel": 0.76, "pl": 1.0, "ignorance": 0.24}},
-    {"value": "klebsiella",         "belief": {"bel": 0.50, "pl": 1.0, "ignorance": 0.50}}
+    {"value": "pseudomonas", "belief": {"bel": 0.429, "pl": 0.714, "ignorance": 0.286}},
+    {"value": "klebsiella",  "belief": {"bel": 0.286, "pl": 0.571, "ignorance": 0.286}}
   ],
-  "belief_system": "Dempster-Shafer (simplified)"
+  "belief_system": "Dempster-Shafer (shared frame)",
+  "frame": {
+    "entities": [{
+      "entity": "o1", "operator": "cautious", "conflict": 0.3, "ignorance": 0.057,
+      "set_valued": [{"members": ["e-coli", "klebsiella", "salmonella", "enterobacter",
+                                  "serratia", "proteus", "pseudomonas", "other-organism"],
+                      "mass": 0.229}]
+    }]
+  }
 }
 ```
 
-(Conclusion ordering isn't significant — the payload isn't sorted by belief,
-so a given run may list pseudomonas before enterobacteriaceae or vice versa.
-Compare against `docs/sample-session.md`, where the same case lists
-pseudomonas first.)
+(Conclusion ordering isn't significant — the payload isn't sorted by belief.
+Enterobacteriaceae is an organism-*class*, so it isn't in `conclusions`, which
+reports leaf identities only; it projects as a subset of the frame instead.)
 
-**Read this carefully**: pseudomonas ends up at 0.76 even though *neither*
-underlying rule has a belief that high (0.4 for burn, 0.6 for compromised).
-That's belief combination — two independent lines of evidence for the same
-hypothesis reinforcing each other via `combine-beliefs`.
+**Read this carefully — there are four things worth noticing.**
 
-Also note the *ignorance widths* across the three hypotheses (0.20 / 0.24 /
-0.60). Klebsiella is a real hit on this evidence — the
-`enterobacteriaceae-in-compromised-host-suggests-klebsiella` rule (belief 0.5)
-matches off the derived enterobacteriaceae *class* — but its belief composes
-through the family (0.8 × 0.5 = 0.40), so with a single supporting rule and a
-moderate belief, DS honestly reports "40% supported, 60% still unresolved." That's
-exactly the sort of nuance CF collapses into a single number.
+*Neither number reaches plausibility 1.0.* Pseudomonas is capped at 0.714 and
+klebsiella at 0.571, and no rule argued against either. The belief supporting one
+is belief the other cannot also have. Under the older per-hypothesis system both
+sat at `pl 1.0`, and the two beliefs summed past certainty without the system
+noticing.
 
-Ask Claude a follow-up: *"Why is pseudomonas at 0.76 and not 1.0?"* — it calls
-`explain_conclusion` and narrates the engine's **authoritative** derivation: two
-firings, `"rule belief 0.400 = 0.400"` then `"prior 0.400 combined with the 0.600
-rule = 0.760"` — the combination straight from the record, not recomputed. Ask
-*"and what's that based on?"* and it quotes each rule's verified `evidence` (NCBI
-Bookshelf / CDC citations) while flagging that the 0.76 itself is a schematic
-teaching figure (`belief_basis: illustrative`), never a measured probability. Try
-*"why Klebsiella specifically?"* — the explanation walks the chain (species ←
-enterobacteriaceae class ← evidence), showing why a chained belief runs lower. This
+*Two pseudomonas rules fired (0.4 for burn, 0.6 for compromised host) and the
+result is 0.6, not 0.76.* Both rules read the *same* gram-negative rod, so they
+are one observation seen twice rather than two independent lines of evidence.
+The cautious combination rule counts it once. (That 0.6 then becomes 0.429 after
+conflict is renormalized away — see below.)
+
+*30% of the belief was contradictory.* `conflict: 0.3` means nearly a third of
+the combined belief landed on combinations that cannot all be true — mostly
+pseudomonas against klebsiella. That number is worth quoting to a clinician: it
+says the findings genuinely point in different directions.
+
+*A quarter of the belief names no species at all.* The `set_valued` entry holds
+0.229 on the eight aerobic gram-negative rods collectively — "it is one of these,
+the evidence does not say which." Often the most honest headline available.
+
+Ask Claude a follow-up: *"Why is pseudomonas at 0.43?"* — it calls
+`explain_conclusion` and narrates the engine's **authoritative** record: each
+firing's `composition` (e.g. `"committed 0.500 to {klebsiella}; pool conflict
+after this firing 0.300"`), what set it `supports`, and the running conflict —
+straight from the record, not recomputed. Ask *"and what's that based on?"* and it
+quotes each rule's verified `evidence` (NCBI Bookshelf / CDC citations) while
+flagging that the rule beliefs are schematic teaching figures
+(`belief_basis: illustrative`), never measured probabilities. Try *"could it be
+something else entirely?"* — the frame's `other-organism` plausibility is a real
+answer to that, which no earlier version of this system could give. This
 is the WHY/HOW facility: Claude answers from queried ground truth, not memory.
 
 The same holds for rules that have *not* fired. Ask *"what would tell the two
@@ -318,7 +335,7 @@ Expected CF conclusions:
 {
   "conclusions": [
     {"value": "enterobacteriaceae", "belief": 0.8},
-    {"value": "pseudomonas",        "belief": 0.76},
+    {"value": "pseudomonas",        "belief": 0.76},   // LISA_BELIEF_SYSTEM=cf
     {"value": "klebsiella",         "belief": 0.5}
   ],
   "belief_system": "Certainty Factors (Shortliffe-Buchanan)"

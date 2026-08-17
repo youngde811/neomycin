@@ -1,5 +1,11 @@
 # neomycin demo runsheet — "conversational front-end to a symbolic engine"
 
+> **Historical record (pre-v0.9.0).** The belief figures below were produced by the
+> per-hypothesis Dempster-Shafer system, which was the default until the shared
+> frame of discernment replaced it. They are left as captured rather than rewritten
+> — a transcript is a record of what the system did at the time. Current numbers
+> differ; see `docs/shared-frame-design.md`.
+
 > **Teleprompter for a ~15-minute live demo.** Audience: software engineers, mixed
 > LLM familiarity, health-insurance company. Framing is **non-clinical** — the point
 > is the *architecture*: an LLM as a natural-language front-end to a deterministic,

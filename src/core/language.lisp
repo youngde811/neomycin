@@ -27,7 +27,7 @@
 (in-package :lisa)
 
 (defmacro defrule (name (&key (salience 0) (context nil) (belief nil) (auto-focus nil)
-                              (provenance nil))
+                              (provenance nil) (supports nil) (opposes nil))
                         &body body)
   (let ((rule-name (gensym)))
     `(let ((,rule-name ,@(if (consp name) `(,name) `(',name))))
@@ -40,7 +40,51 @@
                          ;; strings / nested lists), so it is quoted like BODY --
                          ;; not evaluated the way BELIEF is.
                          :provenance ',provenance
+                         ;; SUPPORTS / OPPOSES are literal focal-set designators
+                         ;; (keywords, or a list of them), so they are quoted like
+                         ;; PROVENANCE rather than evaluated the way BELIEF is.
+                         :supports ',supports
+                         :opposes ',opposes
                          :auto-focus ,auto-focus))))
+
+(defmacro deframe (name &body clauses)
+  "Declare the frame of discernment NAME reasons over, and install it as *FRAME*.
+
+     (deframe organism-frame
+         (:elements :e-coli :klebsiella ... :other-organism)
+       (:subset :enterobacteriaceae (:e-coli :klebsiella ...))
+       (:subset :staphylococcus (...)))
+
+   Exactly one (:ELEMENTS ...) clause gives the exhaustive, mutually exclusive set
+   of answers. Exhaustive matters: Bel and Pl are only meaningful if the true answer
+   is in the frame, so a catch-all element is the usual way to keep them honest.
+
+   Each (:SUBSET NAME (MEMBERS...)) clause names a distinguished set -- a taxonomy,
+   typically -- so a rule can support a whole family without restating its members,
+   and so retiring a member breaks the subset loudly at load time instead of letting
+   it go quietly stale."
+  (declare (ignore name))
+  (let ((elements nil) (seen-elements nil) (subsets '()))
+    (dolist (clause clauses)
+      (unless (consp clause)
+        (error "DEFRAME: expected a clause list, got ~S" clause))
+      (ecase (first clause)
+        (:elements
+         (when seen-elements (error "DEFRAME: more than one :ELEMENTS clause."))
+         (setf elements (rest clause) seen-elements t))
+        (:subset
+         (destructuring-bind (name members) (rest clause)
+           (push (cons name members) subsets)))))
+    (unless seen-elements (error "DEFRAME: no :ELEMENTS clause."))
+    `(setf belief:*frame*
+           (belief:make-frame
+            ',elements
+            (list ,@(loop for (subset-name . members) in (nreverse subsets)
+                          collect `(cons ',subset-name ',members)))))))
+
+(defun frame-of-discernment ()
+  "The active frame of discernment, or NIL if none is declared."
+  belief:*frame*)
 
 (defun undefrule (rule-name)
   (with-rule-name-parts (context short-name long-name) rule-name

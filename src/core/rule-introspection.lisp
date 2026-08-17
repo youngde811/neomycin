@@ -151,3 +151,66 @@
                (or (null value)
                    (member value (rule-premise-values rule class)))))
         (rule-premise-patterns rule)))
+;;; ------------------------------------------------------------------
+;;; Focal sets (shared frame of discernment).
+;;;
+;;; Under a shared frame a rule's firing commits mass to a SUBSET of the frame, not
+;;; to a single hypothesis. This resolves that subset. It stays domain-neutral: it
+;;; knows about declared designators, asserted literal values, and member tests --
+;;; never about organisms.
+;;;
+;;; The two FALLBACKS are what let a corpus adopt the frame without editing every
+;;; rule. A confirming rule that declares nothing falls back to the values it
+;;; asserts; a ruling-out rule falls back to the complement of the values its member
+;;; test names. Both resolve through the frame, so both are checked against it.
+;;; See docs/shared-frame-design.md 4.2-4.4.
+;;; ------------------------------------------------------------------
+
+(defun rule-asserted-literals (rule)
+  "The literal VALUEs RULE asserts, skipping variables. A ruling-out rule asserts
+   (value ?value), which is a binding rather than a conclusion, so it yields none."
+  (remove-if-not #'literal-slot-value-p
+                 (mapcar #'cdr (rule-asserted-facts rule))))
+
+(defun rule-focal-designator (rule)
+  "What RULE says its evidence bears on, before resolution.
+
+   Returns (values DESIGNATOR NEGATEDP KIND), or (values NIL NIL NIL) when the rule
+   says nothing resolvable. NEGATEDP means the mass belongs on the COMPLEMENT --
+   evidence against the designated set. KIND records which of the four sources
+   answered, so a caller can tell a declaration from a fallback:
+
+     :SUPPORTS    an explicit :supports declaration
+     :OPPOSES     an explicit :opposes declaration (negated)
+     :ASSERTED    fallback -- the literal values the rule concludes
+     :RULING-OUT  fallback -- the complement of its member-test targets (negated)"
+  (cond
+    ((rule-opposes rule) (values (rule-opposes rule) t :opposes))
+    ((rule-supports rule) (values (rule-supports rule) nil :supports))
+    ((rule-asserted-literals rule)
+     (values (rule-asserted-literals rule) nil :asserted))
+    ((rule-member-test-values rule)
+     (values (rule-member-test-values rule) t :ruling-out))
+    (t (values nil nil nil))))
+
+(defun rule-focal-set (rule &optional (frame belief:*frame*))
+  "The frame subset RULE's firing commits mass to, as a mask.
+
+   Returns (values MASK KIND), or (values NIL KIND) when no frame is declared or the
+   rule designates nothing. Signals an error -- deliberately -- if the rule names a
+   hypothesis the frame does not contain: that is the structural staleness guard,
+   and it should fail loudly rather than resolve to an empty set that would silently
+   stop mattering."
+  (multiple-value-bind (designator negatedp kind) (rule-focal-designator rule)
+    (if (or (null frame) (null designator))
+        (values nil kind)
+        (let ((mask (belief:resolve-mask frame designator)))
+          (values (if negatedp (belief:mask-complement frame mask) mask) kind)))))
+
+(defun rule-focal-mass (rule)
+  "The SUPPORT a firing of RULE contributes to its focal set: the magnitude of its
+   belief. A ruling-out rule's negative belief is a direction, not a quantity -- the
+   direction is already carried by the focal set being a complement -- so the mass it
+   contributes is |belief|."
+  (let ((b (rule-belief rule)))
+    (and (realp b) (abs b))))

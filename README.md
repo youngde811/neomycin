@@ -130,7 +130,8 @@ genuinely calls for them.
 
 **The rulebase and belief system.** `neomycin/rules/` holds 50 medical rules in a
 controlled vocabulary, grouped by cluster across a handful of files. Underneath sits
-a pluggable belief system — either Dempster-Shafer (the default) or certainty
+a pluggable belief system — Dempster-Shafer over a shared frame (the default),
+the older per-hypothesis Dempster-Shafer, or certainty
 factors — that decides how confidence is represented and combined.
 
 **The bridge.** A small HTTP service that runs inside the same Lisp image as the
@@ -272,9 +273,24 @@ combining their buckets and renormalizing — and the amount of belief that land
 in contradictory places is called the **conflict**. When conflict is present,
 the combined interval visibly widens and drops.
 
-Neomycin restricts the theory to a single hypothesis and its negation, a
-standard simplification that keeps combination cheap while remaining faithful
-Dempster-Shafer on that frame.
+Neomycin applies the theory over a **shared frame of discernment**: one pool of
+belief per cultured organism, covering every organism the system can name. A rule
+commits belief to a *set* of them — "an aerobic gram-negative rod is one of these
+seven" — rather than to a single hypothesis in isolation.
+
+That matters for a reason worth stating plainly. Belief committed to one organism
+is belief unavailable to its rivals, so evidence for one **lowers the ceiling on
+the others automatically**, with no rule having to say so. An organism nothing in
+the corpus has mentioned can still be effectively excluded. And because the pool
+holds one unit of belief, two mutually exclusive organisms can never both be
+reported as likely.
+
+An earlier version of neomycin gave each organism its own private frame — a
+standard simplification that keeps combination cheap. It was cheap and it was
+wrong: the same case could report one organism at 0.76 and a mutually exclusive
+one at 0.40, and nothing in the system noticed the two summed past certainty. The
+simplification is still available for comparison, and the difference between the
+two is documented in `docs/shared-frame-design.md`.
 
 ### Why the difference is worth building for
 
@@ -330,8 +346,13 @@ conditions are met, propagates belief through the chains, and records what
 happened.
 
 **The model reads back what concluded.** For the case above, two candidates:
-*pseudomonas* at belief 0.76, and *klebsiella* at belief 0.40. Both have
-plausibility 1.0, because nothing in the case argues against either.
+*pseudomonas* at belief 0.43 with plausibility 0.71, and *klebsiella* at 0.29 with
+plausibility 0.57. Neither reaches plausibility 1.0, because the belief supporting
+one is belief the other cannot also have — and sixteen further organisms, none of
+which any rule mentioned, have been squeezed well below certainty by the same
+arithmetic. A further slice of belief sits on the *set* of aerobic gram-negative
+rods without naming a member: the honest statement that the family is better
+established than any species in it.
 
 **The model narrates the result.** It reports the differential, the beliefs, and
 the reasoning — all of it read from the engine rather than composed.
@@ -378,18 +399,21 @@ Two records are kept. Each rule carries **provenance**: where the rule came from
 (inherited from the historical MYCIN corpus, or added by this project) and which
 published sources support its clinical claim, each citation checked
 adversarially rather than accepted on the model's say-so. Separately, the engine
-records the **derivation** of every belief as it fires — the actual arithmetic
-that combined one number with another to produce a third.
+records the **derivation** of every belief as it fires — which rules fired, what
+each one committed belief to, and how much of that belief the evidence turned out
+to contradict.
 
 The bridge composes both into a single answer. Asked why an organism was
 concluded, it returns the composition arithmetic behind that belief, walked
 recursively back through any intermediate steps, together with the sources
 behind each rule that participated.
 
-When a user asks *why pseudomonas, and how sure are you about 0.76?*, the model
-does not answer from memory. It requests the explanation and quotes it: a prior
-of 0.400 combined with a 0.600 rule to give 0.760, from these two rules, citing
-these sources. And it reports the boundary the record itself encodes — that the
+When a user asks *why pseudomonas, and how sure are you about 0.43?*, the model
+does not answer from memory. It requests the explanation and quotes it: these
+rules fired, this one committed 0.500 to Klebsiella specifically while that one
+committed 0.800 to the whole family of aerobic gram-negative rods, and 30% of the
+combined belief landed on combinations that cannot all be true — citing these
+sources. And it reports the boundary the record itself encodes — that the
 sources verify the *clinical association*, not the *number*, and that the rule
 weights are illustrative teaching values rather than measured frequencies.
 

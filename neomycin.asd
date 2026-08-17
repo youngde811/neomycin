@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.8.0"
+  :version "0.9.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -109,6 +109,9 @@
                      ;; rulebase; depends on property-tests for DOMAIN-RULES.
                      (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
+                     ;; The shared-frame belief system, end to end. Depends on
+                     ;; provenance-tests for FIND-CONCLUDED-FACT.
+                     (:file "frame-tests" :depends-on ("provenance-tests"))
                      (:file "therapy-tests")
                      ;; The exact solver + the ALTERNATIVES both solvers report;
                      ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.
@@ -120,7 +123,7 @@
                (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :neomycin0.8.0 *features*)
+  (pushnew :neomycin0.9.0 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*

@@ -71,6 +71,22 @@
    (provenance :initarg :provenance
                :initform nil
                :reader rule-provenance)
+   ;; DECLARED FOCAL SET (neomycin extension). When a rulebase reasons over a shared
+   ;; frame of discernment, a rule's evidence bears on a SET of hypotheses, not on one
+   ;; -- "lactose+/indole+ means E. coli or K. oxytoca" is a statement about a pair.
+   ;; SUPPORTS names the set the evidence narrows the answer TO; OPPOSES names the set
+   ;; it argues AGAINST (sugar for supporting the complement, which is why ruling-out
+   ;; stops being a separate rule kind). Both hold unresolved designators -- elements,
+   ;; subset names, or a list of either -- resolved against the frame by
+   ;; RULE-FOCAL-SET. Both default NIL, and a rule declaring neither falls back to
+   ;; what it asserts, so every existing rule is unaffected.
+   ;; See docs/shared-frame-design.md 4.2.
+   (supports :initarg :supports
+             :initform nil
+             :reader rule-supports)
+   (opposes :initarg :opposes
+            :initform nil
+            :reader rule-opposes)
    (active-dependencies :initform (make-hash-table :test #'equal)
                         :reader rule-active-dependencies)
    (engine :initarg :engine
@@ -172,6 +188,8 @@
                        (auto-focus nil)
                        (belief nil)
                        (provenance nil)
+                       (supports nil)
+                       (opposes nil)
                        (compiled-behavior nil))
   (flet ((make-rule-binding-set ()
            (delete-duplicates
@@ -187,6 +205,8 @@
        :comment doc-string
        :belief belief
        :provenance provenance
+       :supports supports
+       :opposes opposes
        :salience salience
        :context (if (null context)
                     (find-context (inference-engine) :initial-context)
@@ -204,6 +224,8 @@
                                 (context-name (rule-context rule)))
                     :compiled-behavior ,(rule-behavior rule)
                     :provenance ,(rule-provenance rule)
+                    :supports ,(rule-supports rule)
+                    :opposes ,(rule-opposes rule)
                     :auto-focus ,(rule-auto-focus rule))))
     (with-inference-engine (engine)
       (apply #'make-rule

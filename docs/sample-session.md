@@ -1,5 +1,11 @@
 # Lisa/Claude session transcript
 
+> **Historical record (pre-v0.9.0).** The belief figures below were produced by the
+> per-hypothesis Dempster-Shafer system, which was the default until the shared
+> frame of discernment replaced it. They are left as captured rather than rewritten
+> — a transcript is a record of what the system did at the time. Current numbers
+> differ; see `docs/shared-frame-design.md`.
+
 - Started: 2026-07-02T12:05:45
 - Model: `claude-opus-4-7`
 - Bridge: `http://localhost:8090`
