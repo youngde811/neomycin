@@ -247,16 +247,16 @@
    (BELIEF-BEFORE is NIL on the first firing, so combination across firings is
    visible).
 
-   Under a frame-based belief system three more fields carry what the scalar pair
-   cannot: FOCAL-SET is the frame subset this firing put mass on, FOCAL-MASS how much,
-   and CONFLICT the pool's K after it. Without them a /why narration could not say
-   WHICH hypotheses a firing supported, only how one of them moved. NIL under the
-   per-hypothesis systems."
+   Under a frame-based belief system two more fields carry what the scalar pair
+   cannot: CLAIMS is the list of (mask . mass) this firing committed -- a rule may
+   state several, at different granularities -- and CONFLICT is the pool's K after it.
+   Without them a /why narration could not say WHICH hypotheses a firing supported,
+   only how one of them moved. NIL under the per-hypothesis systems."
   rule rule-belief premises belief-before belief-after
-  focal-set focal-mass conflict)
+  claims conflict)
 
 (defun record-derivation (rete fact rule premises belief-before belief-after
-                          &key focal-set focal-mass conflict)
+                          &key claims conflict)
   "Append a DERIVATION-RECORD for the conclusion FACT under the derivation table.
    Prepended (O(1)); FACT-DERIVATION reverses to firing order on read."
   (push (%make-derivation-record
@@ -265,8 +265,7 @@
          :premises (mapcar #'(lambda (p) (cons p (belief-factor p))) premises)
          :belief-before belief-before
          :belief-after belief-after
-         :focal-set focal-set
-         :focal-mass focal-mass
+         :claims claims
          :conflict conflict)
         (gethash fact (rete-derivation-table rete))))
 
@@ -360,21 +359,28 @@
 (defun accumulate-frame-evidence (rete fact rule premises)
   "Contribute one firing of RULE to the pool for FACT's entity, then re-project.
 
-   Returns the pool's mass function, or NIL when the rule designates no focal set (in
-   which case nothing is contributed and belief is left untouched)."
-  (let ((entity (fact-entity fact)))
-    (multiple-value-bind (focal-set kind) (rule-focal-set rule belief:*frame*)
-      (declare (ignore kind))
-      (when (and focal-set (plusp focal-set))
-        (let ((mass-contributed (* (or (rule-focal-mass rule) 0.0)
-                                   (raw-premise-strength rete premises))))
-          (belief:pool-add (entity-pool rete entity) focal-set mass-contributed
-                           (rule-name rule))
-          (refresh-projections rete entity fact)
-          ;; The pool's UNNORMALIZED conflict: both normalizations resolve K away, so
-          ;; reading it off the projected mass function would always give zero.
-          (values (belief:pool-conflict (entity-pool rete entity))
-                  focal-set mass-contributed))))))
+   A rule may state SEVERAL claims -- red pigment means Serratia at 0.75, and means
+   none of these five at 0.80 -- and each becomes its own simple support function in
+   the pool. That keeps the cautious rule exact (the pool holds only simple support
+   functions) while letting one observation be authored in one place.
+
+   Returns (values CONFLICT CONTRIBUTIONS), where CONTRIBUTIONS is a list of
+   (mask . mass) actually added, or NIL when the rule designates nothing."
+  (let* ((entity (fact-entity fact))
+         (strength (raw-premise-strength rete premises))
+         (pool (entity-pool rete entity))
+         (contributions '()))
+    (dolist (claim (rule-claims rule belief:*frame*))
+      (let ((mask (claim-mask claim)))
+        (when (and mask (plusp mask))
+          (let ((mass (* (claim-mass claim) strength)))
+            (belief:pool-add pool mask mass (rule-name rule))
+            (push (cons mask mass) contributions)))))
+    (when contributions
+      (refresh-projections rete entity fact)
+      ;; The pool's UNNORMALIZED conflict: both normalizations resolve K away, so
+      ;; reading it off the projected mass function would always give zero.
+      (values (belief:pool-conflict pool) (nreverse contributions)))))
 
 (defmethod adjust-belief (rete fact (belief-factor t))
   (when (in-rule-firing-p)
@@ -390,13 +396,12 @@
       (if (belief:frame-based-p belief:*belief-system*)
           ;; Shared frame: the rule contributes a focal set to the entity's pool, and
           ;; every hypothesis for that entity is re-projected from it.
-          (multiple-value-bind (conflict focal-set focal-mass)
+          (multiple-value-bind (conflict contributions)
               (accumulate-frame-evidence rete fact rule premises)
-            (when focal-set
+            (when contributions
               (record-derivation rete fact rule premises belief-before
                                  (belief-factor fact)
-                                 :focal-set focal-set
-                                 :focal-mass focal-mass
+                                 :claims contributions
                                  :conflict conflict)))
           ;; Per-hypothesis (CF, Barnett DS): the rule adjusts this fact's own number.
           (progn

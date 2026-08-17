@@ -382,24 +382,37 @@ pattern.  Cross-pattern variable consistency is not checked here."
    firing performed. Saying 'X went from 0.4 to 0.76' would be a fiction here; saying
    what was committed to which set, and how much conflict resulted, is what actually
    occurred."
-  (let* ((focal (lisa:derivation-record-focal-set rec))
-         (mass (lisa:derivation-record-focal-mass rec))
-         (k (lisa:derivation-record-conflict rec))
-         (members (belief:mask->elements belief:*frame* focal))
-         (n (length members)))
-    (if (<= n 4)
-        (format nil "committed ~,3F to {~{~A~^, ~}}~
-                     ~@[; pool conflict after this firing ~,3F~]"
-                mass (mapcar #'element-name members) k)
-        (format nil "committed ~,3F to a set of ~D {~{~A~^, ~}, ...}~
-                     ~@[; pool conflict after this firing ~,3F~]"
-                mass n (mapcar #'element-name (subseq members 0 3)) k))))
+  (let ((k (lisa:derivation-record-conflict rec)))
+    (format nil "~{~A~^, and ~}~@[; pool conflict after this firing ~,3F~]"
+            (mapcar (lambda (c) (claim-phrase (car c) (cdr c)))
+                    (lisa:derivation-record-claims rec))
+            k)))
+
+(defun claim-phrase (mask mass)
+  "One claim, in words. A rule may state several -- red pigment means Serratia, and
+   means none of these five -- so each is phrased separately and they are joined."
+  (let* ((members (belief:mask->elements belief:*frame* mask))
+         (n (length members))
+         (frame-size (belief:frame-size belief:*frame*))
+         ;; A claim naming most of the frame is an EXCLUSION; saying which few are out
+         ;; is far more legible than listing the fourteen that are in.
+         (excluded (belief:mask->elements
+                    belief:*frame* (belief:mask-complement belief:*frame* mask))))
+    (cond
+      ((and (> n (/ frame-size 2)) excluded)
+       (format nil "committed ~,3F against {~{~A~^, ~}}"
+               mass (mapcar #'element-name excluded)))
+      ((<= n 4)
+       (format nil "committed ~,3F to {~{~A~^, ~}}" mass (mapcar #'element-name members)))
+      (t
+       (format nil "committed ~,3F to a set of ~D {~{~A~^, ~}, ...}"
+               mass n (mapcar #'element-name (subseq members 0 3)))))))
 
 (defun composition-string (rec)
   "A plain-language, algebra-neutral statement of this firing's arithmetic, built
    from the actual recorded numbers (reduced to scalars). The structured belief
    fields keep the full interval; this is the narratable summary."
-  (when (and (lisa:derivation-record-focal-set rec) belief:*frame*)
+  (when (and (lisa:derivation-record-claims rec) belief:*frame*)
     (return-from composition-string (frame-composition-string rec)))
   (let* ((rule-belief (lisa:derivation-record-rule-belief rec))
          (before (lisa:derivation-record-belief-before rec))
@@ -457,10 +470,19 @@ pattern.  Cross-pattern variable consistency is not checked here."
     ;; before/after pair cannot say which set. These three fields carry what the
     ;; narration otherwise could not state: what was supported, how strongly, and how
     ;; much the pool disagreed with itself afterwards.
-    (let ((focal (lisa:derivation-record-focal-set rec)))
-      (when (and focal belief:*frame*)
-        (setf (gethash "supports" ht) (mask->names focal))
-        (setf (gethash "focal_mass" ht) (lisa:derivation-record-focal-mass rec))
+    (let ((claims (lisa:derivation-record-claims rec)))
+      (when (and claims belief:*frame*)
+        ;; A rule may state several claims at different granularities, so this is a
+        ;; list even when it has one entry -- a reader should never have to branch on
+        ;; how many an author happened to write.
+        (setf (gethash "claims" ht)
+              (coerce (mapcar (lambda (c)
+                                (let ((h (make-hash-table :test #'equal)))
+                                  (setf (gethash "supports" h) (mask->names (car c)))
+                                  (setf (gethash "mass" h) (cdr c))
+                                  h))
+                              claims)
+                      'vector))
         (let ((k (lisa:derivation-record-conflict rec)))
           (when k (setf (gethash "conflict_after" ht) k)))))
     (setf (gethash "premises" ht)

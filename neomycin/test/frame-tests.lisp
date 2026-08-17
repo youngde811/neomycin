@@ -266,16 +266,18 @@
          (records (and fact (lisa:fact-derivation (lisa:inference-engine) fact))))
     (is records "klebsiella has a derivation")
     (when records
-      (let ((r (first records)))
-        (is (integerp (lisa:derivation-record-focal-set r))
-            "the firing recorded which set it supported")
-        (is (plusp (lisa:derivation-record-focal-mass r))
-            "and how much mass it contributed")
+      (let* ((r (first records))
+             (claims (lisa:derivation-record-claims r)))
+        ;; A list even when a rule makes one claim -- a reader should never have to
+        ;; branch on how many an author happened to write.
+        (is (listp claims) "the firing recorded its claims as a list")
+        (is (plusp (length claims)) "and made at least one")
+        (is (integerp (car (first claims))) "each claim names a set")
+        (is (plusp (cdr (first claims))) "and the mass it contributed")
         (is (realp (lisa:derivation-record-conflict r))
-            "and the pool's conflict after it")
+            "and the pool's conflict after the firing")
         (is (member :klebsiella
-                    (belief:mask->elements belief:*frame*
-                                           (lisa:derivation-record-focal-set r)))
+                    (belief:mask->elements belief:*frame* (car (first claims))))
             "klebsiella is in the set its own rule supported")))))
 
 (deftest frame-leaves-raw-evidence-alone ()
@@ -363,9 +365,11 @@
   (let* ((fact (lisa-bridge::find-organism-identity-fact :klebsiella))
          (json (lisa-bridge::derivation-record->json
                 (first (lisa:fact-derivation (lisa:inference-engine) fact)))))
-    (is (equalp #("klebsiella") (gethash "supports" json))
-        "the firing names the set it committed mass to")
-    (is (approx= (gethash "focal_mass" json) 0.5) "and how much")
+    (let ((claims (gethash "claims" json)))
+      (is (= 1 (length claims)) "this rule makes one claim")
+      (is (equalp #("klebsiella") (gethash "supports" (aref claims 0)))
+          "which names the set it committed mass to")
+      (is (approx= (gethash "mass" (aref claims 0)) 0.5) "and how much"))
     (is (approx= (gethash "conflict_after" json) 0.30) "and the pool's K after it")))
 
 (deftest frame-why-narrates-sets-not-scalar-arithmetic ()

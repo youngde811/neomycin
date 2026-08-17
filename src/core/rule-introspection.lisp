@@ -214,3 +214,74 @@
    contributes is |belief|."
   (let ((b (rule-belief rule)))
     (and (realp b) (abs b))))
+
+;;; ------------------------------------------------------------------
+;;; CLAIMS -- the general form.
+;;;
+;;; A rule states one or more claims about what its evidence establishes, each with
+;;; its own strength. One observation, one rule, however many granularities the
+;;; author can honestly assert:
+;;;
+;;;   (:claims ((0.75 :supports :serratia)
+;;;             (0.80 :excludes (:e-coli :klebsiella :salmonella :enterobacter :proteus))))
+;;;
+;;; This replaces having to write the same clinical fact twice -- once as a confirming
+;;; rule and once as a ruling-out rule -- with two independently chosen numbers that
+;;; nothing forces to agree. :supports commits mass to the named set; :excludes commits
+;;; it to the complement. There is no rule KIND: a rule that only excludes is not a
+;;; different sort of thing, it is a rule whose one claim happens to name a complement,
+;;; which is what a negative test result honestly establishes.
+;;;
+;;; Each claim becomes ONE simple support function in the entity's pool. Note what that
+;;; does and does not mean: two claims from one rule are still COMBINED as though
+;;; separable, because 0.75 + 0.80 exceeds 1 and they therefore cannot be a single mass
+;;; assignment. Authoring them together makes the pair visible in one place; it does not
+;;; by itself settle how nested claims from one observation ought to combine.
+;;; ------------------------------------------------------------------
+
+(defstruct (claim (:constructor %make-claim (mass mask kind designator)))
+  "One resolved claim: MASS on MASK. KIND is :SUPPORTS or :EXCLUDES as written (MASK is
+   already the complement for :EXCLUDES), or the fallback that produced it."
+  mass mask kind designator)
+
+(defun %resolve-claim (frame mass verb designator)
+  (let ((mask (belief:resolve-mask frame designator)))
+    (%make-claim (abs (float mass 1.0))
+                 (ecase verb
+                   ((:supports :support) mask)
+                   ((:excludes :exclude :opposes :oppose)
+                    (belief:mask-complement frame mask)))
+                 verb designator)))
+
+(defun rule-claims (rule &optional (frame belief:*frame*))
+  "Every claim RULE makes, resolved against FRAME, as a list of CLAIM structs.
+
+   Normalizes all four authoring forms into one shape, so no consumer has to know
+   which was used:
+
+     :claims ((mass verb designator) ...)   the general form
+     :belief N :supports D                  single-claim shorthand
+     :belief N :opposes D                   single-claim shorthand (complement)
+     :belief N, no declaration              fallback -- the values the rule asserts,
+                                            or the complement of its member-test list
+
+   CLAIM-KIND reports the SOURCE that produced each claim (:supports / :excludes for a
+   declared claim; :supports / :opposes / :asserted / :ruling-out for the shorthand and
+   fallbacks), so a caller can still distinguish a declaration from an inference.
+
+   Returns NIL when no frame is declared or the rule designates nothing."
+  (when frame
+    (let ((declared (rule-declared-claims rule)))
+      (if declared
+          (loop for (mass verb designator) in declared
+                collect (%resolve-claim frame mass verb designator))
+          (multiple-value-bind (designator negatedp source) (rule-focal-designator rule)
+            (when designator
+              (let ((c (%resolve-claim frame (or (rule-focal-mass rule) 0)
+                                       (if negatedp :excludes :supports)
+                                       designator)))
+                (setf (claim-kind c) source)
+                (list c))))))))
+
+(defun rule-multi-claim-p (rule)
+  (> (length (rule-declared-claims rule)) 1))
