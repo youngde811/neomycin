@@ -151,3 +151,55 @@
   (dolist (topic '("claims" "excludes" "supports"))
     (is (prompt-contains-p topic)
         (format nil "system-prompt.md does not mention ~A" topic))))
+
+;;; ------------------------------------------------------------------
+;;; The TOOL SCHEMAS are a second thing the LLM reads, and they drifted.
+;;;
+;;; system-prompt.md has been guarded for a while; tools.json never was. When the
+;;; payloads changed shape, three tool descriptions silently went on describing the
+;;; old ones -- promising a `belief` that is now absent, a `kind` that had gained a
+;;; value, and a composition string stating a multiplication the engine no longer
+;;; performs. The suite was green throughout. These guards close that gap.
+;;; ------------------------------------------------------------------
+
+(defun tools-json-text ()
+  (with-open-file (in (asdf:system-relative-pathname
+                       "neomycin" "src/llm/claude/tools.json")
+                      :external-format :utf-8)
+    (let ((text (make-string (file-length in))))
+      (subseq text 0 (read-sequence text in)))))
+
+(defun tools-contains-p (needle)
+  (search needle (tools-json-text) :test #'char-equal))
+
+(deftest tools-describe-the-frame-payload ()
+  ;; get_conclusions returns the frame block; if the schema does not say so, the model
+  ;; has no reason to look at it, and the most informative half of the payload is dead
+  ;; weight.
+  (dolist (topic '("set_valued" "other-organism" "conflict" "hypotheses"))
+    (is (tools-contains-p topic)
+        (format nil "tools.json does not mention the frame payload's ~A" topic))))
+
+(deftest tools-describe-claims-not-negative-beliefs ()
+  ;; A rule's strength is a list of positively-massed claims. A schema promising a
+  ;; single `belief` would have the model quote NIL for all 16 converted rules.
+  (is (tools-contains-p "claims") "tools.json describes a rule's claims")
+  (is (tools-contains-p "both")
+      "and the third `kind` value, for a rule that supports and excludes at once")
+  (is (tools-contains-p "POSITIVE")
+      "and says masses are positive, direction being the verb"))
+
+(deftest tools-do-not-state-the-old-composition ()
+  ;; The stalest thing in the file: an example of arithmetic the engine stopped doing.
+  (dolist (claim '("composed with the 0.500 rule"
+                   "confirming | disconfirming)"))
+    (is (not (tools-contains-p claim))
+        (format nil "tools.json still states ~S" claim))))
+
+(deftest tools-json-is-well-formed-and-covers-the-endpoints ()
+  ;; Cheap structural check: every tool the prompt tells the model to call must exist.
+  (let ((text (tools-json-text)))
+    (dolist (tool '("assert_fact" "run_inference" "get_conclusions" "explain_conclusion"
+                    "describe_rules" "get_partial_matches" "recommend_therapy"
+                    "reset_session"))
+      (is (search tool text) (format nil "tools.json defines ~A" tool)))))
