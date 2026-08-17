@@ -132,8 +132,13 @@
 ;;; ------------------------------------------------------------------
 
 (deftest ds-confirmatory-keeps-full-plausibility ()
-  ;; No rule argues *against* anything in culture-1, so every hypothesis keeps
-  ;; pl = 1.0 — the regime in which DS carries no more than CF does.
+  ;; A property of the BARNETT system specifically, and one worth keeping pinned now
+  ;; that it is no longer the default: with a private {H, not-H} frame per hypothesis,
+  ;; nothing but an explicit ruling-out rule can lower a plausibility, so a purely
+  ;; confirmatory run leaves every hypothesis at pl = 1.0 no matter how much evidence
+  ;; supports a RIVAL. That is the defect the shared frame exists to fix -- compare
+  ;; FRAME-EXCLUDES-ORGANISMS-NO-RULE-MENTIONS, where the same scenario squeezes
+  ;; organisms no rule so much as names. Retained as the contrast, not as an ideal.
   (let ((c (run-scenario 'lisa-user::culture-1 :dempster-shafer)))
     (dolist (name '("pseudomonas" "klebsiella"))
       (is (approx= (belief:ds-belief-pl (belief-of c name)) 1.0)

@@ -44,6 +44,67 @@
     (check-ds c "pseudomonas" 0.428571 0.714286)
     (check-ds c "klebsiella"  0.285714 0.571429)))
 
+(deftest frame-culture-1a ()
+  ;; Hospital-acquired rather than burn, so a third pseudomonas rule (0.7) fires and
+  ;; cautious accumulation keeps the strongest of the three.
+  (let ((c (frame-run 'lisa-user::culture-1a)))
+    (check-ds c "pseudomonas" 0.482759 0.689655)
+    (check-ds c "klebsiella"  0.310345 0.517241)))
+
+(deftest frame-culture-2 ()
+  ;; The ambiguous gram stain: evidence enters with an explicit 0.8/0.2 belief, so the
+  ;; raw premise strength is below 1 and every contribution is scaled by it.
+  (let ((c (frame-run 'lisa-user::culture-2)))
+    (check-ds c "bacteroides" 0.552129 0.766846)
+    (check-ds c "pseudomonas" 0.198200 0.412917)))
+
+(deftest frame-culture-3 ()
+  (let ((c (frame-run 'lisa-user::culture-3)))
+    (check-ds c "streptococcus-pneumoniae" 0.473684 0.631579)))
+
+(deftest frame-culture-4 ()
+  ;; The sharpest contrast with the Barnett system. There, the beta-hemolysis rule
+  ;; drove S. pneumoniae to [0.216, 0.412] while S. pyogenes sat at [0.595, 1.0] --
+  ;; the two never interacting. Here they compete for one pool: pyogenes rises to
+  ;; 0.764 BECAUSE pneumoniae falls to 0.101, and pyogenes' plausibility is capped at
+  ;; 0.899 by the mass pneumoniae still holds.
+  (let ((c (frame-run 'lisa-user::culture-4)))
+    (check-ds c "streptococcus-pyogenes"   0.764045 0.898876)
+    (check-ds c "streptococcus-pneumoniae" 0.101124 0.134831)))
+
+(deftest frame-culture-5 ()
+  ;; Two rules, one observation (hemolysis=beta), one conclusion. Cautious accumulation
+  ;; keeps 0.70 where the conjunctive operator would compound to 0.91.
+  (let ((c (frame-run 'lisa-user::culture-5)))
+    (check-ds c "streptococcus-agalactiae" 0.70 1.0)))
+
+(deftest frame-conflict-goldens ()
+  ;; K per scenario, read unnormalized from the pool. Worth pinning: it is the number
+  ;; that says how much the corpus disagreed with itself, and a rule change that
+  ;; quietly increases disagreement should show up here rather than only in a belief.
+  (dolist (pair '((lisa-user::culture-1  . 0.300000)
+                  (lisa-user::culture-1a . 0.420000)
+                  (lisa-user::culture-2  . 0.416832)
+                  (lisa-user::culture-3  . 0.525000)
+                  (lisa-user::culture-4  . 0.721875)
+                  (lisa-user::culture-5  . 0.000000)))
+    (frame-run (car pair))
+    (is (approx= (belief:pool-conflict (the-pool)) (cdr pair))
+        (format nil "~A: expected K = ~,6F, got ~,6F"
+                (car pair) (cdr pair) (belief:pool-conflict (the-pool))))))
+
+(deftest frame-class-projection-goldens ()
+  ;; A class's Bel is the mass settled inside the family. culture-4 is the instructive
+  ;; one: Bel(streptococcus) = 0.865 is pyogenes 0.764 PLUS pneumoniae 0.101 -- the
+  ;; genus is far better supported than either species, which is exactly the statement
+  ;; a taxonomic hypothesis should be able to make and a per-hypothesis frame cannot.
+  (frame-run 'lisa-user::culture-4)
+  (let ((m (pool-projection)))
+    (is (approx= (belief:mass-belief m :streptococcus) 0.865169)
+        "Bel(streptococcus) sums its members")
+    (is (approx= (belief:mass-plausibility m :streptococcus) 1.0)
+        "and nothing argues the organism is outside the genus")))
+
 (deftest frame-culture-1-ranks-pseudomonas-first ()
   ;; THE REGRESSION THIS WHOLE LINE OF WORK EXISTS FOR. Phase 0 measured the shared
   ;; frame INVERTING this ranking -- pseudomonas 0.241 behind klebsiella 0.380 -- because

@@ -48,18 +48,36 @@ neomycin — don't load it over the neomycin rulebase.
 
 ### Choosing a belief system
 
-The bridge honors `LISA_BELIEF_SYSTEM` at startup. **Dempster-Shafer is the
-default** — it exposes ignorance intervals `{bel, pl, ignorance}` that the
-LLM can narrate meaningfully. Override with the env var:
+The bridge honors `LISA_BELIEF_SYSTEM` at startup. **Dempster-Shafer over a
+SHARED FRAME of discernment is the default.** Three systems ship:
 
 ```bash
-LISA_BELIEF_SYSTEM=cf sbcl ...   # certainty factors (Shortliffe-Buchanan)
-LISA_BELIEF_SYSTEM=ds sbcl ...   # Dempster-Shafer (default)
+LISA_BELIEF_SYSTEM=frame sbcl ...  # DS on a shared frame (DEFAULT)
+LISA_BELIEF_SYSTEM=ds sbcl ...     # DS on a per-hypothesis {H, ¬H} frame (Barnett)
+LISA_BELIEF_SYSTEM=cf sbcl ...     # certainty factors (Shortliffe-Buchanan)
 ```
 
+**Why the frame is the default.** Under the Barnett simplification each organism
+carries its own two-element frame, so two organisms' beliefs never interact:
+culture-1 used to report pseudomonas 0.76 **and** klebsiella 0.40 for *one*
+organism — mutually exclusive hypotheses summing to 1.16 — and nothing noticed.
+The shared frame keeps one mass function per organism entity, so a rule
+contributes mass to a **subset** of the frame, evidence for one organism
+constrains the others arithmetically, mass is conserved, and an organism no rule
+mentions still gets a plausibility. `ds` is retained for comparison, not as a
+fallback. Design: `docs/shared-frame-design.md`; measurements:
+`docs/shared-frame-phase0-results.md`; the focal-set audit:
+`docs/slice-d-focal-width.md`.
+
+The frame itself is declared once, with `deframe` in `neomycin/rules/context.lisp`:
+17 leaf identities, 4 organism-class subsets, 2 premise-licensed subsets, and the
+`:other-organism` catch-all that keeps `Bel`/`Pl` honest about a corpus that does
+not exhaust clinical microbiology.
+
 Per-session overrides ride on `POST /reset` with body `{"belief_system":
-"cf" | "ds"}`. `/conclusions` echoes the active system in its response
-and emits `{bel, pl, ignorance}` payloads under DS.
+"frame" | "ds" | "cf"}`. `/conclusions` echoes the active system and emits
+`{bel, pl, ignorance}` under all three; under `frame` it adds a `frame` block
+(see the endpoint table).
 
 ## Project Structure
 
@@ -128,7 +146,14 @@ src/
   belief-systems/     — Pluggable belief-system protocol
     protocol.lisp     — Generic function surface + dispatcher + use-system
     certainty-factors/— Shortliffe-Buchanan CF implementation
-    dempster-shafer/  — [Bel, Pl] intervals + ds-combine (Dempster's rule)
+    dempster-shafer/  — [Bel, Pl] intervals + ds-combine (Dempster's rule) on the
+                        per-hypothesis {H, ¬H} frame (Barnett). Retained for comparison
+    frame/frame.lisp  — THE DEFAULT: DS over a SHARED frame of discernment. Sparse mass
+                        functions on arbitrary subsets (sets are BITMASKS), the cautious
+                        conjunctive rule (exact here, since every rule contributes a
+                        simple support function), Dempster and Yager readouts of one
+                        unnormalized accumulation, and Bel/Pl projection for elements
+                        AND named subsets. Algebra only — knows nothing of rules or facts
   rete/reference/     — Rete network nodes and compiler
   llm/bridge/         — identification HTTP bridge (:lisa-bridge package)
     session.lisp      — Entity registry, session reset
@@ -155,11 +180,11 @@ bin/
 | `/health` | GET | Health check |
 | `/assert-fact` | POST | Assert a fact: `{fact_type, value, entity?, entity_class?, confidence?}` |
 | `/run-inference` | POST | Fire rules (captures rule trace) |
-| `/conclusions` | GET | Get organism-identity results + belief factors |
+| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
-| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its belief, kind, conclusions, premises, `chained_from`, ruling-out `targets`, and `:provenance`; plus a corpus `summary` (counts, organism-classes, the `clusters` map, every identity). Filters (ANDed): `?name=`, `?kind=confirming\|disconfirming`, `?concludes=`, `?premises=`, `?cluster=`. Needs no inference — it describes the corpus, not working memory |
-| `/why` | GET/POST | Authoritative belief explanation for a concluded organism (`?organism=` or `{organism}`): the engine-recorded derivation — each firing's composition arithmetic, recursive chained premises (organism-class → species), and the rule's two-axis `:provenance` (origin + verified `evidence` citations + `belief_basis`) |
+| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its belief, kind, conclusions, premises, `chained_from`, ruling-out `targets`, `:provenance`, and (when a frame is declared) its `focal_set` — `supports` members, `size`, `mass`, and a `source` of `supports`/`opposes`/`asserted`/`ruling-out` distinguishing a declared focal set from a fallback; plus a corpus `summary` (counts, organism-classes, the `clusters` map, every identity). Filters (ANDed): `?name=`, `?kind=confirming\|disconfirming`, `?concludes=`, `?premises=`, `?cluster=`. Needs no inference — it describes the corpus, not working memory |
+| `/why` | GET/POST | Authoritative belief explanation for a concluded organism (`?organism=` or `{organism}`): the engine-recorded derivation — each firing's composition, recursive chained premises (organism-class → species), and the rule's two-axis `:provenance` (origin + verified `evidence` citations + `belief_basis`). Under the frame each firing also reports `supports` (the frame subset it committed mass to), `focal_mass`, and `conflict_after`, and its composition states what actually happened — *"committed 0.500 to {klebsiella}; pool conflict after this firing 0.300"* — rather than a multiplication the frame never performs |
 | `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Echoes `solver`, `gate`, `objective` |
 | `/reset` | POST | Clear working memory and entity registry |
 
@@ -174,10 +199,19 @@ bin/
 ./bin/test-rules.sh         # catalogue: /rules corpus shape + the staphylococcus cluster (no inference needed)
 ```
 
-Expected (identification): culture-1 produces pseudomonas (0.76) and klebsiella (0.40).
-Enterobacteriaceae is derived as an organism-*class* (0.8), not a leaf identity, so it
-does not appear in `/conclusions` (which reports organism-identity facts only); Klebsiella
-chains off it (0.8 × 0.5).
+Expected (identification, under the default shared-frame system): culture-1 produces
+pseudomonas `[0.429, 0.714]` and klebsiella `[0.286, 0.571]`, with `K = 0.30` of the
+mass renormalized away as conflict and `0.229` left on the eight-member
+aerobic-gram-negative-rod set — "one of these, the evidence does not say which".
+Sixteen organisms no rule mentions are squeezed below `pl = 1.0` without any rule
+arguing against them.
+
+Enterobacteriaceae is an organism-*class*, so it does not appear in `/conclusions`
+(which reports organism-identity facts only), but it projects as a **subset** of the
+frame: `Bel` is the mass settled inside the family, here `[0.286, 0.571]`.
+
+Under `LISA_BELIEF_SYSTEM=ds` the same scenario still gives the old pseudomonas 0.76
+/ klebsiella 0.40, which is the comparison the Barnett system is retained for.
 
 ## Running the Test Suite
 
@@ -199,11 +233,17 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1074 assertions / 182 tests): both belief algebras (CF and DS) directly; all six
-`culture-*` scenarios under each system (against neomycin's rulebase) with hand-verified
-golden values; DS clamp / total-conflict / malformed-input edge cases; **each of the 50
-rules fired in isolation**; the composition law (species belief = class belief × rule
-belief) stated once per chained cluster; both therapy solvers (coverage gating,
+Coverage (~1582 assertions / 238 tests): all three belief algebras (CF, Barnett DS, and
+the shared frame) directly; all six `culture-*` scenarios under each system (against
+neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
+malformed-input edge cases; **each of the 50 rules fired in isolation**; the composition
+law (species belief = class belief × rule belief) stated once per chained cluster **for
+the per-hypothesis systems only** — it deliberately does not hold under the frame, where
+the class *corroborates* the species rather than discounting it (decision D1); the frame
+algebra itself (bitmask sets, cautious vs conjunctive accumulation, Dempster vs Yager
+readout, order-independence, idempotence); the frame's own scenario and conflict goldens,
+plus the **culture-1 ranking regression** that phase 0 found and slice D fixed; both
+therapy solvers (coverage gating,
 contraindications, belief-valued susceptibilities) plus the **greedy/exact equivalence
 property** — same regimen size, gated items and uncovered set across 12 conclusion sets ×
 3 patient states, so a KB change that breaks greedy's approximation is caught by a test
@@ -226,8 +266,13 @@ is deliberately *not* restated there — `check-rule` already enforces it per ru
 ## Key Packages
 
 - `lisa` / `lisa-user` — Core engine and user-facing DSL (defrule, assert, run, reset)
-- `belief` (nickname for `lisa.belief`) — pluggable belief protocol: CF and DS systems,
-  `belief-factor`, `combine-beliefs` / `ds-combine`, `normalize-belief`, `ds-belief` accessors
+- `belief` (nickname for `lisa.belief`) — pluggable belief protocol: CF, Barnett DS, and
+  shared-frame systems; `belief-factor`, `combine-beliefs` / `ds-combine`,
+  `normalize-belief`, `ds-belief` accessors; and the frame layer — `make-frame`,
+  `resolve-mask`, `evidence-pool` / `pool-add` / `pool-mass` / `pool-conflict`,
+  `mass-belief` / `mass-plausibility` / `mass-set-valued`, `*frame-operator*`
+  (`:cautious` default, `:conjunctive` for comparison), `*frame-normalization*`
+  (`:dempster` / `:yager`)
 - `lisa-bridge` — identification HTTP bridge (start, stop, reset-session)
 - `neomycin-therapy` (nickname `therapy`) — therapy phase: solver protocol, KB abstraction,
   `def*` authoring, the antibiogram overlay, and the `/recommend-therapy` glue

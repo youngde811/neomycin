@@ -222,7 +222,7 @@ A recommendation is an auditable object — nothing here is inferred by a model:
   than dropped.
 
 A worked example (culture-1 under Dempster-Shafer, no contraindications): three
-gram-negative identities — pseudomonas `{bel 0.76}`, enterobacteriaceae `{bel
+gram-negative identities — pseudomonas `{bel 0.43, pl 0.71}`, enterobacteriaceae `{bel
 0.80}`, klebsiella `{bel 0.50}` — are all items to treat, and a single broad agent
 (`meropenem`) covers all three, so the regimen is one drug and `uncovered` is
 empty. Add `"allergy-cephalosporin"` to the patient state and `ceftazidime` and
