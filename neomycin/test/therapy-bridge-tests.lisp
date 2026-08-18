@@ -12,7 +12,7 @@
 (in-package "LISA-TEST")
 
 ;;; culture-1 under CF yields two leaf-species gram-negative identities
-;;; (pseudomonas 0.76, klebsiella 0.40), both above *coverage-threshold* and both
+;;; (pseudomonas 0.76, klebsiella 0.40), both above *coverage-threshold* (0.1 since v0.11) and both
 ;;; covered by the canonical KB's broad agents. Enterobacteriaceae is NO LONGER a
 ;;; conclusion here (C2): it is a family CLASS, and its member klebsiella clears the
 ;;; gate, so the family backstop is suppressed (see the backstop tests below).
@@ -33,13 +33,14 @@
   (therapy:with-greedy-solver
     (let ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                   (therapy:therapy-kb) '())))
-      ;; ONE item since v0.11, not two: Klebsiella projects to Bel 0.194 and misses
-      ;; *coverage-threshold* (0.2) by 0.006. Organisms did not compete for mass under
-      ;; the pre-v0.11 representation and it sat at 0.286 there. See the threshold's
-      ;; docstring in therapy/protocol.lisp -- recalibrating that dial for the new
-      ;; scale is a clinical decision, not a test fix.
-      (is (= 1 (length (therapy:recommendation-items-to-treat rec)))
-          "pseudomonas is the item to treat; klebsiella misses the gate by 0.006")
+      ;; TWO items again, after the v0.11 recalibration of *coverage-threshold* from
+      ;; 0.2 to 0.1. Klebsiella projects to Bel 0.194 here; it cleared the old gate at
+      ;; 0.286 under the pre-v0.11 representation, missed the unchanged 0.2 gate by
+      ;; 0.006 once organisms began competing for one unit of mass, and clears again
+      ;; now that the dial matches the scale. The gate decides only five figures in the
+      ;; whole corpus and 0.1 sits mid-plateau -- see the threshold's docstring.
+      (is (= 2 (length (therapy:recommendation-items-to-treat rec)))
+          "pseudomonas AND klebsiella are items to treat under the recalibrated gate")
       (is (plusp (length (therapy:recommendation-regimen rec))) "a regimen was produced")
       (is (null (therapy:recommendation-uncovered rec)) "culture-1 gram-negs fully covered"))))
 
@@ -53,8 +54,8 @@
            (json (therapy:recommendation->json rec)))
       (is (typep (gethash "regimen" json) 'vector) "regimen is a JSON array")
       (is (plusp (length (gethash "regimen" json))) "regimen non-empty")
-      (is (= 1 (length (gethash "items_to_treat" json)))
-          "one item_to_treat -- see therapy-bridge-recommend-end-to-end for why")
+      (is (= 2 (length (gethash "items_to_treat" json)))
+          "two items_to_treat -- see therapy-bridge-recommend-end-to-end for why")
       (is (typep (gethash "uncovered" json) 'vector) "uncovered is a JSON array")
       (is (zerop (length (gethash "uncovered" json))) "nothing uncovered")
       (let ((drug (gethash "drug" (aref (gethash "regimen" json) 0))))

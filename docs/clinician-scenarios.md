@@ -162,8 +162,8 @@ Set-valued: 0.081 on the seven, 0.014 on the eight.
 
 The extra epidemiological evidence sharpened Pseudomonas (0.613 → 0.746) and *lowered*
 Klebsiella (0.194 → 0.153), because the stronger Pseudomonas answer takes more of the
-mass. **Klebsiella now sits below the therapy coverage gate** — see Scenario 8, where
-that has consequences.
+mass. Klebsiella still clears the therapy coverage gate (0.1) and is treated — see
+Scenario 8.
 
 ---
 
@@ -380,24 +380,28 @@ Run the case once **without** that `load` line (reference only) and once **with*
 **Identification**: the Scenario 2 differential — pseudomonas `bel 0.746`, klebsiella
 `bel 0.153`.
 
-**What the solver is asked to treat**: **pseudomonas only.** Klebsiella at 0.153 does
-not clear `*coverage-threshold*` (0.2). Under the pre-v0.11 representation organisms did
-not compete for one unit of mass, Klebsiella sat at 0.688, and both were treated.
+**What the solver is asked to treat**: **both** — pseudomonas at 0.746 and klebsiella
+at 0.153, since both clear `*coverage-threshold*` (0.1).
 
-> **⚠️ This threshold is unrecalibrated.** 0.2 was chosen for a scale on which beliefs
-> did not compete. Beliefs are systematically lower now, so the gate is effectively
-> stricter than it was when it was set. Whether 0.2 is still the right number is a
-> clinical judgement, not a test fix; it is flagged in `therapy/protocol.lisp`'s
-> docstring and deliberately not quietly changed.
+> **On that threshold.** It was 0.2 through v0.10, chosen for a scale on which organism
+> beliefs did not compete. Under candidate sets they share one unit of mass, so the same
+> evidence yields systematically lower figures and 0.2 became stricter than anyone had
+> decided — Klebsiella fell out of empiric cover here by 0.006. Recalibrated to 0.1 for
+> v0.11, which is where the corpus is flat: the gate decides only five figures in the
+> entire rulebase (0.242, 0.228, 0.194, 0.153, 0.101) and 0.1 admits every one with
+> margin, while 0.05 changes nothing further. See the docstring in
+> `neomycin/therapy/protocol.lisp`.
 
 **Therapy — reference KB** (`recommend_therapy`, `patient=["allergy-carbapenem"]`):
 
 | | drug | dose | covers | `bel` | `pl` | source |
 |---|---|---|---|---|---|---|
 | regimen | **ceftazidime** | 2 g IV q8h | pseudomonas | 0.70 | 0.90 | reference |
+| | | | klebsiella | 0.64 | 0.88 | reference |
 
-Meropenem is **excluded by the allergy** and says so in `excluded`.
-`alternative_agents`: piperacillin-tazobactam (pseudomonas 0.64/0.90).
+One drug covers both. Meropenem is **excluded by the allergy** and says so in
+`excluded`. `alternative_agents`: ceftriaxone, ciprofloxacin, gentamicin,
+piperacillin-tazobactam; `alternative_regimens`: piperacillin-tazobactam alone.
 
 **Therapy — with the local antibiogram loaded**: this ward records **41/48 (85%)
 gentamicin-susceptible Pseudomonas**, which promotes gentamicin's anti-pseudomonal
@@ -409,8 +413,8 @@ n_tested: 48`. The reference run *could not* use gentamicin; the local data earn
 
 > *"With this ward's antibiogram, gentamicin covers Pseudomonas at belief 0.82 across
 > **48 local isolates** (85% susceptible here) — a data-grounded figure. Klebsiella
-> didn't clear the coverage gate on this case, so it isn't being treated; if you want
-> it covered, say so and I'll re-run."*
+> coverage is **reference-only**, so treat that half as provisional pending local
+> sensitivities."*
 
 **The other direction — resistance the reference would miss.** This ward's
 **ceftazidime-susceptible Klebsiella is 18/40 (45%)** — a local ESBL signal — so that

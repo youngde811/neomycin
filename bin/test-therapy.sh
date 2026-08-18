@@ -59,8 +59,11 @@ assert len(r["regimen"]) >= 1, "expected a non-empty regimen"
 # docstring in neomycin/therapy/protocol.lisp. Moving a clinical dial is not something
 # to do as a side effect of a representation change, so the assertion follows the code.
 treated = sorted(i["organism"] for i in r["items_to_treat"])
-assert treated == ["pseudomonas"], \
-    "expected pseudomonas alone (klebsiella misses the gate by 0.006), got %r" % (treated,)
+# Both, since the v0.11 recalibration of *coverage-threshold* to 0.1. Klebsiella
+# projects to Bel 0.194 on culture-1; it missed the old 0.2 gate by 0.006 once
+# organisms began competing for one unit of mass.
+assert treated == ["klebsiella", "pseudomonas"], \
+    "expected pseudomonas and klebsiella under the recalibrated gate, got %r" % (treated,)
 assert len(r["uncovered"]) == 0, "expected nothing uncovered, got %r" % (r["uncovered"],)
 assert "solver" in r and "belief_system" in r, "response should echo solver + belief_system"
 print("  OK: %d-drug regimen, %d items treated, none uncovered" % (len(r["regimen"]), len(r["items_to_treat"])))
