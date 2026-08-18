@@ -192,3 +192,97 @@
 ;;; parallel shape under review.
 ;;; ------------------------------------------------------------------
 
+
+
+;;; ------------------------------------------------------------------
+;;; Invariant 12 -- a marker that is VARIABLE for an organism may not exclude it.
+;;;
+;;; This is the enforceable half of the authoring policy stated at the top of
+;;; candidates-gram-neg.lisp. Under this representation absence from an answer IS
+;;; exclusion, so leaving an organism out of a rule's answer asserts that the finding
+;;; rules it out. Where the literature says a marker is variable for an organism, that
+;;; assertion is false and the organism must stay in -- a wider answer is a weaker
+;;; claim, and the algebra is built to carry it.
+;;;
+;;; The corpus got this wrong three times in one week, and always the same way: the
+;;; author was reasoning inside one family and silently excluded everything outside it.
+;;; Pseudomonas fell out of the non-lactose-fermenters (it IS the textbook
+;;; non-fermenter), Pseudomonas fell out of the urease producers (72% are positive),
+;;; and Bacteroides fell out of the indole producers (the B. fragilis group splits down
+;;; the middle). None was caught by a test, because no test reached those rules and the
+;;; disconfirming form they were converted from never had to state the complement.
+;;;
+;;; Each entry below is a claim about the literature and carries its citation. Adding
+;;; one is a research act; deleting one to make this pass is not.
+;;; ------------------------------------------------------------------
+
+(defparameter *variable-markers*
+  '((lisa-user::lactose lisa-user::non-fermenter (:pseudomonas)
+     "P. aeruginosa is the textbook non-lactose-fermenter, the standard contrast to
+      the Enterobacteriaceae. NBK8035.")
+    (lisa-user::urease lisa-user::positive (:pseudomonas)
+     "72% of P. aeruginosa strains are urease-positive -- the paper exists because
+      they gave false-positive rapid urease tests during H. pylori identification.
+      J Clin Microbiol, PMC86256.")
+    (lisa-user::indole lisa-user::positive (:proteus :bacteroides)
+     "P. mirabilis is indole-negative, P. vulgaris positive. The B. fragilis group
+      likewise splits: B. ovatus, B. thetaiotaomicron and B. uniformis are positive;
+      B. fragilis, B. distasonis and B. vulgatus are negative. Antimicrob Agents
+      Chemother, PMC183804.")
+    (lisa-user::lactose lisa-user::fermenter (:serratia)
+     "Serratia is a slow and variable lactose reactor, so the marker is not clean for
+      it in either direction. NBK8035."))
+  "(MARKER VALUE ORGANISMS-IT-CANNOT-EXCLUDE RATIONALE).
+
+   Read as: any rule resting on MARKER = VALUE ALONE must leave every listed organism
+   standing in its answer, because the literature says that marker does not discriminate
+   for it. Rules that add a second bench marker are exempt -- see
+   RULES-READING-ONLY-MARKER for why.")
+
+(defparameter *bench-markers*
+  '(lisa-user::lactose lisa-user::indole lisa-user::urease lisa-user::pigment
+    lisa-user::motility lisa-user::hemolysis lisa-user::optochin lisa-user::bacitracin
+    lisa-user::catalase lisa-user::coagulase lisa-user::novobiocin
+    lisa-user::bile-esculin lisa-user::salt-tolerance lisa-user::sorbitol
+    lisa-user::arabinose)
+  "The bench tests. Host and site parameters are not among them: they gate WHERE a
+   rule applies, they are not themselves discriminators between organisms.")
+
+(defun rule-bench-markers (rule)
+  (remove-if-not (lambda (m) (lisa:rule-premise-values rule m)) *bench-markers*))
+
+(defun rules-reading-only-marker (marker value)
+  "Every knowledge rule requiring MARKER = VALUE and NO OTHER bench marker.
+
+   The restriction is the whole subtlety. A single marker cannot exclude an organism it
+   does not discriminate -- but a CONJUNCTION can, because the second test may do what
+   the first could not. Urease-positive alone cannot rule out Pseudomonas (72% are
+   positive); urease-positive AND swarming can, because swarming motility is Proteus.
+   Likewise lactose+ alone cannot exclude Serratia, but lactose+ with indole+ names
+   E. coli. So this invariant governs the rules that rest on ONE bench finding, and
+   leaves conjunctions to the judgement recorded in their provenance notes."
+  (remove-if-not
+   (lambda (rule)
+     (and (member value (lisa:rule-premise-values rule marker) :test #'eq)
+          (equal (list marker) (rule-bench-markers rule))))
+   (neomycin:catalogue-rules)))
+
+(deftest property-variable-marker-cannot-exclude-an-organism ()
+  (dolist (entry *variable-markers*)
+    (destructuring-bind (marker value organisms rationale) entry
+      (declare (ignore rationale))
+      (dolist (rule (rules-reading-only-marker marker value))
+        (let ((answer (neomycin:rule-answer rule)))
+          (dolist (organism organisms)
+            (is (member organism answer)
+                (format nil "~(~a~) reads ~(~a~)=~(~a~), so it must not exclude ~(~a~)"
+                        (lisa:rule-short-name rule) marker value organism))))))))
+
+(deftest property-variable-marker-table-is-live ()
+  ;; A table entry naming a marker no rule reads is dead weight that will quietly stop
+  ;; guarding anything -- exactly how the corpus lost track of these in the first place.
+  (dolist (entry *variable-markers*)
+    (destructuring-bind (marker value organisms rationale) entry
+      (declare (ignore organisms rationale))
+      (is (rules-reading-only-marker marker value)
+          (format nil "some single-marker rule still reads ~(~a~)=~(~a~)" marker value)))))

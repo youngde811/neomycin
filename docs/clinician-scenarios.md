@@ -440,7 +440,7 @@ beats "the textbook says ~70%."**
 | 0.70 | the eight gram-negatives |
 | 0.80 | the seven aerobic gram-negative rods |
 | 0.70 | {e-coli, enterobacter, klebsiella, serratia} — the lactose fermenters |
-| 0.60 | {e-coli, proteus} — the indole producers |
+| 0.60 | {e-coli, proteus, bacteroides} — the indole producers |
 | 0.80 | {e-coli} — the classic IMViC combination |
 
 **The differential** — `K = 0.000`, ignorance 0.001:
@@ -451,16 +451,23 @@ beats "the textbook says ~70%."**
 | enterobacter, klebsiella, serratia | 0.000 | 0.080 |
 | proteus | 0.000 | 0.060 |
 | pseudomonas, salmonella | 0.000 | 0.024 |
-| bacteroides | 0.000 | 0.005 |
+| bacteroides | 0.000 | 0.012 |
 
 **This is the corpus's best case, and the one to run first.** Five answers at four
 resolutions, every one of them a different piece of evidence, and **conflict is exactly
 zero** — because each set contains E. coli, so they are nested rather than competing.
 Belief climbs to 0.884, higher than any single rule's figure, purely from agreement.
 
-Note what the two-member answers did to the *others*. Klebsiella's ceiling fell to
-0.080 not because anything mentioned Klebsiella, but because it is absent from
-{e-coli, proteus} and from {e-coli}. Nothing was authored to exclude it.
+Note what the narrower answers did to the *others*. Klebsiella's ceiling fell to 0.080
+not because anything mentioned Klebsiella, but because it is absent from the indole
+answer and from {e-coli}. Nothing was authored to exclude it.
+
+Note also what the indole answer does NOT do. It names Bacteroides, because indole
+splits the *B. fragilis* group down the middle and cannot exclude it. That costs this
+case nothing — the aerobic-rod answer already excludes the anaerobe, and doing that job
+is *its* business, not the indole rule's. Each rule states only what its own evidence
+establishes; intersection does the rest. See the authoring policy at the head of
+`neomycin/rules/candidates-gram-neg.lisp`.
 
 **The sibling variations** — swap the biochemistry:
 

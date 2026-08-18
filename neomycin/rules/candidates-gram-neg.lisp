@@ -82,6 +82,40 @@
 ;;; Every one of these WAS a ruling-out rule. Each now states what its finding
 ;;; narrows the answer to; the organisms it used to name are excluded by
 ;;; intersection instead.
+;;;
+;;; ------------------------------------------------------------------
+;;; AUTHORING POLICY: WHAT TO DO WHEN THE EVIDENCE DOES NOT SETTLE IT
+;;; ------------------------------------------------------------------
+;;; Absence from an answer IS exclusion. So every organism a rule leaves out is a
+;;; positive claim that the finding rules it out, and the burden is asymmetric:
+;;;
+;;;   EXCLUDING an organism requires evidence. INCLUDING one requires none.
+;;;
+;;; An author who does not know whether a marker is consistent with an organism has
+;;; two conservative moves, and never has to guess:
+;;;
+;;;   WIDEN THE ANSWER -- keep the organism in. A wider answer is a WEAKER claim, and
+;;;   Dempster-Shafer is built to carry exactly that: "one of these, the evidence does
+;;;   not say which". This is why Serratia sits in both lactose answers (slow, variable
+;;;   reactor), Proteus in the indole answer (mirabilis -, vulgaris +), Bacteroides in
+;;;   the indole answer (the B. fragilis group splits down the middle), and Pseudomonas
+;;;   among the urease producers (72% positive). In every case a marker that is
+;;;   variable FOR an organism cannot be used to exclude it.
+;;;
+;;;   NARROW THE PREMISES -- gate the rule to the context where the marker means
+;;;   something, so it never fires where its answer would be incomplete. This is why
+;;;   every lactose-reading rule requires aerobic growth: the reading presupposes
+;;;   MacConkey, so rather than decide whether Bacteroides ferments lactose, the rule
+;;;   declines to see anaerobes at all.
+;;;
+;;; Prefer narrowing when a marker is only MEANINGFUL in a context; prefer widening
+;;; when it is meaningful everywhere but UNRELIABLE for some organism. What is not
+;;; allowed is excluding on a hunch, because under this representation a hunch left out
+;;; of an answer is indistinguishable from a finding.
+;;;
+;;; NEOMYCIN/TEST/PROPERTY-TESTS.LISP ENFORCES THE WIDENING HALF: *variable-markers*
+;;; records, with citations, which organisms a marker cannot exclude, and no rule
+;;; reading that marker may leave one out.
 
 ;;; WAS lactose-fermenter-argues-against-non-fermenters (excluded salmonella, proteus).
 ;;; Serratia is a slow/variable lactose reactor and is deliberately kept in.
@@ -126,15 +160,16 @@
     (:belief 0.6
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
-                             "J Clin Microbiol (indole-positive vs indole-negative Klebsiella identification), PMC1594763")
+                             "J Clin Microbiol (indole-positive vs indole-negative Klebsiella identification), PMC1594763"
+                             "Differences in susceptibilities of species of the Bacteroides fragilis group to several beta-lactam antibiotics: indole production as an indicator of resistance, Antimicrob Agents Chemother, PMC183804")
                   :belief-basis :illustrative
-                  :note "Klebsiella, Enterobacter, Salmonella and Serratia are characteristically indole-negative. Proteus stays IN: P. mirabilis is indole-negative while P. vulgaris is indole-positive, so the marker is ambiguous for the genus -- honest scoping the pre-v0.11 rule already made, and which survives the rewrite unchanged."))
+                  :note "Klebsiella, Enterobacter, Salmonella and Serratia are characteristically indole-negative. Proteus stays IN: P. mirabilis is indole-negative while P. vulgaris is indole-positive, so the marker is ambiguous for the genus -- honest scoping the pre-v0.11 rule already made, and which survives the rewrite unchanged. BACTEROIDES STAYS IN FOR THE IDENTICAL REASON, which the pre-v0.11 rule missed because it was reasoning inside the Enterobacteriaceae: indole splits the B. fragilis group down the middle -- B. ovatus, B. thetaiotaomicron and B. uniformis are indole-positive, B. fragilis, B. distasonis and B. vulgatus are indole-negative (PMC183804). The corpus models one generic :bacteroides, so at that resolution the marker cannot exclude it. This costs nothing on an aerobic case: the aerobicity evidence already excludes the anaerobe, and it is that rule's job to, not this one's."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
   (indole (value positive) (of ?o))
   =>
-  (assert (candidates (value '(:e-coli :proteus)) (of ?o))))
+  (assert (candidates (value '(:e-coli :proteus :bacteroides)) (of ?o))))
 
 ;;; WAS urease-pos-argues-against-urease-negative-organism (excluded e-coli, salmonella).
 (defrule urease-positive-narrows-to-urease-producers
