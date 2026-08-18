@@ -91,10 +91,11 @@
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017")
                   :belief-basis :illustrative
-                  :note "Lactose fermentation on MacConkey is the standard teaching discriminator. Salmonella and Proteus are characteristic non-fermenters; Serratia is a slow and variable reactor and is deliberately kept in, since the marker is not clean for it."))
+                  :note "Lactose fermentation on MacConkey is the standard teaching discriminator. Salmonella and Proteus are characteristic non-fermenters; Serratia is a slow and variable reactor and is deliberately kept in, since the marker is not clean for it. GATED ON AEROBIC GROWTH: the reading presupposes growth on MacConkey, which presupposes aerobic culture, so the rule has no business firing on an anaerobe. Without that premise it fired on a Bacteroides case and answered a set Bacteroides is not in -- excluding, on an aerobic test, an organism that cannot take the test."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (lactose (value fermenter) (of ?o))
   =>
   (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia))
@@ -108,10 +109,11 @@
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298")
                   :belief-basis :illustrative
-                  :note "The reciprocal. Serratia is kept in for the same reason -- a slow or variable lactose reaction makes the marker unreliable for it in either direction. PSEUDOMONAS IS IN THIS ANSWER: it is the textbook non-lactose-fermenter, the standard contrast to the Enterobacteriaceae. Omitting it was a conversion defect -- the rule this replaced argued AGAINST the fermenters and never had to say what a non-fermenter positively is, so the complement was taken within the Enterobacteriaceae rather than within the gram-negative rods the corpus models. A lactose-negative reading then CONFLICTED with a Pseudomonas case it is in fact consistent with."))
+                  :note "The reciprocal. Serratia is kept in for the same reason -- a slow or variable lactose reaction makes the marker unreliable for it in either direction. PSEUDOMONAS IS IN THIS ANSWER: it is the textbook non-lactose-fermenter, the standard contrast to the Enterobacteriaceae. Omitting it was a conversion defect -- the rule this replaced argued AGAINST the fermenters and never had to say what a non-fermenter positively is, so the complement was taken within the Enterobacteriaceae rather than within the gram-negative rods the corpus models. A lactose-negative reading then CONFLICTED with a Pseudomonas case it is in fact consistent with. Also gated on aerobic growth, for the reason given on the fermenter rule."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (lactose (value non-fermenter) (of ?o))
   =>
   (assert (candidates (value '(:salmonella :proteus :serratia :pseudomonas)) (of ?o))))
@@ -192,6 +194,7 @@
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (lactose (value fermenter) (of ?o))
   (indole (value positive) (of ?o))
   =>
@@ -213,6 +216,7 @@
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (lactose (value fermenter) (of ?o))
   (indole (value negative) (of ?o))
   (motility (value motile) (of ?o))
