@@ -145,8 +145,9 @@
 (defun install-rules ()
   "Load the spike's rulebase. Plain defrules in their own file, readable as rules --
    which matters, since the question is whether a HUMAN can author this shape."
-  (load (merge-pathnames "docs/narrows-to-rules.lisp"
-                         (asdf:system-source-directory "neomycin"))))
+  (let ((root (asdf:system-source-directory "neomycin")))
+    (load (merge-pathnames "docs/narrows-to-rules.lisp" root))
+    (load (merge-pathnames "docs/narrows-to-rules-gram-neg.lisp" root))))
 
 ;;; ============================================================
 ;;; 4. Combination as a READ over working memory
@@ -289,6 +290,59 @@
                      '(infection-site value :urinary of :p1))
             :ask '(:staphylococcus-saprophyticus :staphylococcus-epidermidis
                    :staphylococcus-aureus))
+
+  ;; ================= THE GRAM-NEGATIVE CLUSTER =========================
+  ;; culture-1: burned, immunocompromised, blood, aerobic gram-negative rod.
+  ;; Shipped v0.10.0: pseudomonas [0.4286, 0.7143], klebsiella [0.2857, 0.5714], K=0.30
+  (run-case "culture-1"
+            (lineage '(compromised-host value t of :p1)
+                     '(burn value :serious of :p1)
+                     '(culture-site value :blood of :c1)
+                     '(culture-age value 3 of :c1)
+                     '(gram value :neg of :o1)
+                     '(morphology value :rod of :o1)
+                     '(aerobicity value :aerobic of :o1))
+            :ask '(:pseudomonas :klebsiella :e-coli :salmonella :bacteroides))
+
+  ;; culture-1a: hospital-acquired rather than burned.
+  ;; Shipped: pseudomonas [0.4828, 0.6897], klebsiella [0.3103, 0.5172], K=0.42
+  (run-case "culture-1a"
+            (lineage '(compromised-host value t of :p1)
+                     '(hospital-acquired value t of :p1)
+                     '(culture-site value :blood of :c1)
+                     '(gram value :neg of :o1)
+                     '(morphology value :rod of :o1)
+                     '(aerobicity value :aerobic of :o1))
+            :ask '(:pseudomonas :klebsiella :e-coli :bacteroides))
+
+  ;; The biochemical discriminators -- the part with the most cross-disconfirmation
+  ;; in the shipped corpus, and the real test of whether intersection replaces it.
+  (run-case "entero: lactose+, indole+ (the IMViC pair for E. coli)"
+            (lineage '(compromised-host value t of :p1)
+                     '(culture-site value :blood of :c1)
+                     '(gram value :neg of :o1)
+                     '(morphology value :rod of :o1)
+                     '(aerobicity value :aerobic of :o1)
+                     '(lactose value :fermenter of :o1)
+                     '(indole value :positive of :o1))
+            :ask '(:e-coli :klebsiella :enterobacter :serratia :salmonella :proteus))
+
+  (run-case "entero: red pigment (was a confirming/excluding PAIR)"
+            (lineage '(culture-site value :blood of :c1)
+                     '(gram value :neg of :o1)
+                     '(morphology value :rod of :o1)
+                     '(aerobicity value :aerobic of :o1)
+                     '(pigment value :red of :o1))
+            :ask '(:serratia :e-coli :klebsiella :proteus))
+
+  (run-case "entero: urease+ swarming (nested sets, no chaining)"
+            (lineage '(culture-site value :blood of :c1)
+                     '(gram value :neg of :o1)
+                     '(morphology value :rod of :o1)
+                     '(aerobicity value :aerobic of :o1)
+                     '(urease value :positive of :o1)
+                     '(motility value :swarming of :o1))
+            :ask '(:proteus :klebsiella :enterobacter :e-coli))
 
   ;; --- the ENTEROCOCCUS path, also unreached before ------------------------
   (run-case "enterococcus: bile-esculin+, salt-tolerant, arabinose+"
