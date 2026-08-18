@@ -53,6 +53,14 @@
              (string= normalized "shared-frame")
              (string= normalized "shared_frame"))
          :frame)
+        ;; THE DEFAULT. Rules assert ANSWERS -- sets of organisms their evidence
+        ;; narrows the question to -- and a client combines them by intersection when
+        ;; it reads working memory. Nothing is declared, nothing is enumerated, and
+        ;; exclusion is never authored.
+        ((or (string= normalized "candidates")
+             (string= normalized "narrows-to")
+             (string= normalized "narrows_to"))
+         :candidates)
         (t
          (error "Unknown belief system ~S. Expected one of: cf, certainty-factors, ds, dempster-shafer."
                 name))))))
@@ -72,7 +80,7 @@
 
    Called from START."
   (let* ((env (uiop:getenv "LISA_BELIEF_SYSTEM"))
-         (choice (or (parse-belief-system-name env) :frame)))
+         (choice (or (parse-belief-system-name env) :candidates)))
     (belief:use-system choice)))
 
 (defun start (&key (port *bridge-port*))

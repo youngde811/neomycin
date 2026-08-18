@@ -20,7 +20,7 @@
 (deftest therapy-bridge-conclusions-are-keyword-organisms ()
   ;; The glue reads keyword organism ids straight off working memory -- no
   ;; conversion -- which is exactly what lets them key the therapy KB.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (= 2 (length concl)) "two organism-identity conclusions")
     (is (every #'keywordp (mapcar #'car concl)) "every organism id is a keyword")
@@ -29,26 +29,32 @@
 
 (deftest therapy-bridge-recommend-end-to-end ()
   ;; Full identify -> treat path in Lisp: engine conclusions -> solver -> regimen.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (therapy:with-greedy-solver
     (let ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                   (therapy:therapy-kb) '())))
-      (is (= 2 (length (therapy:recommendation-items-to-treat rec)))
-          "both leaf-species organisms are items to treat")
+      ;; ONE item since v0.11, not two: Klebsiella projects to Bel 0.194 and misses
+      ;; *coverage-threshold* (0.2) by 0.006. Organisms did not compete for mass under
+      ;; the pre-v0.11 representation and it sat at 0.286 there. See the threshold's
+      ;; docstring in therapy/protocol.lisp -- recalibrating that dial for the new
+      ;; scale is a clinical decision, not a test fix.
+      (is (= 1 (length (therapy:recommendation-items-to-treat rec)))
+          "pseudomonas is the item to treat; klebsiella misses the gate by 0.006")
       (is (plusp (length (therapy:recommendation-regimen rec))) "a regimen was produced")
       (is (null (therapy:recommendation-uncovered rec)) "culture-1 gram-negs fully covered"))))
 
 (deftest therapy-bridge-recommendation->json-shape ()
   ;; The serializer renders JSON-ready hash-tables: lists as vectors (JSON
   ;; arrays), keyword ids as downcased strings.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (therapy:with-greedy-solver
     (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                    (therapy:therapy-kb) '()))
            (json (therapy:recommendation->json rec)))
       (is (typep (gethash "regimen" json) 'vector) "regimen is a JSON array")
       (is (plusp (length (gethash "regimen" json))) "regimen non-empty")
-      (is (= 2 (length (gethash "items_to_treat" json))) "two items_to_treat")
+      (is (= 1 (length (gethash "items_to_treat" json)))
+          "one item_to_treat -- see therapy-bridge-recommend-end-to-end for why")
       (is (typep (gethash "uncovered" json) 'vector) "uncovered is a JSON array")
       (is (zerop (length (gethash "uncovered" json))) "nothing uncovered")
       (let ((drug (gethash "drug" (aref (gethash "regimen" json) 0))))
@@ -58,7 +64,7 @@
 (deftest therapy-bridge-contraindication-serialized ()
   ;; A cephalosporin allergy excludes ceftazidime; the JSON records the exclusion
   ;; and an alternative still covers everything.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (therapy:with-greedy-solver
     (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                    (therapy:therapy-kb) '(:allergy-cephalosporin)))
@@ -91,7 +97,7 @@
   ;; therapy-bridge-family-backstop-suppressed-when-member-covers. One scenario, both
   ;; arms: family treated empirically where nothing is pinned down, species treated
   ;; alone where something is.
-  (run-scenario 'lisa-user::culture-multi :certainty-factors)
+  (run-scenario 'lisa-user::culture-multi :candidates)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (assoc :enterobacteriaceae concl)
         "family enterobacteriaceae is a backstop item when no member species clears the gate")
@@ -107,7 +113,7 @@
   ;; culture-1 identifies klebsiella (0.40), a member species that clears the
   ;; coverage gate, so the enterobacteriaceae family is NOT separately treated --
   ;; the member carries the family's coverage need.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (assoc :klebsiella concl) "klebsiella (a family member) was identified")
     (is (not (assoc :enterobacteriaceae concl))

@@ -19,4 +19,6 @@
            #:answers-for
            #:consensus
            #:differential
-           #:rules-behind))
+           #:rules-behind
+           #:differential->json
+           #:conclusions-payload))

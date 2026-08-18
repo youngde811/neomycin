@@ -206,31 +206,11 @@
       (setf (gethash "entities" ht) (coerce (nreverse entities) 'vector))
       ht)))
 
-(hunchentoot:define-easy-handler (conclusions-handler :uri "/conclusions"
-                                                      :default-request-type :get) ()
-  (handler-case
-      (let ((facts (lisa:get-fact-list (lisa:inference-engine)))
-            (conclusions '()))
-        (dolist (fact facts)
-          (when (eq (lisa:fact-name fact) 'lisa-user::organism-identity)
-            (let ((entry (make-hash-table :test #'equal))
-                  (val (lisa:get-slot-value fact (intern "VALUE" :lisa-user))))
-              (setf (gethash "value" entry)
-                    (string-downcase (symbol-name val)))
-              (let ((belief (belief:belief-factor fact)))
-                (when belief
-                  (setf (gethash "belief" entry)
-                        (belief->json-value belief))))
-              (push entry conclusions))))
-        (let ((result (make-hash-table :test #'equal)))
-          (setf (gethash "conclusions" result) (coerce (nreverse conclusions) 'vector))
-          (setf (gethash "belief_system" result)
-                (belief:belief-system-name belief:*belief-system*))
-          (let ((frame (frame-projection->json)))
-            (when frame (setf (gethash "frame" result) frame)))
-          (json-response result)))
-    (error (e)
-      (error-response (format nil "Failed to retrieve conclusions: ~A" e) :status 500))))
+
+;;; NOTE: /conclusions lives in neomycin/bridge.lisp, not here. It reports a
+;;; DIFFERENTIAL read from candidate-set answers, which is domain knowledge -- the
+;;; substrate bridge has no business knowing what an organism is, and cannot reference
+;;; the application package anyway, since it loads first.
 
 (hunchentoot:define-easy-handler (reset-handler :uri "/reset"
                                                 :default-request-type :post) ()

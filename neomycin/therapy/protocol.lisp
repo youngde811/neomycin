@@ -100,7 +100,22 @@
 ;;; ============================================================
 
 (defvar *coverage-threshold* 0.2
-  "Minimum organism belief/plausibility to place it on the must-treat list.")
+  "Minimum organism belief to place it on the must-treat list.
+
+   NEEDS REVIEW AFTER v0.11, and the reason is not a tuning preference. Under the
+   pre-v0.11 per-hypothesis representation each organism carried its own belief and
+   they did not compete -- several could sit high at once. Under the candidate-set
+   shape they share one unit of mass, so individual beliefs are systematically LOWER
+   for the same evidence. A threshold calibrated against the old scale is therefore
+   stricter than it was, and 0.2 is not the number it used to be.
+
+   The visible consequence, worth deciding rather than inheriting: in culture-1 --
+   burned, immunocompromised, aerobic gram-negative rod in blood -- Klebsiella now
+   projects to Bel 0.194 and misses this gate by 0.006, so empiric therapy covers
+   Pseudomonas alone. It cleared comfortably at 0.286 before. Its plausibility is
+   still 0.387, so reading the gate off Pl rather than Bel would also change the
+   answer. Left as it was, because moving a clinical dial is not a decision to make
+   as a side effect of a representation change.")
 
 (defvar *susceptibility-threshold* 0.5
   "Minimum susceptibility for a drug to count as covering an organism.")
