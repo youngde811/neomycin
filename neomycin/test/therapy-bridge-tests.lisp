@@ -12,7 +12,7 @@
 (in-package "LISA-TEST")
 
 ;;; culture-1 under CF yields two leaf-species gram-negative identities
-;;; (pseudomonas 0.76, klebsiella 0.40), both above *coverage-threshold* and both
+;;; (pseudomonas 0.76, klebsiella 0.40), both above *coverage-threshold* (0.1 since v0.11) and both
 ;;; covered by the canonical KB's broad agents. Enterobacteriaceae is NO LONGER a
 ;;; conclusion here (C2): it is a family CLASS, and its member klebsiella clears the
 ;;; gate, so the family backstop is suppressed (see the backstop tests below).
@@ -20,7 +20,7 @@
 (deftest therapy-bridge-conclusions-are-keyword-organisms ()
   ;; The glue reads keyword organism ids straight off working memory -- no
   ;; conversion -- which is exactly what lets them key the therapy KB.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (= 2 (length concl)) "two organism-identity conclusions")
     (is (every #'keywordp (mapcar #'car concl)) "every organism id is a keyword")
@@ -29,26 +29,33 @@
 
 (deftest therapy-bridge-recommend-end-to-end ()
   ;; Full identify -> treat path in Lisp: engine conclusions -> solver -> regimen.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (therapy:with-greedy-solver
     (let ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                   (therapy:therapy-kb) '())))
+      ;; TWO items again, after the v0.11 recalibration of *coverage-threshold* from
+      ;; 0.2 to 0.1. Klebsiella projects to Bel 0.194 here; it cleared the old gate at
+      ;; 0.286 under the pre-v0.11 representation, missed the unchanged 0.2 gate by
+      ;; 0.006 once organisms began competing for one unit of mass, and clears again
+      ;; now that the dial matches the scale. The gate decides only five figures in the
+      ;; whole corpus and 0.1 sits mid-plateau -- see the threshold's docstring.
       (is (= 2 (length (therapy:recommendation-items-to-treat rec)))
-          "both leaf-species organisms are items to treat")
+          "pseudomonas AND klebsiella are items to treat under the recalibrated gate")
       (is (plusp (length (therapy:recommendation-regimen rec))) "a regimen was produced")
       (is (null (therapy:recommendation-uncovered rec)) "culture-1 gram-negs fully covered"))))
 
 (deftest therapy-bridge-recommendation->json-shape ()
   ;; The serializer renders JSON-ready hash-tables: lists as vectors (JSON
   ;; arrays), keyword ids as downcased strings.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (therapy:with-greedy-solver
     (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                    (therapy:therapy-kb) '()))
            (json (therapy:recommendation->json rec)))
       (is (typep (gethash "regimen" json) 'vector) "regimen is a JSON array")
       (is (plusp (length (gethash "regimen" json))) "regimen non-empty")
-      (is (= 2 (length (gethash "items_to_treat" json))) "two items_to_treat")
+      (is (= 2 (length (gethash "items_to_treat" json)))
+          "two items_to_treat -- see therapy-bridge-recommend-end-to-end for why")
       (is (typep (gethash "uncovered" json) 'vector) "uncovered is a JSON array")
       (is (zerop (length (gethash "uncovered" json))) "nothing uncovered")
       (let ((drug (gethash "drug" (aref (gethash "regimen" json) 0))))
@@ -58,7 +65,7 @@
 (deftest therapy-bridge-contraindication-serialized ()
   ;; A cephalosporin allergy excludes ceftazidime; the JSON records the exclusion
   ;; and an alternative still covers everything.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (therapy:with-greedy-solver
     (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                    (therapy:therapy-kb) '(:allergy-cephalosporin)))
@@ -91,7 +98,7 @@
   ;; therapy-bridge-family-backstop-suppressed-when-member-covers. One scenario, both
   ;; arms: family treated empirically where nothing is pinned down, species treated
   ;; alone where something is.
-  (run-scenario 'lisa-user::culture-multi :certainty-factors)
+  (run-scenario 'lisa-user::culture-multi :candidates)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (assoc :enterobacteriaceae concl)
         "family enterobacteriaceae is a backstop item when no member species clears the gate")
@@ -107,7 +114,7 @@
   ;; culture-1 identifies klebsiella (0.40), a member species that clears the
   ;; coverage gate, so the enterobacteriaceae family is NOT separately treated --
   ;; the member carries the family's coverage need.
-  (run-scenario 'lisa-user::culture-1 :certainty-factors)
+  (run-scenario 'lisa-user::culture-1 :candidates)
   (let ((concl (therapy:conclusions-for-solver)))
     (is (assoc :klebsiella concl) "klebsiella (a family member) was identified")
     (is (not (assoc :enterobacteriaceae concl))

@@ -41,42 +41,79 @@
 ;;; ------------------------------------------------------------------
 
 (defun collect-identity-conclusions ()
-  "Alist ((species-keyword . belief) ...): one entry per organism-identity fact in
-   working memory, each belief from the active belief system. The value slot is
-   already a keyword (the vocabulary migration), so it drops straight into the
-   keyword-keyed therapy KB with no conversion."
-  (loop for fact in (lisa:get-fact-list (lisa:inference-engine))
-        when (eq (lisa:fact-name fact) 'lisa-user::organism-identity)
-          collect (cons (lisa:get-slot-value fact 'lisa-user::value)
-                        (belief:belief-factor fact))))
+  "Alist ((organism-keyword . belief) ...): everything to treat in this consultation.
 
-(defun collect-class-conclusions ()
-  "Alist ((family-keyword . belief) ...): one entry per organism-CLASS fact in
-   working memory (the derived taxonomic abstraction the chain concludes, e.g.
-   :enterobacteriaceae). Read exactly like the identities, one tier up."
-  (loop for fact in (lisa:get-fact-list (lisa:inference-engine))
-        when (eq (lisa:fact-name fact) 'lisa-user::organism-class)
-          collect (cons (lisa:get-slot-value fact 'lisa-user::value)
-                        (belief:belief-factor fact))))
+   Read from the CONSENSUS over answers rather than from per-organism facts, because
+   under the v0.11 shape a rule asserts the SET its evidence narrows to and no rule
+   concludes a species on its own. NEOMYCIN:DIFFERENTIAL combines those answers and
+   projects each named organism's Bel -- the belief committed to that organism
+   specifically, as opposed to a group it belongs to -- which is the conservative
+   floor the coverage gate wants.
 
-(defun family-backstops (species classes kb)
-  "The subset of CLASSES to carry into the solver as BACKSTOP items to treat.
+   Unions across EVERY organism in the consultation, since a polymicrobial culture is
+   modelled as several organisms and all of them need covering. Where two organisms
+   could be the same species the stronger belief governs, because coverage is a
+   question about the patient rather than about one isolate.
 
-   A family (organism-class) is treated empirically ONLY when identification could
-   not pin down a member species firmly enough: it is included IFF no member
-   species in SPECIES clears the coverage gate (*coverage-threshold*, reduced via
-   the active belief system by SCALAR-OF -- the same gate the solver's Phase A
-   applies to identities). When a member species DOES clear the gate, that species
-   carries the enterobacteriaceae coverage need and the family is suppressed, so we
-   never treat both a family and its own member (C2; the item-selection rule David
-   confirmed 2026-07-29). Family membership is read from the KB taxonomy
-   (KB-FAMILY-OF), the same relation the susceptibility roll-up uses."
-  (loop for (family . belief) in classes
-        unless (some (lambda (pair)
-                       (and (eq (kb-family-of kb (car pair)) family)
-                            (>= (scalar-of (cdr pair)) *coverage-threshold*)))
-                     species)
-          collect (cons family belief)))
+   Organisms at Bel 0 are dropped: nothing supports them, and treating them would be
+   treating the absence of evidence."
+  (let ((acc '()))
+    (dolist (organism (neomycin:organisms-with-answers) (nreverse acc))
+      (dolist (row (neomycin:differential organism))
+        (when (plusp (second row))
+          (let ((seen (assoc (first row) acc)))
+            (if seen
+                (setf (cdr seen) (max (cdr seen) (second row)))
+                (push (cons (first row) (second row)) acc))))))))
+
+(defun collect-set-valued-conclusions ()
+  "((set . mass) ...): belief committed to a SET of organisms without naming a member
+   -- 'one of this family, the evidence does not say which' -- across every organism
+   in the consultation.
+
+   This is what FAMILY-BACKSTOPS used to construct by hand from organism-class facts.
+   It now falls out of the arithmetic, so the taxonomy no longer has to be reified in
+   order for the solver to see it."
+  (loop for organism in (neomycin:organisms-with-answers)
+        append (candidates:set-valued (neomycin:consensus organism))))
+
+(defun backstop-items (kb members)
+  "The KB items that between them cover MEMBERS: each distinct family among them, plus
+   any member that belongs to no family and so must be named directly.
+
+   A set-valued answer need not correspond to a single family. 'An aerobic
+   gram-negative rod' spans the Enterobacteriaceae AND Pseudomonas, and covering it
+   empirically means covering both -- which is what a clinician does. The pre-v0.11
+   corpus could not express that, because it reified one organism-class per rule and
+   the answer was whatever class had been asserted."
+  (let ((items '()))
+    (dolist (organism members (nreverse items))
+      (let ((family (kb-family-of kb organism)))
+        (pushnew (or family organism) items)))))
+
+(defun family-backstops (species set-valued kb)
+  "Items to treat empirically for answers that never resolved to an organism.
+
+   A set-valued answer is carried in ONLY when identification could not pin down a
+   member firmly enough: it is included IFF no organism in it clears the coverage gate
+   (*coverage-threshold*, reduced by SCALAR-OF -- the same gate the solver's Phase A
+   applies). When a member DOES clear it, that member carries the coverage need and
+   the set is suppressed, so a family and its own member are never both treated.
+
+   Each surviving set contributes the items that cover it (see BACKSTOP-ITEMS), at the
+   set's own mass. Where two sets contribute the same item the stronger mass governs."
+  (let ((acc '()))
+    (dolist (entry set-valued (nreverse acc))
+      (destructuring-bind (members . mass) entry
+        (unless (some (lambda (pair)
+                        (and (member (car pair) members)
+                             (>= (scalar-of (cdr pair)) *coverage-threshold*)))
+                      species)
+          (dolist (item (backstop-items kb members))
+            (let ((seen (assoc item acc)))
+              (if seen
+                  (setf (cdr seen) (max (cdr seen) mass))
+                  (push (cons item mass) acc)))))))))
 
 (defun conclusions-for-solver (&optional (kb (therapy-kb)))
   "Return ((organism-keyword . belief) ...) for the solver: every organism-identity
@@ -84,9 +121,8 @@
    organism-class whose member species all fall below the coverage gate (see
    FAMILY-BACKSTOPS). KB supplies the family taxonomy; it defaults to the canonical
    therapy KB, matching what the handler recommends over."
-  (let ((species (collect-identity-conclusions))
-        (classes (collect-class-conclusions)))
-    (append species (family-backstops species classes kb))))
+  (let ((species (collect-identity-conclusions)))
+    (append species (family-backstops species (collect-set-valued-conclusions) kb))))
 
 ;;; ------------------------------------------------------------------
 ;;; Serializer: RECOMMENDATION -> JSON-ready hash-tables

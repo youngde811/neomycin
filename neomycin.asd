@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.10.0"
+  :version "0.11.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -47,18 +47,21 @@
        ;; predicted would make a single file unreviewable, so it is split by cluster.
        ;; context.lisp defines every class the rule files are written against and so
        ;; must load first; everything else depends on it and is otherwise independent.
+       (:file "package")
        (:module "rules"
         :components
           ((:file "context")
-           (:file "identity-gram-neg" :depends-on ("context"))
-           (:file "chain-enterobacteriaceae" :depends-on ("context"))
-           (:file "chain-gram-pos" :depends-on ("context"))
-           (:file "host-factors" :depends-on ("context"))
-           (:file "disconfirming" :depends-on ("context"))
+           ;; Rules assert ANSWERS -- the SET of organisms their evidence narrows
+           ;; the question to. Confirming only; nothing is excluded by being named,
+           ;; and no rule has an empty RHS. See docs/narrows-to-promotion-sketch.md.
+           (:file "candidates-gram-pos" :depends-on ("context"))
+           (:file "candidates-gram-neg" :depends-on ("context"))
            (:file "conclusion" :depends-on ("context"))
            (:file "drivers" :depends-on ("context"))))
+       (:file "consensus" :depends-on ("package" "rules"))
+       (:file "bridge" :depends-on ("consensus"))
        (:module "therapy"
-        :depends-on ("rules")
+        :depends-on ("rules" "consensus")
         :components
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
@@ -101,23 +104,21 @@
     :components
       ((:module "test"
         :components ((:file "setup")
-                     (:file "scenarios")
-                     (:file "rules")
-                     (:file "chain-tests")
                      (:file "property-tests")
                      ;; Guards the LLM system prompt against the compiled
                      ;; rulebase; depends on property-tests for DOMAIN-RULES.
                      (:file "prompt-tests" :depends-on ("property-tests"))
                      (:file "provenance-tests")
-                     ;; The shared-frame belief system, end to end. Depends on
-                     ;; provenance-tests for FIND-CONCLUDED-FACT.
-                     (:file "frame-tests" :depends-on ("provenance-tests"))
+                     ;; The v0.11 shape end to end: scenario goldens, per-rule
+                     ;; isolation, and the properties the shape exists for.
+                     (:file "candidates-tests" :depends-on ("property-tests"))
                      (:file "therapy-tests")
                      ;; The exact solver + the ALTERNATIVES both solvers report;
                      ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.
                      (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
-                     (:file "therapy-bridge-tests"))))))
+                     (:file "therapy-bridge-tests")
+                     (:file "bridge-payload-tests"))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
                (error "neomycin test suite reported failures"))))

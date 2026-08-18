@@ -23,6 +23,24 @@
 ;; SOFTWARE.
 
 ;; Update the version symbol in this file whenever you do a new release.
+;;
+;; 4.3.0 (2026-08-18) -- first Lisa version bump since the neomycin fork, and it is a
+;; MINOR rather than a patch because the engine gained and lost real capability rather
+;; than being tuned:
+;;
+;;   ADDED   rule :provenance, a machine-readable pedigree carried on any rule
+;;   ADDED   the fire-time derivation record -- which rules produced which fact
+;;   ADDED   src/core/rule-introspection.lisp, an exported domain-neutral API for
+;;           querying the COMPILED rulebase (what a rule concludes, matches, believes,
+;;           and whether one rule's premises subsume another's)
+;;   ADDED   src/belief-systems/candidates/, Dempster-Shafer over an OPEN frame:
+;;           set-valued answers combined by intersection, with Theta never enumerated
+;;   REMOVED the declared-frame belief system of the neomycin v0.9/v0.10 line, along
+;;           with evidence pools on the rete, fire-time belief accumulation, and the
+;;           :supports/:opposes/:claims rule properties
+;;
+;; Certainty factors and the Barnett per-hypothesis Dempster-Shafer system are
+;; UNCHANGED and still the systems Lisa's own examples and suite exercise.
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :lisa4.2.0 *features*))
+  (pushnew :lisa4.3.0 *features*))

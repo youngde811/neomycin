@@ -52,14 +52,6 @@
    ;; never affects inference.
    (derivation-table :initform (make-hash-table :test #'eq)
                      :accessor rete-derivation-table)
-   ;; EVIDENCE-POOLS (neomycin extension, shared frame of discernment): one pool per
-   ;; ENTITY -- the thing the frame asks its question about. Under a frame-based
-   ;; belief system this is where belief actually lives; the [Bel, Pl] on each fact is
-   ;; a projection of it. Keyed by the entity designator (EQUAL), empty and unused
-   ;; under the per-hypothesis systems, and cleared with the facts.
-   ;; See docs/shared-frame-design.md 5.
-   (evidence-pools :initform (make-hash-table :test #'equal)
-                   :accessor rete-evidence-pools)
    (contexts :initform (make-hash-table :test #'equal)
              :reader rete-contexts)
    (focus-stack :initform (list)
@@ -154,10 +146,8 @@
   (clrhash (rete-fact-table rete))
   (clrhash (fact-id-table rete))
   ;; Derivations belong to facts, so they die with them (each reset starts a fresh
-  ;; consultation with an empty derivation record). Evidence pools likewise: a pool is
-  ;; the accumulated evidence of ONE consultation.
-  (clrhash (rete-derivation-table rete))
-  (clrhash (rete-evidence-pools rete)))
+  ;; consultation with an empty derivation record).
+  (clrhash (rete-derivation-table rete)))
 
 (defun get-fact-list (rete)
   (delete-duplicates
@@ -247,16 +237,10 @@
    (BELIEF-BEFORE is NIL on the first firing, so combination across firings is
    visible).
 
-   Under a frame-based belief system two more fields carry what the scalar pair
-   cannot: CLAIMS is the list of (mask . mass) this firing committed -- a rule may
-   state several, at different granularities -- and CONFLICT is the pool's K after it.
-   Without them a /why narration could not say WHICH hypotheses a firing supported,
-   only how one of them moved. NIL under the per-hypothesis systems."
-  rule rule-belief premises belief-before belief-after
-  claims conflict)
+   What a rule CONCLUDED is on the fact itself; this records how its belief got there."
+  rule rule-belief premises belief-before belief-after)
 
-(defun record-derivation (rete fact rule premises belief-before belief-after
-                          &key claims conflict)
+(defun record-derivation (rete fact rule premises belief-before belief-after)
   "Append a DERIVATION-RECORD for the conclusion FACT under the derivation table.
    Prepended (O(1)); FACT-DERIVATION reverses to firing order on read."
   (push (%make-derivation-record
@@ -264,9 +248,7 @@
          :rule-belief (belief-factor rule)
          :premises (mapcar #'(lambda (p) (cons p (belief-factor p))) premises)
          :belief-before belief-before
-         :belief-after belief-after
-         :claims claims
-         :conflict conflict)
+         :belief-after belief-after)
         (gethash fact (rete-derivation-table rete))))
 
 (defun fact-derivation (rete fact)
@@ -275,274 +257,6 @@
   (reverse (gethash fact (rete-derivation-table rete))))
 
 ;;; ------------------------------------------------------------------
-;;; Frame-based accumulation (shared frame of discernment).
-;;;
-;;; Under a frame-based system a rule's firing does NOT set a number on the fact it
-;;; concluded. It contributes mass to a SUBSET of the frame, in the pool belonging to
-;;; the entity the frame is asking about. Every hypothesis for that entity is then
-;;; re-projected, which is where free exclusion comes from: evidence for one organism
-;;; lowers the plausibility of the others by arithmetic, with no rule saying so.
-;;; See docs/shared-frame-design.md 5.
-;;; ------------------------------------------------------------------
-
-(defvar *hypothesis-slot* "VALUE"
-  "Name of the slot holding the hypothesis a fact asserts, for the DEFAULT method of
-   FACT-HYPOTHESIS. A convention, not a requirement -- it is the shape MYCIN's
-   param-mixin uses, which most Lisa examples do NOT. An application with a different
-   schema either rebinds this and *ENTITY-SLOT*, or specializes the two generics
-   below, which is the general answer.")
-
-(defvar *entity-slot* "OF"
-  "Name of the slot scoping a fact to the thing the frame asks about, for the DEFAULT
-   method of FACT-ENTITY. See *HYPOTHESIS-SLOT*.")
-
-(defun fact-slot-named (fact slot-name)
-  "Value of FACT's slot called SLOT-NAME (a string), or NIL.
-
-   The symbol is looked up in the package of the FACT'S OWN class, not in a hardwired
-   application package -- so this works for any application, not only one whose facts
-   live in LISA-USER. FIND-SYMBOL rather than INTERN: a query must not create symbols
-   as a side effect."
-  (let* ((name (fact-name fact))
-         (package (and (symbolp name) (symbol-package name)))
-         (slot (and package (find-symbol slot-name package))))
-    (and slot (ignore-errors (get-slot-value fact slot)))))
-
-;;; ------------------------------------------------------------------
-;;; The application protocol.
-;;;
-;;; Frame-based reasoning needs two things from a fact that the engine cannot know
-;;; on its own: WHICH HYPOTHESIS it asserts, and WHICH ENTITY the question is being
-;;; asked about. Everything else in the frame machinery -- the algebra, the pools,
-;;; the projections -- is domain-neutral; this is the one place an application's
-;;; own fact schema has to be consulted.
-;;;
-;;; The default methods implement the value/of convention, so MYCIN-shaped rulebases
-;;; work with no configuration. An application whose facts look different overrides:
-;;;
-;;;   (defmethod lisa:fact-hypothesis ((f lisa:fact))
-;;;     (case (lisa:fact-name f)
-;;;       (my-app::diagnosis (lisa:get-slot-value f 'my-app::condition))
-;;;       (t nil)))
-;;;
-;;; Returning NIL means "this fact asserts no hypothesis" -- raw evidence, context
-;;; wiring -- and such facts are left untouched by projection.
-;;;
-;;; Every Lisa fact is an instance of one class, so an application's method REPLACES
-;;; the default rather than layering over it. That is the right granularity -- an
-;;; application has one fact schema -- but it makes the contract explicit: a method
-;;; must answer for the facts it recognizes and DELEGATE the rest, either by calling
-;;; FACT-SLOT-NAMED as the default does or by returning NIL.
-;;; ------------------------------------------------------------------
-
-(defgeneric fact-hypothesis (fact)
-  (:documentation
-   "The hypothesis FACT asserts -- an element or named subset of the active frame --
-    or NIL if it asserts none. Specialize for an application whose facts do not carry
-    the value/of convention; see *HYPOTHESIS-SLOT*.")
-  (:method ((fact fact))
-    (fact-slot-named fact *hypothesis-slot*)))
-
-(defgeneric fact-entity (fact)
-  (:documentation
-   "The entity FACT is scoped to -- the thing the frame is asking its question about.
-    One evidence pool per distinct value. NIL is a legitimate answer for a rulebase
-    that asks one global question. Specialize alongside FACT-HYPOTHESIS.")
-  (:method ((fact fact))
-    (fact-slot-named fact *entity-slot*)))
-
-(defun entity-pool (rete entity)
-  "The evidence pool for ENTITY, created on first use."
-  (or (gethash entity (rete-evidence-pools rete))
-      (setf (gethash entity (rete-evidence-pools rete))
-            (belief:make-evidence-pool belief:*frame*))))
-
-(defun raw-premise-strength (rete premises)
-  "Strength of the RAW evidence behind a firing -- decision D1.
-
-   Premises that were themselves CONCLUDED (they carry a derivation) are excluded: a
-   chained rule's belief is unconditional support that the class premise GATES, not a
-   conditional to be discounted by it. Composition between the two happens in the pool,
-   by Dempster's rule, rather than by multiplication here. Raw premises carrying no
-   explicit belief count as certain, which is what the per-hypothesis path does too."
-  (let ((strengths
-          (loop for p in premises
-                unless (gethash p (rete-derivation-table rete))
-                  when (belief-factor p)
-                    collect (let ((b (belief-factor p)))
-                              (if (belief:ds-belief-p b)
-                                  (belief:ds-belief-bel b)
-                                  (float b 1.0))))))
-    (if strengths (reduce #'min strengths) 1.0)))
-
-(defun project-onto (fact mass)
-  "Set FACT's belief to its projection from MASS, if its hypothesis is in the frame.
-   Returns true when it projected."
-  (let ((hypothesis (fact-hypothesis fact)))
-    (when (belief:hypothesis-mask mass hypothesis)
-      (setf (belief-factor fact) (belief:project-mass mass hypothesis))
-      t)))
-
-(defun refresh-projections (rete entity &optional new-fact)
-  "Re-project every hypothesis fact scoped to ENTITY from its pool.
-
-   This is the step that has no counterpart under the per-hypothesis systems, and it
-   is the whole point: one firing updates every hypothesis, not just the one the rule
-   named. Facts whose hypothesis is not in the frame are left alone, so raw evidence
-   keeps whatever belief it was asserted with.
-
-   NEW-FACT is projected explicitly because ASSERT-FACT calls ADJUST-BELIEF *before*
-   REMEMBER-FACT, so a fact being concluded for the first time is not yet in the fact
-   table and the loop below would miss it. It is harmless to project it twice."
-  (let* ((pool (entity-pool rete entity))
-         (mass (belief:pool-mass pool)))
-    (when new-fact (project-onto new-fact mass))
-    ;; An ELEMENT (a leaf identity) or a named SUBSET (a taxonomic class) both
-    ;; project; a class's Bel is the mass that has settled inside the family, however
-    ;; it is distributed among the members.
-    (loop for fact being the hash-values of (rete-fact-table rete)
-          when (equal (fact-entity fact) entity)
-            do (project-onto fact mass))
-    mass))
-
-(defun premise-entity (rule premises)
-  "The entity a rule that asserts NOTHING is talking about.
-
-   A rule that concludes a fact takes its entity from that fact, which is
-   unambiguous. A rule that concludes nothing has only its premises, and those can
-   legitimately span entities -- neomycin matches a patient's burn and an organism's
-   gram stain in one rule. Signals rather than guessing when they do: contributing an
-   organism's evidence to a patient's pool would be silently wrong, and an author
-   should learn that at once."
-  (let ((entities (remove nil (remove-duplicates (mapcar #'fact-entity premises)))))
-    (cond ((null entities) nil)
-          ((null (rest entities)) (first entities))
-          (t (error "Rule ~A states claims but asserts nothing, and its premises span ~
-                     several entities (~{~S~^, ~}); the engine cannot tell which the ~
-                     claims are about. Give the rule a single-entity premise set, or ~
-                     have it assert its conclusion."
-                    (rule-name rule) entities)))))
-
-(defun claim-audience (rete entity claim)
-  "The existing hypothesis facts a CLAIM is ABOUT, for attaching a derivation record.
-
-   The DESIGNATED set, not the focal set: an :excludes claim's focal set is the
-   complement, but the reader who needs the explanation is asking about one of the
-   organisms it excluded. So a red-pigment exclusion is recorded against E. coli and
-   Klebsiella -- exactly where a clinician asking why their plausibility fell will
-   look for it."
-  (let ((designated (ignore-errors
-                     (belief:resolve-mask belief:*frame* (claim-designator claim)))))
-    (when designated
-      (loop for fact being the hash-values of (rete-fact-table rete)
-            when (and (equal (fact-entity fact) entity)
-                      (let ((h (fact-hypothesis fact)))
-                        (and h (let ((m (belief:hypothesis-mask
-                                         (belief:pool-mass (entity-pool rete entity)) h)))
-                                 (and m (plusp (logand m designated)))))))
-              collect fact))))
-
-(defun contribute-claims-per-hypothesis (rete rule premises)
-  "Honor a rule's claims under a PER-HYPOTHESIS belief system (CF, Barnett DS).
-
-   Those systems have no notion of mass on a set: a belief lives on one hypothesis at
-   a time. An :excludes claim still translates exactly, though -- it is what the old
-   ruling-out rules did by hand. For every hypothesis the claim names that has a fact
-   for this entity, apply the claim's mass as NEGATIVE evidence against it.
-
-   A :supports claim on a rule that asserts nothing has no per-hypothesis translation
-   and is skipped: there is no fact to carry the belief, and these systems cannot hold
-   a hypothesis that no rule concluded. That limit is not an oversight -- it is the
-   representational gap the shared frame exists to close, showing up in miniature."
-  (dolist (claim (rule-declared-claims rule))
-    (destructuring-bind (mass verb designator) claim
-      (when (member verb '(:excludes :exclude :opposes :oppose))
-        (let ((targets (if (listp designator) designator (list designator)))
-              (entity (premise-entity rule premises)))
-          (dolist (fact (loop for f being the hash-values of (rete-fact-table rete)
-                              when (and (equal (fact-entity f) entity)
-                                        (member (fact-hypothesis f) targets)
-                                        ;; Once per (rule, fact). A ruling-out rule
-                                        ;; guards on a live hypothesis, so it fires
-                                        ;; once per raised sibling -- and each firing
-                                        ;; sees ALL the targets. Without this the
-                                        ;; claim would be applied n times over.
-                                        (notany (lambda (r)
-                                                  (eq (derivation-record-rule r)
-                                                      (rule-name rule)))
-                                                (gethash f (rete-derivation-table rete))))
-                                collect f))
-            ;; Exclude the TARGET from its own premise list. A ruling-out rule guards
-            ;; on the live hypothesis, so that fact is in the token -- and conjoining
-            ;; its belief in would make the ruling-out force track how strongly the
-            ;; hypothesis is already held rather than the contradicting observation.
-            ;; ADJUST-BELIEF does the same removal for the assert-driven path; this is
-            ;; the same hazard on the fire-driven one.
-            (let ((before (belief-factor fact))
-                  (evidence (remove fact premises :test #'eq)))
-              (setf (belief-factor fact)
-                    (belief:adjust-belief evidence (- (abs mass)) before))
-              (record-derivation rete fact rule evidence before
-                                 (belief-factor fact)))))))))
-
-(defun contribute-unasserted-claims (rete rule premises)
-  "Contribute the claims of a rule that asserted nothing.
-
-   Belief accumulation is normally driven by fact assertion, because a rule that
-   concludes something adjusts that conclusion. Under a shared frame a rule may
-   legitimately conclude NOTHING and still be evidence -- a negative test result
-   excludes without identifying anything -- so those rules contribute here instead.
-   Their derivation is recorded against the hypotheses each claim is about."
-  (let ((claims (rule-claims rule belief:*frame*)))
-    (when claims
-      (let ((entity (premise-entity rule premises)))
-        (when entity
-          (let ((pool (entity-pool rete entity))
-                (strength (raw-premise-strength rete premises))
-                (contributions '()))
-            (dolist (claim claims)
-              (let ((mask (claim-mask claim)))
-                (when (and mask (plusp mask))
-                  (let ((mass (* (claim-mass claim) strength)))
-                    (belief:pool-add pool mask mass (rule-name rule))
-                    (push (cons mask mass) contributions)))))
-            (when contributions
-              (refresh-projections rete entity)
-              (let ((conflict (belief:pool-conflict pool))
-                    (audience (remove-duplicates
-                               (loop for c in claims append (claim-audience rete entity c)))))
-                (dolist (fact audience)
-                  (record-derivation rete fact rule premises nil (belief-factor fact)
-                                     :claims (reverse contributions)
-                                     :conflict conflict))))))))))
-
-(defun accumulate-frame-evidence (rete fact rule premises)
-  "Contribute one firing of RULE to the pool for FACT's entity, then re-project.
-
-   A rule may state SEVERAL claims -- red pigment means Serratia at 0.75, and means
-   none of these five at 0.80 -- and each becomes its own simple support function in
-   the pool. That keeps the cautious rule exact (the pool holds only simple support
-   functions) while letting one observation be authored in one place.
-
-   Returns (values CONFLICT CONTRIBUTIONS), where CONTRIBUTIONS is a list of
-   (mask . mass) actually added, or NIL when the rule designates nothing."
-  (let* ((entity (fact-entity fact))
-         (strength (raw-premise-strength rete premises))
-         (pool (entity-pool rete entity))
-         (contributions '()))
-    (dolist (claim (rule-claims rule belief:*frame*))
-      (let ((mask (claim-mask claim)))
-        (when (and mask (plusp mask))
-          (let ((mass (* (claim-mass claim) strength)))
-            (belief:pool-add pool mask mass (rule-name rule))
-            (push (cons mask mass) contributions)))))
-    (when contributions
-      (setf *frame-evidence-contributed* t)
-      (refresh-projections rete entity fact)
-      ;; The pool's UNNORMALIZED conflict: both normalizations resolve K away, so
-      ;; reading it off the projected mass function would always give zero.
-      (values (belief:pool-conflict pool) (nreverse contributions)))))
-
 (defmethod adjust-belief (rete fact (belief-factor t))
   (when (in-rule-firing-p)
     (let* ((rule (active-rule))
@@ -554,23 +268,10 @@
            ;; hypothesis is already held instead of the contradicting observation.
            (premises (remove fact (token-make-fact-list *active-tokens*) :test #'eq))
            (belief-before (belief-factor fact)))
-      (if (belief:frame-based-p belief:*belief-system*)
-          ;; Shared frame: the rule contributes a focal set to the entity's pool, and
-          ;; every hypothesis for that entity is re-projected from it.
-          (multiple-value-bind (conflict contributions)
-              (accumulate-frame-evidence rete fact rule premises)
-            (when contributions
-              (record-derivation rete fact rule premises belief-before
-                                 (belief-factor fact)
-                                 :claims contributions
-                                 :conflict conflict)))
-          ;; Per-hypothesis (CF, Barnett DS): the rule adjusts this fact's own number.
-          (progn
-            (setf (belief-factor fact)
-                  (belief:adjust-belief premises (belief-factor rule) (belief-factor fact)))
-            ;; Record what the engine ACTUALLY did (authoritative, not recomputed later).
-            (record-derivation rete fact rule premises belief-before
-                               (belief-factor fact)))))))
+      (setf (belief-factor fact)
+            (belief:adjust-belief premises (belief-factor rule) (belief-factor fact)))
+      ;; Record what the engine ACTUALLY did (authoritative, not recomputed later).
+      (record-derivation rete fact rule premises belief-before (belief-factor fact)))))
 
 (defmethod assert-fact ((self rete) fact &key belief)
   (let ((duplicate (duplicate-fact-p self fact)))

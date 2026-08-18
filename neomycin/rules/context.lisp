@@ -151,72 +151,12 @@
 (defclass arabinose (param-mixin) ())      ; value = fermenter | non-fermenter
 (defclass sorbitol (param-mixin) ())       ; value = fermenter | non-fermenter
 
-;; Conclusion (organism level)
-(defclass organism-identity (param-mixin) ())
-
-;; Derived intermediate abstraction (organism level). Unlike organism-identity
-;; -- a leaf species -- organism-class names a taxonomic FAMILY and is designed
-;; to appear on BOTH sides of => : concluded by tier-1 evidence rules, and (in a
-;; later increment) read as a premise by tier-2 species-refinement rules. This is
-;; the one structurally novel piece of the chained cluster (corpus sketch §3B/§7):
-;; a param that is both a rule conclusion and a rule premise, so belief flows
-;; THROUGH a belief-valued intermediate -- the DS composition path nothing else in
-;; the corpus exercises yet.
-(defclass organism-class (param-mixin) ())
-
-;;; ------------------------------------------------------------------
-;;; THE FRAME OF DISCERNMENT
+;;; An ANSWER (v0.11 shape). VALUE holds the SET of organisms a piece of evidence
+;;; narrows the question to -- '(:streptococcus-pyogenes :streptococcus-agalactiae)
+;;; for beta hemolysis, say -- and the rule's own :belief says how strongly.
 ;;;
-;;; The exhaustive, mutually exclusive set of answers to "which organism is this?"
-;;; -- asked once per ORGANISM entity, which is why polymicrobial cultures are
-;;; modelled as several organisms rather than as several answers to one question.
-;;;
-;;; Declared here because this file loads first and every rule file needs it. It is
-;;; the substrate for Dempster-Shafer on SUBSETS: a rule names the set its evidence
-;;; narrows the answer to, and belief on one organism constrains the others by
-;;; arithmetic rather than by a hand-authored ruling-out rule.
-;;; See docs/shared-frame-design.md and docs/shared-frame-phase0-results.md.
-;;;
-;;; The 17 elements are exactly the leaf identities the corpus concludes; the four
-;;; subsets are exactly the organism-classes it derives. Retiring a species from
-;;; :elements now breaks every subset and every rule that still names it, at load
-;;; time -- which is the structural replacement for the member-list staleness guard
-;;; in property-tests.lisp.
-;;;
-;;; :OTHER-ORGANISM is decision D4, and it is not bookkeeping. Bel and Pl are only
-;;; meaningful if the true answer is IN the frame, and 17 species do not exhaust
-;;; clinical microbiology. Without it, mass belonging to "something this corpus does
-;;; not know about" is distributed among the 17 and every number is inflated. With
-;;; it, Pl(:other-organism) is a direct, readable answer to "could this be something
-;;; outside the corpus?" -- a question that had no representation at all before.
-;;; ------------------------------------------------------------------
-(deframe organism-frame
-    (:elements :e-coli :klebsiella :salmonella :enterobacter :serratia :proteus
-               :pseudomonas :bacteroides
-               :staphylococcus-aureus :staphylococcus-epidermidis
-               :staphylococcus-saprophyticus
-               :streptococcus-pneumoniae :streptococcus-pyogenes
-               :streptococcus-agalactiae :streptococcus-viridans
-               :enterococcus-faecalis :enterococcus-faecium
-               :other-organism)
-  (:subset :enterobacteriaceae (:e-coli :klebsiella :salmonella
-                                :enterobacter :serratia :proteus))
-  (:subset :staphylococcus (:staphylococcus-aureus :staphylococcus-epidermidis
-                            :staphylococcus-saprophyticus))
-  (:subset :streptococcus (:streptococcus-pneumoniae :streptococcus-pyogenes
-                           :streptococcus-agalactiae :streptococcus-viridans))
-  (:subset :enterococcus (:enterococcus-faecalis :enterococcus-faecium))
-  ;; Like :aerobic-gram-neg-rods below, this is NOT an organism-class -- no rule
-  ;; concludes it. It is what the premise "gram-positive coccus in chains" actually
-  ;; licenses: the four streptococci AND both enterococci, which are also
-  ;; gram-positive cocci in chains. Slice D found this to be structurally the same
-  ;; defect as the enterobacteriaceae class rule (docs/slice-d-focal-width.md 4).
-  (:subset :gram-pos-cocci-in-chains (:streptococcus-pneumoniae :streptococcus-pyogenes
-                                      :streptococcus-agalactiae :streptococcus-viridans
-                                      :enterococcus-faecalis :enterococcus-faecium))
-  ;; NOT an organism-class -- no rule concludes it. It is the set the premise
-  ;; "aerobic gram-negative rod" actually licenses, which phase 0.5 found to be the
-  ;; single correction that restores culture-1's ranking (results §12). Bacteroides
-  ;; is excluded: it is an anaerobe.
-  (:subset :aerobic-gram-neg-rods (:e-coli :klebsiella :salmonella :enterobacter
-                                   :serratia :proteus :pseudomonas)))
+;;; This is what replaces both organism-identity and organism-class. A class IS a
+;;; candidates set, so nothing has to reify one; and a species call is a candidates
+;;; set with one member. Exclusion is never asserted: it is what remains when answers
+;;; are intersected. See docs/narrows-to-promotion-sketch.md.
+(defclass candidates (param-mixin) ())

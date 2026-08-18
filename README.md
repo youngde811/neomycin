@@ -128,11 +128,12 @@ fork of Lisa that keeps the engine's packages un-renamed: Neomycin *uses* Lisa
 rather than absorbing it, though engine-level changes are made when the research
 genuinely calls for them.
 
-**The rulebase and belief system.** `neomycin/rules/` holds 50 medical rules in a
-controlled vocabulary, grouped by cluster across a handful of files. Underneath sits
-a pluggable belief system — Dempster-Shafer over a shared frame (the default),
-the older per-hypothesis Dempster-Shafer, or certainty
-factors — that decides how confidence is represented and combined.
+**The rulebase and belief system.** `neomycin/rules/` holds 44 medical rules in a
+controlled vocabulary, grouped by cluster across a handful of files. Every one of them
+is *confirming*: it states the set of organisms its evidence narrows the answer to.
+Underneath sits a pluggable belief system — Dempster-Shafer over an open frame is
+neomycin's, and certainty factors and a per-hypothesis Dempster-Shafer remain in the
+Lisa substrate for its own examples.
 
 **The bridge.** A small HTTP service that runs inside the same Lisp image as the
 engine. It exposes the engine's capabilities as a handful of web endpoints:
@@ -265,62 +266,68 @@ a ceiling of one, and complete ignorance in between. That is a genuinely
 different statement from "the evidence balances out," and it is the distinction
 certainty factors cannot make.
 
-The mechanics are easier than the notation suggests. Picture one unit of belief
-divided into three buckets: the part that supports the hypothesis, the part that
-opposes it, and the part that has not committed to either. `bel` is the first
-bucket. `pl` is the first plus the third. Combining two pieces of evidence means
-combining their buckets and renormalizing — and the amount of belief that lands
-in contradictory places is called the **conflict**. When conflict is present,
-the combined interval visibly widens and drops.
+The mechanics are easier than the notation suggests, and in neomycin they rest on a
+single idea: **a rule states the set of organisms its evidence narrows the answer to.**
+The Gram stain says "one of these eight". The aerobic result says "one of these seven".
+The burn and the compromised host say "Pseudomonas". Each of those is an answer, with a
+weight, and answers combine by **intersection** — the organisms that survive are the
+ones in every answer.
 
-Neomycin applies the theory over a **shared frame of discernment**: one pool of
-belief per cultured organism, covering every organism the system can name. A rule
-commits belief to a *set* of them — "an aerobic gram-negative rod is one of these
-seven" — rather than to a single hypothesis in isolation.
+That single mechanism does all the work, including the work that looks like it needs
+something else:
 
-That matters for a reason worth stating plainly. Belief committed to one organism
-is belief unavailable to its rivals, so evidence for one **lowers the ceiling on
-the others automatically**, with no rule having to say so. An organism nothing in
-the corpus has mentioned can still be effectively excluded. And because the pool
-holds one unit of belief, two mutually exclusive organisms can never both be
-reported as likely.
+- **Exclusion is never written down.** `{pyogenes, agalactiae}` intersected with
+  `{pneumoniae}` is empty, and that emptiness *is* the ruling-out. No rule ever argues
+  against an organism, and no rule can.
+- **A genus is just a set.** "Is this a staphylococcus?" is a question about
+  {aureus, epidermidis, saprophyticus}, answered directly. Nothing chains, and no
+  belief is the product of two others.
+- **Belief committed to one organism is belief unavailable to its rivals**, so evidence
+  for one lowers the ceiling on the others automatically. An organism nobody has
+  mentioned can still be effectively excluded.
+- **Belief that lands on an impossible combination is the conflict**, `K`. When the
+  evidence disagrees with itself, `K` rises and says so.
 
-An earlier version of neomycin gave each organism its own private frame — a
-standard simplification that keeps combination cheap. It was cheap and it was
-wrong: the same case could report one organism at 0.76 and a mutually exclusive
-one at 0.40, and nothing in the system noticed the two summed past certainty. The
-simplification is still available for comparison, and the difference between the
-two is documented in `docs/shared-frame-design.md`.
+The frame is **open**. The system never enumerates every organism that exists — only
+the sets its rules actually name. So the question *"could this be something you don't
+model?"* has a real answer rather than an embarrassed silence: it is the belief that
+has not been committed anywhere, and the system will quote it.
 
 ### Why the difference is worth building for
 
-The rulebase contains **confirming** rules, which push belief up, and
-**disconfirming** rules, which commit evidence against a hypothesis. Among the
-enterobacteriaceae — a family of related bacteria — several disconfirming rules
-express *biochemical cross-disconfirmation*: a lab finding that argues for one
-sibling species inherently argues against another, because one organism cannot
-have both properties.
+Here is a case with three lab findings: the organism ferments lactose, tests
+indole-positive, and produces a red pigment on the plate. Lactose and indole together
+point to *E. coli*. Red pigment points to *Serratia*. One organism cannot be both.
 
-Here is what that produces in practice. A case is described with three lab
-findings: the organism ferments lactose, tests indole-positive, and produces a
-red pigment on the plate. Lactose and indole together point to *E. coli*. The
-red pigment points to *Serratia*. But the red pigment argues against E. coli,
-and the indole result argues against Serratia. The engine reports:
+Nothing in the rulebase says so. There is no rule anywhere that argues against E. coli
+or against Serratia — the corpus contains no such rule and cannot express one. The
+findings simply give answers that do not overlap, and the arithmetic does the rest:
 
 | Organism | belief (floor) | plausibility (ceiling) |
 |---|---|---|
-| E. coli | 0.26 | 0.41 |
-| Serratia | 0.375 | 0.625 |
+| E. coli | 0.670 | 0.758 |
+| Serratia | 0.242 | 0.303 |
 
-Notice that both ceilings have fallen below 1.0, which is the signature of
-genuine conflicting evidence — in an ordinary case with only confirming
-evidence, both would sit at 1.0. Notice also that E. coli's *ceiling* (0.41) is
-now beneath Serratia's *floor* (0.375, and rising toward 0.625). The engine has
-not quietly averaged the contradiction away. It has made the contradiction
-visible in its own arithmetic, and it can say which finding caused it.
+with **conflict `K` = 0.736**.
 
-Certainty factors, run over the same case, cannot express this. Both systems are
-kept in the codebase precisely so the two answers can be laid side by side.
+Read the ceilings first. Both have fallen well below 1.0, which is the signature of
+genuine contradiction; in an ordinary case where the evidence agrees, both would sit at
+1.0. E. coli leads because three answers admit it and only one admits Serratia — but
+the number that matters is `K`. **Nearly three quarters of the belief in this case
+landed on a combination that cannot be true.** The right thing to tell a clinician is
+not "E. coli, 67%"; it is that the bench results contradict each other and should be
+repeated.
+
+That is the property worth building for. A system that reports its own inputs disagree
+is more useful than one that smooths the disagreement into a confident-looking average
+— and here the disagreement is not a special feature bolted on, but a consequence of
+representing an answer as a set.
+
+Contrast the case where the evidence *agrees*: a chain-forming gram-positive coccus,
+alpha-hemolytic, optochin-sensitive. Three answers, each nested inside the last, all
+naming *S. pneumoniae*. It reaches `bel 0.963` with `pl 1.000` and **`K` = 0** — higher
+than any single rule's own weight, purely because independent evidence converged. Same
+machinery, opposite reading.
 
 ---
 
@@ -341,18 +348,20 @@ rod-shaped become facts about the organism. Each is submitted individually
 through the bridge, and the bridge validates it before it enters working memory.
 Malformed facts are rejected there, not silently absorbed.
 
-**The model asks the engine to run.** The engine fires every rule whose
-conditions are met, propagates belief through the chains, and records what
-happened.
+**The model asks the engine to run.** The engine fires every rule whose conditions are
+met, each one asserting the set of organisms its evidence narrows the answer to, and
+records which rules said what.
 
 **The model reads back what concluded.** For the case above, two candidates:
-*pseudomonas* at belief 0.43 with plausibility 0.71, and *klebsiella* at 0.29 with
-plausibility 0.57. Neither reaches plausibility 1.0, because the belief supporting
-one is belief the other cannot also have — and sixteen further organisms, none of
-which any rule mentioned, have been squeezed well below certainty by the same
-arithmetic. A further slice of belief sits on the *set* of aerobic gram-negative
-rods without naming a member: the honest statement that the family is better
-established than any species in it.
+*pseudomonas* at belief 0.613 with plausibility 0.806, and *klebsiella* at 0.194 with
+plausibility 0.387. Neither reaches plausibility 1.0, because the belief supporting one
+is belief the other cannot also have — and the organisms no rule mentioned have been
+squeezed well below certainty by the same arithmetic, without anything having been
+written to exclude them. A further slice of belief, 0.155, sits on the *set* of seven
+aerobic gram-negative rods without naming a member: the honest statement that the family
+is better established than any species in it. And `K` = 0.380 records that better than a
+third of the belief went to combinations that cannot all hold — the burn and host
+evidence point somewhere the Klebsiella rule does not.
 
 **The model narrates the result.** It reports the differential, the beliefs, and
 the reasoning — all of it read from the engine rather than composed.
@@ -374,15 +383,17 @@ think the stain was gram-positive" is not making the same claim as one who says
 asserted fact, and the engine's belief arithmetic carries that reduction through
 to every conclusion downstream.
 
-**Belief composes through chains.** Some conclusions are reached in more than
-one step. An aerobic gram-negative rod first establishes the *enterobacteriaceae
-family* as an intermediate classification; specific species are then
-discriminated within that family by biochemical findings. A species conclusion
-therefore inherits its family's uncertainty: if the family is held at 0.8 and
-the species rule contributes 0.8, the species lands at 0.64, because you cannot
-be more confident in the species than the family it belongs to. The family
-itself is never reported as an identity — it is scaffolding, and the system says
-so.
+**Evidence of different sharpness combines without any of it being scaffolding.** An
+aerobic gram-negative rod answers "one of these seven". A lactose result narrows to four
+of them. Indole narrows to two. The combination that names *E. coli* answers with one.
+Those are four answers at four resolutions, and because each set contains E. coli they
+*agree* — they reinforce to 0.884, higher than any single rule's own weight, with
+conflict zero.
+
+The coarse answers are conclusions in their own right, not way-stations. "One of these
+seven, the evidence does not say which" is frequently the most honest thing the system
+can report, and it is reported rather than discarded on the way to a species. Nothing
+chains, nothing is scaffolding, and no belief is the product of two others.
 
 ---
 
@@ -399,21 +410,27 @@ Two records are kept. Each rule carries **provenance**: where the rule came from
 (inherited from the historical MYCIN corpus, or added by this project) and which
 published sources support its clinical claim, each citation checked
 adversarially rather than accepted on the model's say-so. Separately, the engine
-records the **derivation** of every belief as it fires — which rules fired, what
-each one committed belief to, and how much of that belief the evidence turned out
-to contradict.
+records which rules produced each answer as they fire.
 
-The bridge composes both into a single answer. Asked why an organism was
-concluded, it returns the composition arithmetic behind that belief, walked
-recursively back through any intermediate steps, together with the sources
-behind each rule that participated.
+The bridge composes both into a single answer: the **argument**. Asked why an organism
+stands where it does, it returns every answer given about that culture — the set each
+one narrowed to, its weight, the rules that said it, and their sources — together with
+what those answers intersect to.
 
-When a user asks *why pseudomonas, and how sure are you about 0.43?*, the model
-does not answer from memory. It requests the explanation and quotes it: these
-rules fired, this one committed 0.500 to Klebsiella specifically while that one
-committed 0.800 to the whole family of aerobic gram-negative rods, and 30% of the
-combined belief landed on combinations that cannot all be true — citing these
-sources. And it reports the boundary the record itself encodes — that the
+It also returns the answers that do **not** admit the organism, and that is the
+load-bearing part. Since nothing in this corpus argues against anything, an organism can
+only lose ground because other evidence pointed somewhere else. An explanation showing
+only the supporting answers would leave a reader to assume an objection that does not
+exist.
+
+So when a user asks *why Klebsiella, and how sure are you?*, the model does not answer
+from memory. It requests the argument and reads it aloud: three answers admit Klebsiella
+— the Gram stain narrowing to eight organisms at 0.70, the aerobic rod finding to seven
+at 0.80, the compromised-host rule to Klebsiella alone at 0.50 — and together they leave
+Klebsiella. What holds it down is the burn and blood-culture evidence answering
+"Pseudomonas" at 0.76, which does not include Klebsiella. Nothing argued against it.
+There is no arithmetic composing one belief through another to quote, because nothing
+chains. And it reports the boundary the record itself encodes — that the
 sources verify the *clinical association*, not the *number*, and that the rule
 weights are illustrative teaching values rather than measured frequencies.
 
@@ -540,12 +557,13 @@ model honest, and the model makes the engine usable.
 
 Being clear about this is part of the project's purpose.
 
-**Real:** the inference engine, the belief algebras and their arithmetic, the
-chaining and belief composition, the conflict behavior, the explanation and
-provenance records, the therapy solver and its guarantees, the antibiogram
-mathematics, and the test suite — roughly 310 assertions across 93 tests,
-including every rule fired in isolation and hand-verified golden values for each
-scenario under both belief systems.
+**Real:** the inference engine, the belief algebra and its arithmetic, the set
+intersection and the conflict behavior, the explanation and provenance records, the
+therapy solver and its guarantees, the antibiogram mathematics, and the test suite —
+roughly 974 assertions across 148 tests, including every rule fired in isolation,
+hand-verified golden values for each scenario, and corpus-wide invariants checked by
+introspecting the compiled rulebase so that a new rule is covered the moment it is
+written.
 
 **Schematic:** the certainty numbers. Every rule weight is a teaching value,
 chosen to make the machinery observable, and each is explicitly marked as such
@@ -554,7 +572,7 @@ that the clinical association is real; they do not verify the number. Grounding
 some of those numbers in real frequency data is active work.
 
 **Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 50 rules against MYCIN's original 450 —
+its contraindications. The rulebase is 44 rules against MYCIN's original 450 —
 enough to exercise every mechanism in the architecture, and nowhere near enough
 to be clinically meaningful.
 
