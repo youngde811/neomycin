@@ -139,15 +139,16 @@
     (:belief 0.7
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
-                             "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017")
+                             "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017"
+                             "Interference of Pseudomonas Strains in the Identification of Helicobacter pylori, J Clin Microbiol, PMC86256")
                   :belief-basis :illustrative
-                  :note "E. coli and Salmonella are characteristically urease-negative; Proteus is strongly and rapidly urease-positive, with Klebsiella, Enterobacter and Serratia variable."))
+                  :note "E. coli and Salmonella are characteristically urease-negative; Proteus is strongly and rapidly urease-positive, with Klebsiella, Enterobacter and Serratia variable. PSEUDOMONAS IS IN THIS ANSWER despite urease not being one of its identifying tests: 72% of P. aeruginosa strains are urease-positive (PMC86256, which reports Pseudomonas giving false-positive rapid urease tests in H. pylori identification for exactly this reason). Keeping a variably-positive organism IN follows the same policy as Serratia in the two lactose answers -- a marker that is unreliable for an organism cannot be used to exclude it, and under this representation absence from an answer IS exclusion."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
   (urease (value positive) (of ?o))
   =>
-  (assert (candidates (value '(:klebsiella :enterobacter :serratia :proteus))
+  (assert (candidates (value '(:klebsiella :enterobacter :serratia :proteus :pseudomonas))
                       (of ?o))))
 
 ;;; MERGE 2, and it fixes an audit finding.
