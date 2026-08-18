@@ -438,3 +438,73 @@
                        "an opposing rule contributes positive mass to a complement")))))
         (ignore-errors
          (lisa:undefrule 'lisa-user::focal-set-opposes-probe))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 10 -- SPECIFICITY between same-conclusion rules.
+;;;
+;;; When two rules reach the same conclusion, do their beliefs reinforce or does one
+;;; subsume the other? These pin the measurement that settled it, so a corpus change
+;;; that quietly introduces a subsumed rule shows up here rather than in a number
+;;; nobody can trace.
+;;; ------------------------------------------------------------------
+
+(defun rules-concluding (value)
+  "Every domain rule that asserts VALUE."
+  (remove-if-not (lambda (r)
+                   (member value (mapcar #'cdr (lisa:rule-asserted-facts r))))
+                 (domain-rules)))
+
+(defun same-conclusion-pairs ()
+  "((rule-a rule-b) ...) for every pair of domain rules reaching the same conclusion."
+  (let ((acc '()))
+    (dolist (value (concluded-values 'lisa-user::organism-identity) acc)
+      (let ((rules (rules-concluding value)))
+        (loop for (a . rest) on rules
+              do (dolist (b rest) (push (list a b) acc)))))))
+
+(deftest property-no-two-rules-share-identical-premises ()
+  ;; If two rules reaching one conclusion had IDENTICAL premises they would be the
+  ;; same observation written twice, and combining them would double-count. Measured
+  ;; across the corpus: none do. This is what makes reinforcement the right default --
+  ;; deduplicating by conclusion would always discard something real.
+  (dolist (pair (same-conclusion-pairs))
+    (destructuring-bind (a b) pair
+      (is (not (equal (lisa:rule-premise-signature a)
+                      (lisa:rule-premise-signature b)))
+          (format nil "~A and ~A reach the same conclusion from IDENTICAL premises"
+                  (lisa:rule-short-name a) (lisa:rule-short-name b))))))
+
+(deftest property-subsumption-is-detected-where-it-exists ()
+  ;; The one real case in the corpus: enterobacteriaceae-in-compromised-host-suggests-
+  ;; klebsiella has premises that are a strict subset of the hospital-acquired variant,
+  ;; so it fires whenever that one does and conditions on nothing extra. Pinned by
+  ;; NAME because it is the case the specificity policy exists for -- if a corpus edit
+  ;; breaks the relationship, that is worth knowing deliberately.
+  (let ((general (lisa:find-rule (lisa:inference-engine)
+                                 'lisa-user::enterobacteriaceae-in-compromised-host-suggests-klebsiella))
+        (specific (lisa:find-rule (lisa:inference-engine)
+                                  'lisa-user::hospital-acquired-enterobacteriaceae-in-compromised-host-suggests-klebsiella)))
+    (is (and general specific) "both klebsiella context rules are present")
+    (when (and general specific)
+      (is (lisa:rule-subsumes-p specific general)
+          "the hospital-acquired rule subsumes the general compromised-host one")
+      (is (not (lisa:rule-subsumes-p general specific))
+          "and subsumption is asymmetric, as it must be"))))
+
+(deftest property-overlapping-premises-are-not-subsumption ()
+  ;; The distinction I got wrong in phase 0.5 and that this invariant exists to hold:
+  ;; sharing SOME premises is not being the same observation. The two pseudomonas
+  ;; context rules both read a gram-negative rod, but one adds a burn and the other an
+  ;; immunocompromised host -- different facts about the patient, so neither subsumes.
+  (let ((burn (lisa:find-rule (lisa:inference-engine)
+                              'lisa-user::gram-neg-rod-in-burn-patient-suggests-pseudomonas))
+        (compromised (lisa:find-rule (lisa:inference-engine)
+                                     'lisa-user::gram-neg-rod-in-compromised-host-suggests-pseudomonas)))
+    (is (and burn compromised) "both pseudomonas context rules are present")
+    (when (and burn compromised)
+      (is (intersection (lisa:rule-premise-signature burn)
+                        (lisa:rule-premise-signature compromised) :test #'string=)
+          "they do share premises")
+      (is (not (lisa:rule-subsumes-p burn compromised))
+          "but neither subsumes the other, so their evidence is distinct")
+      (is (not (lisa:rule-subsumes-p compromised burn))))))

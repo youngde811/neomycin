@@ -306,3 +306,40 @@
 
 (defun rule-multi-claim-p (rule)
   (> (length (rule-declared-claims rule)) 1))
+
+;;; ------------------------------------------------------------------
+;;; Specificity between rules.
+;;;
+;;; When two rules reach the SAME conclusion, do their beliefs reinforce, or does one
+;;; subsume the other? Measured across neomycin's corpus: 17 same-conclusion pairs, no
+;;; two with identical premises, and exactly ONE where a rule's premises are a strict
+;;; subset of another's. Distinct evidence should reinforce; a subsumed rule should
+;;; not, because the more specific rule already accounts for everything it says --
+;;; its premises are a superset -- so combining them asserts a confidence the author
+;;; never stated.
+;;;
+;;; This is the production-rule notion of SPECIFICITY that conflict resolution already
+;;; uses to order firings, applied instead to how their beliefs combine. Domain-neutral:
+;;; it compares premise patterns and knows nothing of any particular rulebase.
+;;; ------------------------------------------------------------------
+
+(defun rule-premise-signature (rule)
+  "RULE's literal premises as a sorted, comparable set of CLASS=VALUE strings. Values
+   that are variables or constraint forms are skipped, since they impose no condition
+   that another rule could subsume."
+  (sort (loop for class in (remove-duplicates (rule-premise-classes rule))
+              append (loop for value in (rule-premise-values rule class)
+                           collect (format nil "~A=~A" class value)))
+        #'string<))
+
+(defun rule-subsumes-p (specific general)
+  "True when GENERAL's premises are a STRICT subset of SPECIFIC's -- so GENERAL fires
+   whenever SPECIFIC does, and tells us nothing SPECIFIC has not already conditioned
+   on. Rules that merely overlap are NOT subsumed: sharing a gram stain while
+   differing on the patient is distinct evidence, and treating it otherwise discards
+   something real."
+  (let ((s (rule-premise-signature specific))
+        (g (rule-premise-signature general)))
+    (and (null (set-difference g s :test #'string=))
+         (set-difference s g :test #'string=)
+         t)))

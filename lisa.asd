@@ -83,7 +83,13 @@
        ;; docs/shared-frame-design.md.
        (:module frame
         :components
-        ((:file "frame"))))
+        ((:file "frame")))
+       ;; Dempster-Shafer over an OPEN frame: answers are SETS of hypotheses, they
+       ;; combine by intersection, and Theta is symbolic so nothing enumerates the
+       ;; universe. Algebra only -- knows nothing of rules or facts.
+       (:module candidates
+        :components
+        ((:file "candidates"))))
       :serial t)
      (:module reflect
       :components

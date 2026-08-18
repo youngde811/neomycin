@@ -74,6 +74,8 @@
           "RULE-FOCAL-DESIGNATOR"
           "RULE-FOCAL-SET"
           "RULE-FOCAL-MASS"
+          "RULE-PREMISE-SIGNATURE"
+          "RULE-SUBSUMES-P"
           "FRAME-OF-DISCERNMENT"
           "CONSIDER-TAXONOMY"
           "CONTEXT"
@@ -305,6 +307,45 @@
    "USE-SYSTEM"
    "VALID-BELIEF-P"
    "WEAKEN-BELIEF"))
+
+(defpackage "LISA.CANDIDATES"
+  (:use "COMMON-LISP")
+  (:nicknames "CANDIDATES")
+  (:documentation
+   "Dempster-Shafer over an OPEN frame of discernment. An answer is the SET of
+    hypotheses some evidence narrows a question to; answers combine by intersection,
+    and exclusion falls out rather than being authored. The frame is never enumerated
+    -- Theta is symbolic -- so a knowledge base scales without a declaration to keep
+    in step with it.")
+  (:export
+   "+UNIVERSE+"
+   "CANONICAL"
+   "UNIVERSE-P"
+   "SET-INTERSECT"
+   "SET-CONTAINS-P"
+   "SET-SUBSET-P"
+   "SET-SIZE"
+   "SET-NAME"
+   "MASS-REF"
+   "TO-DOUBLE"
+   "ANSWER"
+   "COMBINE-TWO"
+   "VACUOUS"
+   "CONFLICT-OF"
+   "*NORMALIZATION*"
+   "DEMPSTER-NORMALIZE"
+   "YAGER-NORMALIZE"
+   "NORMALIZE"
+   "COMBINE-ANSWERS"
+   "BEL"
+   "PL"
+   "INTERVAL"
+   "BEL-OF-SET"
+   "PL-OF-SET"
+   "IGNORANCE"
+   "HYPOTHESES-NAMED"
+   "SET-VALUED"
+   "TOTAL-MASS"))
 
 (defpackage "LISA.HEAP"
   (:use "COMMON-LISP")
