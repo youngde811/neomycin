@@ -57,23 +57,13 @@
              (lisa:get-rule-list (lisa:inference-engine))))
 
 (defun candidates-rule-p (rule)
-  "True when RULE asserts a CANDIDATES fact -- the v0.11 shape, where a rule states
-   the SET its evidence narrows the answer to.
-
-   The two shapes coexist during the transition and are governed by different
-   invariants: a candidates rule declares no focal set, resolves against no frame, and
-   never excludes anything by naming it. Invariants written for the frame shape are
-   pointed at LEGACY-RULES so they keep guarding what they were written to guard."
+  "True when RULE asserts a CANDIDATES fact -- i.e. it states the SET its evidence
+   narrows the answer to, which every rule in the corpus now does."
   (some (lambda (pair) (eq (car pair) 'lisa-user::candidates))
         (lisa:rule-asserted-facts rule)))
 
 (defun candidates-rules ()
   (remove-if-not #'candidates-rule-p (domain-rules)))
-
-(defun legacy-rules ()
-  "Domain rules in the pre-v0.11 shape -- organism-class / organism-identity, focal
-   sets, and :claims. What the frame invariants below are about."
-  (remove-if #'candidates-rule-p (domain-rules)))
 
 (defun concluded-values (class &key (predicate #'lisa:confirming-rule-p))
   "Every VALUE asserted as a CLASS fact by a rule satisfying PREDICATE."
@@ -87,38 +77,16 @@
 ;;; Invariant 1 -- every domain rule declares a usable belief.
 ;;; ------------------------------------------------------------------
 
-(deftest property-every-rule-declares-a-usable-strength ()
-  ;; A rule must say how strongly it believes what it says, in one of the two forms.
-  ;;
-  ;; Single-belief form: a real in [-1, 1], non-zero -- outside that range it is
-  ;; meaningless to every algebra, and at zero the rule cannot affect any conclusion,
-  ;; which is almost certainly an authoring slip.
-  ;;
-  ;; Claims form: every claim carries a mass in (0, 1]. Direction lives in the claim's
-  ;; verb, not in the sign, so a negative mass here would be a category error rather
-  ;; than a strong exclusion.
+(deftest property-every-rule-declares-a-usable-belief ()
+  ;; A rule must say how strongly it believes what it says. Positive and non-zero: a
+  ;; rule states the SET its evidence narrows to, so direction is carried by which
+  ;; organisms are in the answer, never by a sign. Zero would be a rule that cannot
+  ;; affect any conclusion, which is almost certainly an authoring slip.
   (dolist (rule (domain-rules))
-    (let ((b (lisa:rule-belief rule))
-          (claims (lisa:rule-declared-claims rule)))
-      (cond
-        (claims
-         (dolist (claim claims)
-           (let ((mass (first claim)) (verb (second claim)))
-             (is (and (realp mass) (< 0 mass) (<= mass 1))
-                 (format nil "~A: claim mass ~S must be a real in (0, 1] -- direction ~
-                              is carried by the verb, not the sign"
-                         (lisa:rule-short-name rule) mass))
-             (is (member verb '(:supports :support :excludes :exclude :opposes :oppose))
-                 (format nil "~A: unknown claim verb ~S"
-                         (lisa:rule-short-name rule) verb)))))
-        (t
-         (is (and (realp b) (<= -1 b 1) (not (zerop b)))
-             (format nil "~A: belief ~S must be a non-zero real in [-1, 1]"
-                     (lisa:rule-short-name rule) b)))))))
-
-;;; ------------------------------------------------------------------
-;;; Invariant 2 -- disconfirming rules follow the ruling-out template.
-;;; ------------------------------------------------------------------
+    (let ((b (lisa:rule-belief rule)))
+      (is (and (realp b) (< 0 b) (<= b 1))
+          (format nil "~A: belief ~S must be a real in (0, 1]"
+                  (lisa:rule-short-name rule) b)))))
 
 (deftest property-every-organism-an-answer-names-is-treatable ()
   ;; A rule may narrow to an organism the therapy KB cannot treat, directly or by

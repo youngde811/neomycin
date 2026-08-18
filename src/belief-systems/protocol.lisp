@@ -135,7 +135,6 @@
 
 (defvar *cf-system*)
 (defvar *ds-system*)
-(defvar *frame-system*)
 (defvar *candidates-system*)
 
 (defun use-system (name)
@@ -144,9 +143,6 @@
    :CERTAINTY-FACTORS  Shortliffe-Buchanan CFs.
    :DEMPSTER-SHAFER    DS on the dichotomous {H, not-H} frame per hypothesis (the
                        Barnett simplification). Retained for comparison.
-   :FRAME              DS on a SHARED frame of discernment declared with DEFRAME:
-                       one mass function per entity, rules contributing to SUBSETS.
-                       Requires a declared frame.
    :CANDIDATES         DS over an OPEN frame: rules assert ANSWERS -- sets of
                        hypotheses -- and a client combines them by intersection when
                        it reads working memory. Nothing is declared, nothing is
@@ -155,5 +151,4 @@
         (ecase name
           (:certainty-factors *cf-system*)
           (:dempster-shafer *ds-system*)
-          (:frame *frame-system*)
           (:candidates *candidates-system*))))

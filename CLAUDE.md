@@ -53,16 +53,17 @@ written against:
 
 ```bash
 LISA_BELIEF_SYSTEM=candidates sbcl ...  # DS over an open frame (DEFAULT)
-LISA_BELIEF_SYSTEM=frame sbcl ...       # DS over a DECLARED frame (v0.9-v0.10)
 LISA_BELIEF_SYSTEM=ds sbcl ...          # DS per hypothesis (Barnett)
 LISA_BELIEF_SYSTEM=cf sbcl ...          # certainty factors
 ```
 
-**`frame`, `ds` and `cf` are retired as active systems.** They remain as code and
-their algebras are still unit-tested, but the corpus no longer has rules they can
-reason over: a candidate-set answer is a SET, and neither certainty factors nor a
-per-hypothesis frame has a set algebra. The three-algebra comparison the fork
-maintained through v0.10.0 is reproducible on the **v0.10.0 tag** and not after it.
+**`ds` and `cf` are Lisa substrate, not neomycin options.** They remain because Lisa's
+own examples use them (`examples/mycin.lisp`, `examples/cf.lisp`) and its suite tests
+them, but neomycin's corpus has no rules they can reason over: a candidate-set answer
+is a SET, and neither has a set algebra. The **declared-frame** system of v0.9-v0.10
+was neomycin-specific and has been deleted outright. The three-algebra comparison the
+fork maintained through v0.10.0 is reproducible on the **v0.10.0 tag** and not after
+it.
 
 **How it works.** Every rule states an ANSWER — the set of organisms its evidence
 narrows the question to — and asserts it as a `candidates` fact with a belief.
@@ -247,7 +248,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~940 assertions / 151 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~892 assertions / 136 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; the composition

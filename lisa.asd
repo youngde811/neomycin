@@ -81,9 +81,6 @@
        ;; frame) rather than the dichotomous {H, not-H} frame per hypothesis that
        ;; dempster-shafer.lisp implements. Algebra only; see
        ;; docs/shared-frame-design.md.
-       (:module frame
-        :components
-        ((:file "frame")))
        ;; Dempster-Shafer over an OPEN frame: answers are SETS of hypotheses, they
        ;; combine by intersection, and Theta is symbolic so nothing enumerates the
        ;; universe. Algebra only -- knows nothing of rules or facts.

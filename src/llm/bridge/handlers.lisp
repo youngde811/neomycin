@@ -124,89 +124,6 @@
          ht))
       (t rendered))))
 
-;;; ------------------------------------------------------------------
-;;; Shared-frame projection (only emitted when a frame-based system is active).
-;;;
-;;; The per-hypothesis payload above reports one interval per organism-identity FACT.
-;;; Under a shared frame that is a lossy view of what the engine knows: it cannot show
-;;; an organism that no rule concluded but that the evidence has squeezed, it cannot
-;;; show mass sitting on a SET ("one of this family, unsaid which"), and it cannot show
-;;; how much conflict was renormalized away. This adds all three, alongside -- never
-;;; instead of -- the existing payload, so nothing that reads /conclusions today
-;;; changes shape.
-;;; ------------------------------------------------------------------
-
-(defun frame-based-run-p ()
-  (and belief:*frame* (belief:frame-based-p belief:*belief-system*)))
-
-(defun element-name (element)
-  (string-downcase (symbol-name element)))
-
-(defun mask->names (mask)
-  (coerce (mapcar #'element-name (belief:mask->elements belief:*frame* mask)) 'vector))
-
-(defun hypothesis->json (mass element)
-  "One frame element's interval, whether or not a rule ever concluded it."
-  (let ((ht (make-hash-table :test #'equal))
-        (bel (belief:mass-belief mass element))
-        (pl (belief:mass-plausibility mass element)))
-    (setf (gethash "value" ht) (element-name element))
-    (setf (gethash "bel" ht) bel)
-    (setf (gethash "pl" ht) pl)
-    (setf (gethash "ignorance" ht) (- pl bel))
-    ht))
-
-(defun set-valued->json (mass)
-  "Focal sets that are neither a single hypothesis nor total ignorance -- genuine
-   set-valued conclusions, e.g. mass on a whole family with no member singled out."
-  (coerce
-   (mapcar (lambda (entry)
-             (let ((ht (make-hash-table :test #'equal)))
-               (setf (gethash "members" ht) (mask->names (car entry)))
-               (setf (gethash "mass" ht) (cdr entry))
-               ht))
-           (belief:mass-set-valued mass))
-   'vector))
-
-(defun entity-projection->json (entity pool)
-  (let ((ht (make-hash-table :test #'equal))
-        (mass (belief:pool-mass pool)))
-    (setf (gethash "entity" ht) (string-downcase (princ-to-string entity)))
-    (setf (gethash "operator" ht) (string-downcase (symbol-name belief:*frame-operator*)))
-    (setf (gethash "normalization" ht)
-          (string-downcase (symbol-name belief:*frame-normalization*)))
-    ;; K, read UNNORMALIZED from the pool: both normalizations resolve conflict away,
-    ;; so the projected mass function always reports zero. A consultation that
-    ;; renormalized away a third of its mass should be able to say so.
-    (setf (gethash "conflict" ht) (belief:pool-conflict pool))
-    (setf (gethash "ignorance" ht)
-          (belief:mass-ref mass (belief:frame-theta belief:*frame*)))
-    (setf (gethash "hypotheses" ht)
-          (coerce (map 'list (lambda (e) (hypothesis->json mass e))
-                       (belief:frame-elements belief:*frame*))
-                  'vector))
-    (setf (gethash "set_valued" ht) (set-valued->json mass))
-    ht))
-
-(defun frame-projection->json ()
-  "The frame and one projection per entity, or NIL under a per-hypothesis system."
-  (when (frame-based-run-p)
-    (let ((ht (make-hash-table :test #'equal))
-          (entities '()))
-      (setf (gethash "elements" ht)
-            (coerce (map 'list #'element-name (belief:frame-elements belief:*frame*))
-                    'vector))
-      (setf (gethash "subsets" ht)
-            (coerce (mapcar #'element-name
-                            (belief:frame-subset-names belief:*frame*))
-                    'vector))
-      (maphash (lambda (entity pool)
-                 (push (entity-projection->json entity pool) entities))
-               (lisa::rete-evidence-pools (lisa:inference-engine)))
-      (setf (gethash "entities" ht) (coerce (nreverse entities) 'vector))
-      ht)))
-
-
 ;;; NOTE: /conclusions lives in neomycin/bridge.lisp, not here. It reports a
 ;;; DIFFERENTIAL read from candidate-set answers, which is domain knowledge -- the
 ;;; substrate bridge has no business knowing what an organism is, and cannot reference
@@ -353,47 +270,10 @@ pattern.  Cross-pattern variable consistency is not checked here."
         (setf (gethash "note" ht) (getf prov :note)))
       ht)))
 
-(defun frame-composition-string (rec)
-  "The narratable summary of a firing under a shared frame.
-
-   Deliberately NOT phrased as arithmetic on one hypothesis. Under a frame a firing
-   commits mass to a SET, and what happens to any individual member is a consequence
-   of combining that with everything else in the pool -- not of a multiplication this
-   firing performed. Saying 'X went from 0.4 to 0.76' would be a fiction here; saying
-   what was committed to which set, and how much conflict resulted, is what actually
-   occurred."
-  (let ((k (lisa:derivation-record-conflict rec)))
-    (format nil "~{~A~^, and ~}~@[; pool conflict after this firing ~,3F~]"
-            (mapcar (lambda (c) (claim-phrase (car c) (cdr c)))
-                    (lisa:derivation-record-claims rec))
-            k)))
-
-(defun claim-phrase (mask mass)
-  "One claim, in words. A rule may state several -- red pigment means Serratia, and
-   means none of these five -- so each is phrased separately and they are joined."
-  (let* ((members (belief:mask->elements belief:*frame* mask))
-         (n (length members))
-         (frame-size (belief:frame-size belief:*frame*))
-         ;; A claim naming most of the frame is an EXCLUSION; saying which few are out
-         ;; is far more legible than listing the fourteen that are in.
-         (excluded (belief:mask->elements
-                    belief:*frame* (belief:mask-complement belief:*frame* mask))))
-    (cond
-      ((and (> n (/ frame-size 2)) excluded)
-       (format nil "committed ~,3F against {~{~A~^, ~}}"
-               mass (mapcar #'element-name excluded)))
-      ((<= n 4)
-       (format nil "committed ~,3F to {~{~A~^, ~}}" mass (mapcar #'element-name members)))
-      (t
-       (format nil "committed ~,3F to a set of ~D {~{~A~^, ~}, ...}"
-               mass n (mapcar #'element-name (subseq members 0 3)))))))
-
 (defun composition-string (rec)
   "A plain-language, algebra-neutral statement of this firing's arithmetic, built
    from the actual recorded numbers (reduced to scalars). The structured belief
    fields keep the full interval; this is the narratable summary."
-  (when (and (lisa:derivation-record-claims rec) belief:*frame*)
-    (return-from composition-string (frame-composition-string rec)))
   (let* ((rule-belief (lisa:derivation-record-rule-belief rec))
          (before (lisa:derivation-record-belief-before rec))
          (after (belief-scalar (lisa:derivation-record-belief-after rec)))
@@ -450,23 +330,6 @@ pattern.  Cross-pattern variable consistency is not checked here."
     ;; before/after pair cannot say which set. These three fields carry what the
     ;; narration otherwise could not state: what was supported, how strongly, and how
     ;; much the pool disagreed with itself afterwards.
-    (let ((claims (lisa:derivation-record-claims rec)))
-      (when (and claims belief:*frame*)
-        ;; A rule may state several claims at different granularities, so this is a
-        ;; list even when it has one entry -- a reader should never have to branch on
-        ;; how many an author happened to write.
-        (setf (gethash "claims" ht)
-              (coerce (mapcar (lambda (c)
-                                (let ((h (make-hash-table :test #'equal)))
-                                  (setf (gethash "supports" h) (mask->names (car c)))
-                                  (setf (gethash "mass" h) (cdr c))
-                                  h))
-                              claims)
-                      'vector))
-        (let ((k (lisa:derivation-record-conflict rec)))
-          (when k (setf (gethash "conflict_after" ht) k)))))
-    (setf (gethash "premises" ht)
-          (coerce (mapcar #'premise->json (lisa:derivation-record-premises rec)) 'vector))
     (let ((prov (and rule (provenance->json (lisa:rule-provenance rule)))))
       (when prov
         (setf (gethash "provenance" ht) prov)))
@@ -539,16 +402,7 @@ pattern.  Cross-pattern variable consistency is not checked here."
                  (lisa:get-rule-list (lisa:inference-engine))))
 
 (defun rule-kind (rule)
-  "What a rule does to belief: supports hypotheses, excludes some, or BOTH.
-
-   `both` is not a fudge -- it is what a discriminating test actually does, and what
-   the corpus could not express until a rule could state several claims. The older
-   single-belief form can only be one or the other, because a scalar has one sign."
-  (let ((confirming (lisa:confirming-rule-p rule))
-        (disconfirming (lisa:disconfirming-rule-p rule)))
-    (cond ((and confirming disconfirming) "both")
-          (disconfirming "disconfirming")
-          (t "confirming"))))
+  (if (lisa:disconfirming-rule-p rule) "disconfirming" "confirming"))
 
 (defun rule-chained-from (rule)
   "The organism-class RULE refines from, or NIL if it reads raw evidence. This is
@@ -602,27 +456,6 @@ pattern.  Cross-pattern variable consistency is not checked here."
       (when targets
         (setf (gethash "targets" ht)
               (coerce (mapcar #'value-name targets) 'vector))))
-    ;; Every rule's CLAIMS: what its evidence commits belief to, and how strongly.
-    ;; A list even for a single-claim rule, so a reader never branches on how many the
-    ;; author happened to write. `source` separates a DECLARED claim from one inferred
-    ;; by fallback -- the distinction slice D's focal-width audit turns on, which the
-    ;; LLM should not have to guess. Reported only when a frame is declared, because
-    ;; only then does the engine act on it.
-    (when belief:*frame*
-      (let ((claims (ignore-errors (lisa:rule-claims rule belief:*frame*))))
-        (when claims
-          (setf (gethash "claims" ht)
-                (coerce
-                 (mapcar (lambda (c)
-                           (let ((h (make-hash-table :test #'equal)))
-                             (setf (gethash "supports" h) (mask->names (lisa:claim-mask c)))
-                             (setf (gethash "size" h) (belief:mask-size (lisa:claim-mask c)))
-                             (setf (gethash "mass" h) (lisa:claim-mass c))
-                             (setf (gethash "source" h)
-                                   (string-downcase (symbol-name (lisa:claim-kind c))))
-                             h))
-                         claims)
-                 'vector)))))
     (let ((prov (provenance->json (lisa:rule-provenance rule))))
       (when prov
         (setf (gethash "provenance" ht) prov)))
