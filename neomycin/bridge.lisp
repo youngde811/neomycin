@@ -166,14 +166,15 @@
                (format nil "Every answer admits ~A." name))
               (t
                (format nil "~A answer~P admit~A ~A, and together they narrow to {~{~A~^, ~}}. ~
-                            ~R other~P name~A organisms ~A is not among, which is what costs ~
+                            ~A other~P name~A organisms ~A is not among, which is what costs ~
                             it plausibility -- no rule argues against ~A."
                        (string-capitalize (format nil "~R" (length admitting)) :end 1)
                        (length admitting)
                        (if (= 1 (length admitting)) "s" "")
                        name
                        (mapcar #'organism-name intersection)
-                       (length excluding) (length excluding)
+                       (string-capitalize (format nil "~R" (length excluding)) :end 1)
+                       (length excluding)
                        (if (= 1 (length excluding)) "s" "")
                        name name))))))
 
