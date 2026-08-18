@@ -49,7 +49,7 @@
 
 (asdf:defsystem lisa
   :name "Lisa"
-  :version "4.2.0"
+  :version "4.3.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -81,9 +81,14 @@
        ;; frame) rather than the dichotomous {H, not-H} frame per hypothesis that
        ;; dempster-shafer.lisp implements. Algebra only; see
        ;; docs/shared-frame-design.md.
-       (:module frame
+       ;; Dempster-Shafer over an OPEN frame: answers are SETS of hypotheses, they
+       ;; combine by intersection, and Theta is symbolic so nothing enumerates the
+       ;; universe. Algebra only -- knows nothing of rules or facts.
+       (:module candidates
         :components
-        ((:file "frame"))))
+        ((:file "candidates")
+         (:file "system"))
+        :serial t))
       :serial t)
      (:module reflect
       :components

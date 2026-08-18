@@ -37,4 +37,8 @@
    #:json-response
    #:error-response
    #:read-json-body
-   #:belief->json-value))
+   #:belief->json-value
+   ;; Rendering a rule's :provenance is a Lisa concern -- the property is an engine
+   ;; feature and its shape is domain-neutral -- so the renderer is shared rather
+   ;; than reimplemented by every knowledge base that wants to cite its rules.
+   #:provenance->json))

@@ -1,7 +1,8 @@
 # neomycin (research fork of Lisa)
 
 > **This repo is `neomycin`** — a research reconstruction of MYCIN/EMYCIN,
-> forked from Lisa 4.2.0 (full history preserved). See `README.md`. **Research
+> forked from Lisa 4.2.0 (full history preserved; the engine here is now 4.3.0).
+> See `README.md`. **Research
 > only; NOT FOR CLINICAL USE.** This is a *substantive* fork: the `lisa` engine
 > is intentionally *not* renamed and is kept close to upstream where that costs
 > nothing, but **engine-level modifications to better serve neomycin are fair
@@ -48,36 +49,42 @@ neomycin — don't load it over the neomycin rulebase.
 
 ### Choosing a belief system
 
-The bridge honors `LISA_BELIEF_SYSTEM` at startup. **Dempster-Shafer over a
-SHARED FRAME of discernment is the default.** Three systems ship:
+**Dempster-Shafer over an OPEN frame is the default**, and it is what the rulebase is
+written against:
 
 ```bash
-LISA_BELIEF_SYSTEM=frame sbcl ...  # DS on a shared frame (DEFAULT)
-LISA_BELIEF_SYSTEM=ds sbcl ...     # DS on a per-hypothesis {H, ¬H} frame (Barnett)
-LISA_BELIEF_SYSTEM=cf sbcl ...     # certainty factors (Shortliffe-Buchanan)
+LISA_BELIEF_SYSTEM=candidates sbcl ...  # DS over an open frame (DEFAULT)
+LISA_BELIEF_SYSTEM=ds sbcl ...          # DS per hypothesis (Barnett)
+LISA_BELIEF_SYSTEM=cf sbcl ...          # certainty factors
 ```
 
-**Why the frame is the default.** Under the Barnett simplification each organism
-carries its own two-element frame, so two organisms' beliefs never interact:
-culture-1 used to report pseudomonas 0.76 **and** klebsiella 0.40 for *one*
-organism — mutually exclusive hypotheses summing to 1.16 — and nothing noticed.
-The shared frame keeps one mass function per organism entity, so a rule
-contributes mass to a **subset** of the frame, evidence for one organism
-constrains the others arithmetically, mass is conserved, and an organism no rule
-mentions still gets a plausibility. `ds` is retained for comparison, not as a
-fallback. Design: `docs/shared-frame-design.md`; measurements:
-`docs/shared-frame-phase0-results.md`; the focal-set audit:
-`docs/slice-d-focal-width.md`.
+**`ds` and `cf` are Lisa substrate, not neomycin options.** They remain because Lisa's
+own examples use them (`examples/mycin.lisp`, `examples/cf.lisp`) and its suite tests
+them, but neomycin's corpus has no rules they can reason over: a candidate-set answer
+is a SET, and neither has a set algebra. The **declared-frame** system of v0.9-v0.10
+was neomycin-specific and has been deleted outright. The three-algebra comparison the
+fork maintained through v0.10.0 is reproducible on the **v0.10.0 tag** and not after
+it.
 
-The frame itself is declared once, with `deframe` in `neomycin/rules/context.lisp`:
-17 leaf identities, 4 organism-class subsets, 2 premise-licensed subsets, and the
-`:other-organism` catch-all that keeps `Bel`/`Pl` honest about a corpus that does
-not exhaust clinical microbiology.
+**How it works.** Every rule states an ANSWER — the set of organisms its evidence
+narrows the question to — and asserts it as a `candidates` fact with a belief.
+Nothing accumulates during inference; `neomycin:consensus` combines those answers by
+intersection when a client reads working memory. Θ is never enumerated, so nothing
+declares a frame and nothing has to be kept in step with the rulebase.
 
-Per-session overrides ride on `POST /reset` with body `{"belief_system":
-"frame" | "ds" | "cf"}`. `/conclusions` echoes the active system and emits
-`{bel, pl, ignorance}` under all three; under `frame` it adds a `frame` block
-(see the endpoint table).
+**Nothing is excluded by being named.** There are no ruling-out rules and no negative
+beliefs anywhere in the corpus. `{pyogenes, agalactiae}` intersected with
+`{pneumoniae}` is empty, and that emptiness *is* the exclusion.
+
+**A genus is a set.** There is no `organism-class`: asking "is this a
+staphylococcus?" is asking about `{aureus, epidermidis, saprophyticus}`, which the
+algebra answers directly. Nothing chains and no belief is a product of two others.
+
+**Same-conclusion rules reinforce, unless one subsumes the other.** Two rules bringing
+distinct evidence to one answer combine; a rule whose premises are a strict subset of
+another's conditions on nothing extra and is dropped in favour of the specific one.
+That is production-rule specificity applied to belief. Design:
+`docs/narrows-to-promotion-sketch.md`.
 
 ## Project Structure
 
@@ -86,28 +93,25 @@ Per-session overrides ride on `POST /reset` with body `{"belief_system":
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rules/              — THE canonical MYCIN rulebase: 50 rules, split by cluster (was a
-                        single rulebase.lisp through v0.5.0). 6 one-hop leaves, 5 tier-1
-                        organism-class rules, 19 tier-2 chained species, 5 host-factor
-                        modifiers, 16 disconfirming (32% — of which 13 are biochemical
-                        cross-disconfirmation among siblings). 17 leaf identities across
-                        FOUR organism-classes / three chained clusters. A class is never a
-                        leaf identity; species chain off the derived class
-    context.lisp      — context tree, 31 clinical params, conclusion classes. LOADS FIRST
-    identity-gram-neg.lisp     — 5 one-hop rules (pseudomonas, bacteroides: no family to
-                                 refine from)
-    chain-enterobacteriaceae.lisp — 9 rules: class + E. coli / Klebsiella / Salmonella /
-                                 Enterobacter / Serratia / Proteus
-    chain-gram-pos.lisp — 15 rules: the staphylococcus / streptococcus / enterococcus
-                                 genus classes + their species (S. aureus, S. epidermidis,
-                                 S. saprophyticus, S. pneumoniae, S. pyogenes,
-                                 S. agalactiae, viridans, E. faecalis, E. faecium)
-    host-factors.lisp   — 5 patient-level belief modifiers (neutropenia, prosthetic
-                                 material, IV drug use, neonate, urinary source)
-    disconfirming.lisp  — all 16 EXCLUDING rules, every cluster. Each states a
-                        `:claims ((mass :excludes (...)))` — no negative beliefs
-                        remain anywhere in the corpus
+  rules/              — THE canonical rulebase: 44 rules, every one CONFIRMING. Each
+                        states the SET its evidence narrows the answer to and asserts it
+                        as a `candidates` fact. No ruling-out rules, no negative beliefs,
+                        no organism-class, no declared frame
+    context.lisp      — context tree, 31 clinical params, the `candidates` answer class.
+                        LOADS FIRST
+    candidates-gram-pos.lisp — 23 rules: the staphylococci, streptococci and enterococci,
+                        their bench discriminators and their host factors
+    candidates-gram-neg.lisp — 21 rules: the Enterobacteriaceae, Pseudomonas and
+                        Bacteroides, the biochemical discriminators, and the two Gram
+                        stain answers
     conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/2/3/4/5/multi drivers
+  package.lisp        — the :neomycin package
+  consensus.lisp      — the READ that turns answers into a differential: combines them
+                        by intersection and applies rule SPECIFICITY (a rule whose
+                        premises are a strict subset of another's is dropped in favour
+                        of the specific one)
+  bridge.lisp         — /conclusions. Domain knowledge, so it lives here rather than in
+                        src/llm/bridge/, which loads first and knows no organisms
   therapy/            — therapy-recommendation phase (own :neomycin-therapy package, nick :therapy)
     package.lisp      — package definition + exports
     protocol.lisp     — pluggable solver protocol, recommendation structs, policy dials
@@ -170,7 +174,8 @@ examples/
 bin/
   test-culture-1.sh   — end-to-end identification bridge test (curl); run-mycin.sh is a legacy alias
   test-therapy.sh     — end-to-end therapy bridge test (curl)
-  test-why.sh         — end-to-end WHY/HOW explanation bridge test (curl): /why for a chained species
+  test-why.sh         — end-to-end WHY/HOW explanation bridge test (curl): /why for an admitted
+                        organism, a reinforced one, and one no rule named. ASSERTS (exits non-zero)
   test-rules.sh       — end-to-end rule-catalogue bridge test (curl): /rules corpus summary, one
                         cluster, one rule in full, and every ruling-out rule's targets
 ```
@@ -185,8 +190,8 @@ bin/
 | `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
-| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its belief, kind, conclusions, premises, `chained_from`, ruling-out `targets`, `:provenance`, and (when a frame is declared) its `focal_set` — `supports` members, `size`, `mass`, and a `source` of `supports`/`opposes`/`asserted`/`ruling-out` distinguishing a declared focal set from a fallback; plus a corpus `summary` (counts, organism-classes, the `clusters` map, every identity). Filters (ANDed): `?name=`, `?kind=confirming\|disconfirming`, `?concludes=`, `?premises=`, `?cluster=`. Needs no inference — it describes the corpus, not working memory |
-| `/why` | GET/POST | Authoritative belief explanation for a concluded organism (`?organism=` or `{organism}`): the engine-recorded derivation — each firing's composition, recursive chained premises (organism-class → species), and the rule's two-axis `:provenance` (origin + verified `evidence` citations + `belief_basis`). Under the frame each firing also reports `supports` (the frame subset it committed mass to), `focal_mass`, and `conflict_after`, and its composition states what actually happened — *"committed 0.500 to {klebsiella}; pool conflict after this firing 0.300"* — rather than a multiplication the frame never performs |
+| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, and the distribution of `resolutions`. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
+| `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict`, and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
 | `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Echoes `solver`, `gate`, `objective` |
 | `/reset` | POST | Clear working memory and entity registry |
 
@@ -197,23 +202,15 @@ bin/
 ./bin/test-culture-1.sh     # identification: culture-1 → pseudomonas + klebsiella
 ./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen, plus the objective dial
                             #   NB: bin/*.sh are NOT part of asdf:test-system and drift silently
-./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (composition arithmetic + citations)
-./bin/test-rules.sh         # catalogue: /rules corpus shape + the staphylococcus cluster (no inference needed)
+./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (the argument + citations)
+./bin/test-rules.sh         # catalogue: /rules corpus shape + ?names= and ?name= (no inference needed)
 ```
 
-Expected (identification, under the default shared-frame system): culture-1 produces
-pseudomonas `[0.429, 0.714]` and klebsiella `[0.286, 0.571]`, with `K = 0.30` of the
-mass renormalized away as conflict and `0.229` left on the eight-member
-aerobic-gram-negative-rod set — "one of these, the evidence does not say which".
-Sixteen organisms no rule mentions are squeezed below `pl = 1.0` without any rule
-arguing against them.
-
-Enterobacteriaceae is an organism-*class*, so it does not appear in `/conclusions`
-(which reports organism-identity facts only), but it projects as a **subset** of the
-frame: `Bel` is the mass settled inside the family, here `[0.286, 0.571]`.
-
-Under `LISA_BELIEF_SYSTEM=ds` the same scenario still gives the old pseudomonas 0.76
-/ klebsiella 0.40, which is the comparison the Barnett system is retained for.
+Expected (identification): culture-1 gives pseudomonas `[0.613, 0.806]` and klebsiella
+`[0.194, 0.387]`, with `K = 0.38` of the belief renormalized away as conflict. A further
+slice sits on the eight-member aerobic-gram-negative-rod SET without naming a member,
+which is often the honest headline. `Pl` is answerable for an organism no rule mentioned
+— it is the residual ignorance — including organisms the corpus does not model at all.
 
 ## Release check — the layers must agree
 
@@ -253,10 +250,10 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1752 assertions / 257 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~965 assertions / 146 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
-malformed-input edge cases; **each of the 50 rules fired in isolation**; the composition
+malformed-input edge cases; the composition
 law (species belief = class belief × rule belief) stated once per chained cluster **for
 the per-hypothesis systems only** — it deliberately does not hold under the frame, where
 the class *corroborates* the species rather than discounting it (decision D1); the frame
@@ -303,8 +300,8 @@ Identification and therapy both run end to end:
 
 - **Phase 1 — HTTP Bridge**: Hunchentoot server exposing the inference engine as REST endpoints (assert-fact, run-inference, conclusions, rule-trace, partial-matches, why, rules, reset) plus the therapy endpoint (recommend-therapy). Belief-system-aware: startup-configurable via `LISA_BELIEF_SYSTEM` and per-session overridable via `/reset`.
 - **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt carrying the MYCIN clinical ontology and the corpus's *shape* (the rulebase itself is queried via `describe_rules`, not transcribed — see "Rule catalogue" below), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
-- **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — each rule's `claims` (what it supports or excludes, and how strongly), premises, ruling-out targets, provenance, and the cluster map — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (chaining, class-is-never-a-leaf, that rivals compete for one pool of belief, that every claim carries a positive mass with direction in the verb, the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts. Design: `docs/rule-catalogue-design.md`.
-- **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records each conclusion's belief **derivation** at fire time (`derivation-table`). `/why` composes both into an authoritative, recursive explanation — composition arithmetic + citations — so the LLM narrates from queried fact, not memory. Design: `docs/why-how-provenance-design.md`.
+- **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — each rule's answer, resolution, premises and provenance, plus a summary of which organisms the corpus can name at all — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (a rule states the SET its evidence narrows to; exclusion is what remains after intersection, never authored; a genus IS a set; the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts. Design: `docs/rule-catalogue-design.md`.
+- **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records at fire time which rules produced each answer. `/why` composes both into the ARGUMENT — the answers given, who gave them, which still admit the organism and which do not, and what they intersect to — so the LLM narrates from queried fact, not memory. There is no arithmetic to quote because nothing composes one belief through another. Design: `docs/why-how-provenance-design.md`.
 - **Therapy phase**: a deterministic **exact** set-cover solver (`neomycin/therapy/`) picks a minimum covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug. **The objective is the third policy dial** (`*objective*`, alongside the belief system and the coverage gate): `:lexicographic` (default — drug count, then susceptibility × belief; this is *not* stewardship and has no notion of spectrum) or `:spectrum-sparing` (narrowest-first over declared `:spectrum` tiers). Turning it changes the recommendation and the narration must state the trade — narrower agents have lower coverage floors, and breadth is blind to WHO AWaRe reserve status. Design + the measured divergence table: `docs/exact-solver-design.md` §§1, 1.1, 3.6.
 
 ### Running the Clinician Driver

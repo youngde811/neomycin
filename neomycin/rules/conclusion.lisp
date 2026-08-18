@@ -30,6 +30,10 @@
 
 ;;; --- Conclusion rule ---
 (defrule conclusion (:salience -10)
-  (?identity (organism-identity (value ?value)))
+  (?answer (candidates (value ?set)))
   =>
-  (format t "Identity: ~A (~,3F)~%" ?value (belief:belief-factor ?identity)))
+  ;; An ANSWER, not an identity: the set this evidence narrowed the question to. What
+  ;; each ORGANISM ends up believed at is a property of all the answers together, and
+  ;; is read with NEOMYCIN:DIFFERENTIAL rather than printed here -- a single answer
+  ;; cannot know it.
+  (format t "Answer: ~{~(~a~)~^, ~} (~,3F)~%" ?set (belief:belief-factor ?answer)))

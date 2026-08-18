@@ -92,12 +92,14 @@
 
 (deftest exact-belief-gate-drops-subthreshold ()
   ;; Phase A is shared, so the gate must behave identically under the exact solver.
-  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
-    (therapy:add-drug kb :d :dose "1g")
-    (therapy:add-sensitivity kb :loud :d 0.9)
-    (therapy:add-sensitivity kb :faint :d 0.9)
-    (let ((rec (solve-with :exact '((:loud . 0.7) (:faint . 0.1)) kb)))
-      (is (equal '(:loud) (treated rec)) "sub-threshold organism is not an item to treat"))))
+  ;; Threshold bound explicitly -- see the note on the greedy twin in therapy-tests.lisp.
+  (let ((therapy:*coverage-threshold* 0.2))
+    (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+      (therapy:add-drug kb :d :dose "1g")
+      (therapy:add-sensitivity kb :loud :d 0.9)
+      (therapy:add-sensitivity kb :faint :d 0.9)
+      (let ((rec (solve-with :exact '((:loud . 0.7) (:faint . 0.1)) kb)))
+        (is (equal '(:loud) (treated rec)) "sub-threshold organism is not an item to treat")))))
 
 (deftest exact-deterministic ()
   ;; Same inputs, same answer, twice -- for both solvers. An exhaustive search that

@@ -114,53 +114,26 @@
 (defun prompt-contains-p (needle)
   (search needle (system-prompt-text) :test #'char-equal))
 
-(deftest prompt-does-not-claim-the-composition-law ()
-  ;; Under the frame a chained rule contributes unconditional support that the class
-  ;; premise GATES; class and species evidence then COMBINE, so the class corroborates
-  ;; the species rather than discounting it (decision D1). "class belief x rule belief"
-  ;; describes a multiplication the engine no longer performs.
-  (dolist (claim '("class belief × rule belief" "class belief * rule belief"
-                   "composes through its class" "0.64 = 0.8 × 0.8"))
+(deftest prompt-does-not-claim-a-mechanism-the-engine-lacks ()
+  ;; Every phrase here was TRUE of an earlier representation and is now false. They
+  ;; are the most natural things for a future edit to reintroduce, which is why they
+  ;; are guarded negatively rather than merely corrected once.
+  (dolist (claim '("class belief × rule belief"      ; composition law -- nothing chains
+                   "class belief * rule belief"
+                   "composes through its class"
+                   "below 1.0 means a ruling-out rule fired"  ; nothing rules out
+                   "negative belief"))                        ; no rule carries a sign
     (is (not (prompt-contains-p claim))
-        (format nil "system-prompt.md still claims the composition law: ~S" claim))))
+        (format nil "system-prompt.md still describes ~S, which the engine no longer does"
+                claim))))
 
-(deftest prompt-does-not-equate-low-plausibility-with-ruling-out ()
-  ;; The inference "pl < 1.0 therefore a ruling-out rule fired" was valid only while
-  ;; each hypothesis had its own frame. Now most squeezing comes from RIVAL hypotheses
-  ;; taking up belief, with no rule arguing against anything.
-  (is (not (prompt-contains-p "below 1.0 means a ruling-out rule fired"))
-      "system-prompt.md still equates a lowered plausibility with a ruling-out rule"))
-
-(deftest prompt-explains-the-frame-payload ()
-  ;; The positive counterpart: the frame block carries answers the per-organism list
-  ;; cannot give, and the prompt has to say so or the LLM will not look.
-  (dolist (topic '("set_valued" "other-organism" "conflict"))
+(deftest prompt-explains-answers-and-intersection ()
+  ;; The positive counterpart: the LLM has to know that a rule states a SET, that
+  ;; exclusion is what remains after intersecting, and that a genus IS a set -- none
+  ;; of which it can infer from a payload it was not told to read.
+  (dolist (topic '("answer" "set_valued" "intersect" "conflict"))
     (is (prompt-contains-p topic)
-        (format nil "system-prompt.md does not mention the frame payload's ~A" topic))))
-
-(deftest prompt-does-not-describe-negative-beliefs ()
-  ;; The corpus has none left: every claim carries a positive mass and direction is
-  ;; the verb (:supports / :excludes). A prompt telling the LLM to look for a negative
-  ;; belief would send it hunting for something that no longer exists in any payload.
-  (dolist (claim '("negative belief" "negative :belief" "carry a negative"))
-    (is (not (prompt-contains-p claim))
-        (format nil "system-prompt.md still describes ~S" claim))))
-
-(deftest prompt-explains-claims ()
-  ;; The replacement has to be present, not merely the old text absent.
-  (dolist (topic '("claims" "excludes" "supports"))
-    (is (prompt-contains-p topic)
-        (format nil "system-prompt.md does not mention ~A" topic))))
-
-;;; ------------------------------------------------------------------
-;;; The TOOL SCHEMAS are a second thing the LLM reads, and they drifted.
-;;;
-;;; system-prompt.md has been guarded for a while; tools.json never was. When the
-;;; payloads changed shape, three tool descriptions silently went on describing the
-;;; old ones -- promising a `belief` that is now absent, a `kind` that had gained a
-;;; value, and a composition string stating a multiplication the engine no longer
-;;; performs. The suite was green throughout. These guards close that gap.
-;;; ------------------------------------------------------------------
+        (format nil "system-prompt.md does not explain ~A" topic))))
 
 (defun tools-json-text ()
   (with-open-file (in (asdf:system-relative-pathname
@@ -172,29 +145,25 @@
 (defun tools-contains-p (needle)
   (search needle (tools-json-text) :test #'char-equal))
 
-(deftest tools-describe-the-frame-payload ()
-  ;; get_conclusions returns the frame block; if the schema does not say so, the model
-  ;; has no reason to look at it, and the most informative half of the payload is dead
-  ;; weight.
-  (dolist (topic '("set_valued" "other-organism" "conflict" "hypotheses"))
+(deftest tools-describe-the-differential-payload ()
+  ;; The schemas are a SECOND thing the LLM reads, and they drifted once already while
+  ;; the suite stayed green. If a schema does not mention a field, the model has no
+  ;; reason to look at it and the most informative half of the payload is dead weight.
+  (dolist (topic '("set_valued" "conflict" "hypotheses"))
     (is (tools-contains-p topic)
-        (format nil "tools.json does not mention the frame payload's ~A" topic))))
+        (format nil "tools.json does not mention ~A" topic)))
+  ;; The catch-all element is gone with the open frame -- an unmentioned organism is
+  ;; not a listed hypothesis, it is residual ignorance. The schema has to say so, or
+  ;; the model will read absence from the differential as exclusion.
+  (is (tools-contains-p "residual ignorance")
+      "tools.json does not explain what an unmentioned organism's plausibility means")
+  (is (tools-contains-p "does not model every organism")
+      "tools.json does not warn that the corpus is not exhaustive"))
 
-(deftest tools-describe-claims-not-negative-beliefs ()
-  ;; A rule's strength is a list of positively-massed claims. A schema promising a
-  ;; single `belief` would have the model quote NIL for all 16 converted rules.
-  (is (tools-contains-p "claims") "tools.json describes a rule's claims")
-  (is (tools-contains-p "both")
-      "and the third `kind` value, for a rule that supports and excludes at once")
-  (is (tools-contains-p "POSITIVE")
-      "and says masses are positive, direction being the verb"))
-
-(deftest tools-do-not-state-the-old-composition ()
-  ;; The stalest thing in the file: an example of arithmetic the engine stopped doing.
-  (dolist (claim '("composed with the 0.500 rule"
-                   "confirming | disconfirming)"))
-    (is (not (tools-contains-p claim))
-        (format nil "tools.json still states ~S" claim))))
+(deftest tools-describe-answers-not-exclusions ()
+  (is (tools-contains-p "answer") "tools.json describes a rule's answer")
+  (is (not (tools-contains-p "confirming | disconfirming)"))
+      "and does not offer a rule KIND the corpus no longer has"))
 
 (deftest tools-json-is-well-formed-and-covers-the-endpoints ()
   ;; Cheap structural check: every tool the prompt tells the model to call must exist.

@@ -26,13 +26,6 @@
 
 (defvar *active-rule* nil)
 
-;;; Set when a firing has already contributed its claims to an evidence pool, so the
-;;; fire-time path does not count them again. Bound per firing by FIRE-RULE.
-;;;
-;;; Declared HERE rather than beside its users in rete.lisp because rule.lisp compiles
-;;; first: without the special declaration in scope, FIRE-RULE's LET would bind it
-;;; lexically and the flag would never be seen.
-(defvar *frame-evidence-contributed* nil)
 (defvar *active-engine* nil)
 (defvar *active-tokens* nil)
 (defvar *active-context* nil)
