@@ -92,13 +92,13 @@
   },
   {
     "name": "explain_conclusion",
-    "description": "Retrieve the AUTHORITATIVE, engine-recorded account of why an organism is where it is, and on what published authority. Returns the rules whose ANSWERS admitted it -- under this corpus nothing argues against anything, so the honest account of why a hypothesis survives is which evidence kept admitting it -- each with its own belief and its `provenance`: `origin` (paip-subset | neomycin-extrapolation), verified literature `evidence` (NCBI Bookshelf / CDC citations), and a `belief_basis`. NOTHING CHAINS, so there is no nested derivation to walk and no arithmetic composing one belief through another: the whole path from bench finding to species call is which answers were given and how they intersect. Explaining E. coli means saying that lactose fermentation answered 'one of four', indole production answered 'one of two', and only E. coli is in both. Call this whenever the clinician asks WHY or HOW, or BEFORE citing a source -- then QUOTE what is returned rather than reconstructing it. IMPORTANT: `belief_basis` is 'illustrative' -- the certainty NUMBER is a schematic teaching value, while `evidence` verifies the clinical ASSOCIATION; never present the number itself as sourced.",
+    "description": "Retrieve the AUTHORITATIVE, engine-recorded account of why an organism stands where it does. Returns the `argument`: every answer given about this culture, each with the set it `narrows_to`, its belief, the `rules` that said it (with verified `provenance` -- origin, literature `evidence`, `belief_basis`, and a clinical note), and an `admits` flag saying whether that answer still leaves this organism standing. ANSWERS THAT DO NOT ADMIT IT ARE RETURNED TOO, and they are the point: nothing in this corpus argues against anything, so an organism loses plausibility only because other evidence named something else. Also returns `intersection` (what the admitting answers leave when combined), `bel`/`pl`, `conflict`, and a plain-language `narrative` you may quote. NOTHING CHAINS: there is no nested derivation and no arithmetic composing one belief through another. Never reconstruct this reasoning or recall a citation from memory -- call this and narrate what it returns.",
     "input_schema": {
       "type": "object",
       "properties": {
         "organism": {
           "type": "string",
-          "description": "The organism identity to explain, exactly as it appears in get_conclusions (e.g. 'klebsiella', 'e-coli', 'pseudomonas', 'serratia'). Must be a conclusion currently in working memory."
+          "description": "The organism to explain, exactly as it appears in get_conclusions (e.g. 'klebsiella'). An organism no rule has named returns 404 -- its plausibility is simply the residual ignorance."
         }
       },
       "required": [
@@ -108,33 +108,21 @@
   },
   {
     "name": "describe_rules",
-    "description": "Retrieve the AUTHORITATIVE catalogue of the diagnostic rulebase, read from the compiled rules themselves. Every rule is CONFIRMING: it states the ANSWER its evidence narrows the question to -- a SET of organisms -- with a positive belief. There are no ruling-out rules, no negative strengths, and no organism-class: a genus IS a set, so 'is this a staphylococcus' is a question about {aureus, epidermidis, saprophyticus} rather than about a separate fact. Per matching rule: its `answer` (the organisms it narrows to), its `belief`, the `premises` it requires with the values they must take, and its `provenance` (origin, verified literature `evidence`, `belief_basis`, and a clinical `note` giving the rule's basis and why it is weighted as it is). MORE EVIDENCE GIVES A SMALLER ANSWER: urease positive answers 'one of four', urease positive with swarming answers 'Proteus', and the second sits inside the first so they agree rather than compete. You do NOT hold the rulebase in memory: call this before stating any rule's answer, premises or citation, and whenever the clinician asks what the system knows or which test would best discriminate.",
+    "description": "Retrieve the AUTHORITATIVE catalogue of the diagnostic rulebase, read from the compiled rules themselves. Every rule is CONFIRMING: it states the ANSWER its evidence narrows the question to -- a SET of organisms -- with a positive belief. There are no ruling-out rules, no negative strengths, and no organism-class: a genus IS a set, so 'is this a staphylococcus' is a question about {aureus, epidermidis, saprophyticus} rather than about a separate fact. Per matching rule: its `narrows_to` (the organisms its evidence leaves standing), its `resolution` (how many that is -- 1 is a species call, more is an honest 'one of these'), its `belief`, the `premises` it requires with the values they must take, and its `provenance` (origin, verified literature `evidence`, `belief_basis`, and a clinical `note` giving the rule's basis and why it is weighted as it is). MORE EVIDENCE GIVES A SMALLER ANSWER: urease positive answers 'one of four', urease positive with swarming answers 'Proteus', and the second sits inside the first so they agree rather than compete. You do NOT hold the rulebase in memory: call this before stating any rule's answer, premises or citation, and whenever the clinician asks what the system knows or which test would best discriminate. The `summary` gives the corpus shape: how many rules, which organisms they can speak about at all, and the distribution of `resolutions`. An organism absent from `summary.organisms` is one the corpus cannot name -- say so plainly rather than reasoning about it.",
     "input_schema": {
       "type": "object",
       "properties": {
-        "cluster": {
+        "names": {
           "type": "string",
-          "description": "An organism-class name (e.g. 'staphylococcus', 'enterobacteriaceae'). Returns the whole cluster: the rule deriving the class, every rule refining a species off it, and every rule arguing for or against one of those species. The right query for 'what separates the staphylococci?' or 'which test next for this genus?'."
-        },
-        "concludes": {
-          "type": "string",
-          "description": "An organism identity or class (e.g. 'klebsiella'). Returns every rule that can conclude it — what would have to be true for this organism to be identified."
+          "description": "An organism (e.g. 'klebsiella'). Returns every rule whose answer ADMITS it -- what would have to be true for this organism to be identified, and which coarser answers still leave it standing. This is the query for 'why might this be Klebsiella?' and for 'which test next?'."
         },
         "premises": {
           "type": "string",
-          "description": "A value appearing as a premise (e.g. 'enterobacteriaceae'). Returns every rule that reads it — what can be refined once this is established."
-        },
-        "kind": {
-          "type": "string",
-          "description": "Restrict to confirming rules (positive belief, argue FOR a hypothesis) or disconfirming ones (negative belief, argue AGAINST it and cap plausibility below 1.0).",
-          "enum": [
-            "confirming",
-            "disconfirming"
-          ]
+          "description": "A value appearing as a premise (e.g. 'neg', 'lactose'). Returns every rule that reads it -- what this finding buys you."
         },
         "name": {
           "type": "string",
-          "description": "An exact rule name (e.g. 'staph-coagulase-pos-suggests-staph-aureus'), for when a trace, partial match, or explanation has already named a rule and you need its detail."
+          "description": "An exact rule name (e.g. 'burn-blood-gram-neg-rod-narrows-to-pseudomonas'), for when a trace, partial match, or explanation has already named a rule and you need its detail."
         }
       },
       "required": []

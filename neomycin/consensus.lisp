@@ -104,6 +104,47 @@
                   collect (list hypothesis bel pl))
           #'> :key #'second)))
 
+(defun answer-detail (fact)
+  "(SET BELIEF RULES) for one CANDIDATES fact -- an answer WITH its attribution.
+
+   ANSWER-OF gives the numbers; this gives the numbers and who said them, which is
+   what an explanation needs and what /why is built from."
+  (let ((a (answer-of fact)))
+    (list (car a) (cdr a) (surviving-rules (contributing-rules fact)))))
+
+(defun answer-details (organism)
+  "((SET BELIEF RULES) ...) -- every answer about ORGANISM, attributed."
+  (mapcar #'answer-detail (candidates-facts organism)))
+
+(defun entity-naming (hypothesis)
+  "The first entity in working memory some rule's answer admits HYPOTHESIS for.
+
+   A caller asking `why klebsiella' names a HYPOTHESIS, not an entity; in a
+   polymicrobial culture the entity it belongs to is a fact about working memory
+   rather than something the caller should have to know."
+  (find-if (lambda (organism)
+             (some (lambda (fact)
+                     (member hypothesis (lisa:get-slot-value fact 'lisa-user::value)))
+                   (candidates-facts organism)))
+           (organisms-with-answers)))
+
+(defun catalogue-rules ()
+  "Every knowledge-bearing rule in the loaded corpus -- the reporting and driver
+   rules that carry no belief are not part of the corpus a client asks about."
+  (remove-if-not #'lisa:knowledge-rule-p (lisa:get-rule-list (lisa:inference-engine))))
+
+(defun rule-answer (rule)
+  "The set of organisms RULE's evidence narrows to, or NIL if it asserts no answer.
+
+   The RHS asserts a quoted list, so what the introspection API hands back is
+   (QUOTE (...)); the quote is reader syntax on the way in and has no business
+   reaching a caller."
+  (loop for (class . value) in (lisa:rule-asserted-facts rule)
+        when (eq class 'lisa-user::candidates)
+          return (if (and (consp value) (eq (car value) 'quote))
+                     (second value)
+                     value)))
+
 (defun rules-behind (organism hypothesis)
   "The rules whose answers admit HYPOTHESIS -- what an explanation quotes.
 

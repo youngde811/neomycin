@@ -117,7 +117,8 @@
                      ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.
                      (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
-                     (:file "therapy-bridge-tests"))))))
+                     (:file "therapy-bridge-tests")
+                     (:file "bridge-payload-tests"))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
                (error "neomycin test suite reported failures"))))

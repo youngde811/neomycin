@@ -17,8 +17,13 @@
            #:surviving-rules
            #:answer-of
            #:answers-for
+           #:answer-detail
+           #:answer-details
            #:consensus
            #:differential
            #:rules-behind
+           #:entity-naming
+           #:catalogue-rules
+           #:rule-answer
            #:differential->json
            #:conclusions-payload))
