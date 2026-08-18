@@ -191,82 +191,119 @@
     (format t "~&projections:~%")
     (dolist (x ask)
       (format t "    ~30A bel=~,4F  pl=~,4F~%" x (bel m x) (pl m x)))
-    (format t "    ~30A bel=~,4F  pl=~,4F   <- never named by any rule~%"
-            :staphylococcus-aureus (bel m :staphylococcus-aureus)
-            (pl m :staphylococcus-aureus))
+    ;; Two probes for the scaling claim: an organism the corpus models but no rule
+    ;; in this case mentioned, and one the corpus does not model AT ALL. Both are
+    ;; answerable without anything enumerating a universe.
+    (let ((unmentioned (if (member :staphylococcus-aureus ask)
+                           :enterococcus-faecium :staphylococcus-aureus)))
+      (format t "    ~30A bel=~,4F  pl=~,4F   <- modelled, unmentioned here~%"
+              unmentioned (bel m unmentioned) (pl m unmentioned)))
     (format t "    ~30A bel=~,4F  pl=~,4F   <- not in the corpus at all~%"
             :acinetobacter-baumannii (bel m :acinetobacter-baumannii)
             (pl m :acinetobacter-baumannii))
     m))
 
+(defun assert-forms (&rest specs)
+  "Sugar: (CLASS SLOT VALUE ...) -> the lisa:assert forms, so the cases below read as
+   evidence rather than as ceremony."
+  (mapcar (lambda (spec)
+            (destructuring-bind (class &rest slots) spec
+              (list 'lisa:assert
+                    (cons (intern (string class) :lisa-user)
+                          (loop for (slot value) on slots by #'cddr
+                                collect (list (intern (string slot) :lisa-user)
+                                              (if (keywordp value)
+                                                  (intern (string value) :lisa-user)
+                                                  value)))))))
+          specs))
+
+(defun lineage (&rest extras)
+  (append (assert-forms '(patient id :p1)
+                        '(culture id :c1 patient :p1)
+                        '(organism id :o1 culture :c1))
+          (apply #'assert-forms extras)))
+
 (defun report ()
   (install-rules)
   (format t "~&~%################################################################~%")
-  (format t "SPIKE: confirming rules only, open frame, belief on the asserted fact~%")
-  (format t "No DEFRAME. No disconfirming rules. No empty RHS. No hidden pool.~%")
+  (format t "SPIKE 2: the FULL gram-positive cluster as narrows-to rules~%")
+  (format t "23 rules. No organism-class. No frame. No disconfirming rules.~%")
   (format t "################################################################~%")
 
-  ;; culture-4 -- THE TEST. Beta hemolysis + bacitracin-sensitive says pyogenes;
-  ;; the respiratory site says pneumoniae. Under the shipped corpus this needed
-  ;; beta-hemolysis-argues-against-non-beta-streptococci to push pneumoniae down.
-  ;; Here nothing argues against anything.
-  (run-case "culture-4: does pneumoniae fall with NO disconfirming rule?"
-            '((lisa:assert (lisa-user::patient (lisa-user::id lisa-user::p1)))
-              (lisa:assert (lisa-user::culture (lisa-user::id lisa-user::c1)
-                                               (lisa-user::patient lisa-user::p1)))
-              (lisa:assert (lisa-user::organism (lisa-user::id lisa-user::o1)
-                                                (lisa-user::culture lisa-user::c1)))
-              (lisa:assert (lisa-user::culture-site (lisa-user::value lisa-user::respiratory)
-                                                    (lisa-user::of lisa-user::c1)))
-              (lisa:assert (lisa-user::gram (lisa-user::value lisa-user::pos)
-                                            (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::morphology (lisa-user::value lisa-user::coccus)
-                                                  (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::growth-conformation (lisa-user::value lisa-user::chains)
-                                                           (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::hemolysis (lisa-user::value lisa-user::beta)
-                                                 (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::bacitracin (lisa-user::value lisa-user::sensitive)
-                                                  (lisa-user::of lisa-user::o1))))
+  ;; --- culture-3: chains in blood, compromised host, respiratory ------------
+  ;; Shipped v0.10.0: s. pneumoniae [0.4737, 0.6316], K = 0.5250.
+  (run-case "culture-3"
+            (lineage '(culture-site value :blood of :c1)
+                     '(infection-site value :respiratory of :p1)
+                     '(compromised-host value t of :p1)
+                     '(gram value :pos of :o1)
+                     '(morphology value :coccus of :o1)
+                     '(growth-conformation value :chains of :o1))
+            :ask '(:streptococcus-pneumoniae :streptococcus-pyogenes
+                   :enterococcus-faecalis))
+
+  ;; --- culture-4: THE case that needed a ruling-out rule --------------------
+  ;; Shipped v0.10.0: pyogenes [0.7640, 0.8989], pneumoniae [0.1011, 0.1348], K=0.7219.
+  (run-case "culture-4"
+            (lineage '(infection-site value :respiratory of :p1)
+                     '(gram value :pos of :o1)
+                     '(morphology value :coccus of :o1)
+                     '(growth-conformation value :chains of :o1)
+                     '(hemolysis value :beta of :o1)
+                     '(bacitracin value :sensitive of :o1))
             :ask '(:streptococcus-pyogenes :streptococcus-pneumoniae
                    :streptococcus-agalactiae :enterococcus-faecalis))
 
-  ;; culture-5 -- two rules read the SAME beta hemolysis and reach agalactiae.
-  ;; The cautious rule must count that observation once.
-  (run-case "culture-5: one observation, two rules -- counted once?"
-            '((lisa:assert (lisa-user::patient (lisa-user::id lisa-user::p1)))
-              (lisa:assert (lisa-user::culture (lisa-user::id lisa-user::c1)
-                                               (lisa-user::patient lisa-user::p1)))
-              (lisa:assert (lisa-user::organism (lisa-user::id lisa-user::o1)
-                                                (lisa-user::culture lisa-user::c1)))
-              (lisa:assert (lisa-user::age-group (lisa-user::value lisa-user::neonate)
-                                                 (lisa-user::of lisa-user::p1)))
-              (lisa:assert (lisa-user::gram (lisa-user::value lisa-user::pos)
-                                            (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::morphology (lisa-user::value lisa-user::coccus)
-                                                  (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::growth-conformation (lisa-user::value lisa-user::chains)
-                                                           (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::hemolysis (lisa-user::value lisa-user::beta)
-                                                 (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::bacitracin (lisa-user::value lisa-user::resistant)
-                                                  (lisa-user::of lisa-user::o1))))
+  ;; --- culture-5: two rules, one hemolysis finding --------------------------
+  ;; Shipped v0.10.0: s. agalactiae [0.7000, 1.0000], K = 0.
+  (run-case "culture-5"
+            (lineage '(age-group value :neonate of :p1)
+                     '(gram value :pos of :o1)
+                     '(morphology value :coccus of :o1)
+                     '(growth-conformation value :chains of :o1)
+                     '(hemolysis value :beta of :o1)
+                     '(bacitracin value :resistant of :o1))
             :ask '(:streptococcus-agalactiae :streptococcus-pyogenes
                    :streptococcus-pneumoniae))
 
-  ;; Only the stain: the honest answer is a SET, not a species.
-  (run-case "gram stain only: does it refuse to name a species?"
-            '((lisa:assert (lisa-user::patient (lisa-user::id lisa-user::p1)))
-              (lisa:assert (lisa-user::culture (lisa-user::id lisa-user::c1)
-                                               (lisa-user::patient lisa-user::p1)))
-              (lisa:assert (lisa-user::organism (lisa-user::id lisa-user::o1)
-                                                (lisa-user::culture lisa-user::c1)))
-              (lisa:assert (lisa-user::gram (lisa-user::value lisa-user::pos)
-                                            (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::morphology (lisa-user::value lisa-user::coccus)
-                                                  (lisa-user::of lisa-user::o1)))
-              (lisa:assert (lisa-user::growth-conformation (lisa-user::value lisa-user::chains)
-                                                           (lisa-user::of lisa-user::o1))))
-            :ask '(:streptococcus-pneumoniae :enterococcus-faecalis))
+  ;; --- the STAPH path, which the first spike never reached ------------------
+  ;; A prosthetic-joint infection: clumps, coagulase-negative, prosthetic material.
+  ;; Tests the merged 0.85 coagulase-negative rule against a context rule.
+  (run-case "staph: prosthetic joint, coagulase-negative"
+            (lineage '(gram value :pos of :o1)
+                     '(morphology value :coccus of :o1)
+                     '(growth-conformation value :clumps of :o1)
+                     '(coagulase value :negative of :o1)
+                     '(prosthetic-material value t of :p1))
+            :ask '(:staphylococcus-epidermidis :staphylococcus-saprophyticus
+                   :staphylococcus-aureus))
+
+  ;; Urinary isolate, coagulase-negative, novobiocin-resistant: two rules agreeing
+  ;; on saprophyticus from genuinely different evidence.
+  (run-case "staph: urinary, novobiocin-resistant"
+            (lineage '(gram value :pos of :o1)
+                     '(morphology value :coccus of :o1)
+                     '(growth-conformation value :clumps of :o1)
+                     '(coagulase value :negative of :o1)
+                     '(novobiocin value :resistant of :o1)
+                     '(infection-site value :urinary of :p1))
+            :ask '(:staphylococcus-saprophyticus :staphylococcus-epidermidis
+                   :staphylococcus-aureus))
+
+  ;; --- the ENTEROCOCCUS path, also unreached before ------------------------
+  (run-case "enterococcus: bile-esculin+, salt-tolerant, arabinose+"
+            (lineage '(culture-site value :blood of :c1)
+                     '(compromised-host value t of :p1)
+                     '(gram value :pos of :o1)
+                     '(morphology value :coccus of :o1)
+                     '(growth-conformation value :chains of :o1)
+                     '(catalase value :negative of :o1)
+                     '(bile-esculin value :positive of :o1)
+                     '(salt-tolerance value :tolerant of :o1)
+                     '(arabinose value :fermenter of :o1)
+                     '(sorbitol value :non-fermenter of :o1))
+            :ask '(:enterococcus-faecium :enterococcus-faecalis
+                   :streptococcus-pneumoniae))
+
   (format t "~&~%################################################################~%")
   (values))
