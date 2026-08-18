@@ -81,16 +81,23 @@
 
 (deftest therapy-belief-gate-drops-subthreshold ()
   ;; An organism below *coverage-threshold* is not an item to treat.
-  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
-    (therapy:with-greedy-solver
-      (therapy:add-drug kb :broad :dose "1g")
-      (therapy:add-sensitivity kb :pseudomonas :broad 0.9)
-      (therapy:add-sensitivity kb :klebsiella :broad 0.9)
-      (let* ((rec (therapy:recommend '((:pseudomonas . 0.7) (:klebsiella . 0.1)) kb '()))
-             (items (treated rec)))
-        (is (member :pseudomonas items) "above-threshold organism treated")
-        (is (not (member :klebsiella items)) "sub-threshold organism dropped from U")
-        (is (equal '(:broad) (regimen-drugs rec)) "one drug for the one item")))))
+  ;;
+  ;; The threshold is BOUND here rather than inherited. This test is about whether the
+  ;; gate excludes what sits under it -- not about where the dial happens to be set --
+  ;; and when the shipped default moved from 0.2 to 0.1 for v0.11 it silently redefined
+  ;; this fixture's 0.1 from "clearly below" to "exactly at". Stating the premise keeps
+  ;; a calibration decision from reading as a behavioural regression.
+  (let ((therapy:*coverage-threshold* 0.2))
+    (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+      (therapy:with-greedy-solver
+        (therapy:add-drug kb :broad :dose "1g")
+        (therapy:add-sensitivity kb :pseudomonas :broad 0.9)
+        (therapy:add-sensitivity kb :klebsiella :broad 0.9)
+        (let* ((rec (therapy:recommend '((:pseudomonas . 0.7) (:klebsiella . 0.1)) kb '()))
+               (items (treated rec)))
+          (is (member :pseudomonas items) "above-threshold organism treated")
+          (is (not (member :klebsiella items)) "sub-threshold organism dropped from U")
+          (is (equal '(:broad) (regimen-drugs rec)) "one drug for the one item"))))))
 
 (deftest therapy-contraindication-forces-alternative ()
   ;; The most-sensitive drug is contraindicated -> the alternative is chosen and
