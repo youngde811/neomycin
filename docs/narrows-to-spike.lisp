@@ -153,6 +153,69 @@
 ;;; 4. Combination as a READ over working memory
 ;;; ============================================================
 
+;;; ------------------------------------------------------------------
+;;; Same-conclusion rules: reinforce, or does one subsume the other?
+;;;
+;;; Measured over the 44 narrows-to rules: 17 pairs reach the same conclusion, and
+;;; ZERO of them share identical premises. Every pair brings distinct evidence, so
+;;; deduplicating by conclusion -- which is what the shipped v0.10.0 cautious rule
+;;; does -- always discards something real. That was an error on my part in phase 0.5:
+;;; I read "these rules share SOME premises" as "these rules are the same observation".
+;;;
+;;; Exactly ONE pair is different in kind. compromised+aerobic-gram-neg-rod (0.5) has
+;;; premises that are a STRICT SUBSET of hospital-acquired+compromised+aerobic-gram-
+;;; neg-rod (0.6). The specific rule fires whenever the general one does and already
+;;; accounts for the compromised host -- it is in its own premises. Combining them
+;;; asserts a confidence the author never stated, so the specific rule stands alone.
+;;;
+;;; This is production-rule SPECIFICITY, which Lisa's conflict resolution already
+;;; knows about, applied to belief rather than to firing order.
+;;; ------------------------------------------------------------------
+
+(defun rule-premise-signature (rule)
+  (sort (loop for c in (remove-duplicates (lisa:rule-premise-classes rule))
+              append (loop for v in (lisa:rule-premise-values rule c)
+                           collect (format nil "~(~a=~a~)" c v)))
+        #'string<))
+
+(defun subsumes-p (specific general)
+  "True when GENERAL's premises are a strict subset of SPECIFIC's -- so GENERAL fires
+   whenever SPECIFIC does, and adds nothing SPECIFIC has not already accounted for."
+  (let ((s (rule-premise-signature specific))
+        (g (rule-premise-signature general)))
+    (and (null (set-difference g s :test #'string=))
+         (set-difference s g :test #'string=))))
+
+(defun contributing-rules (fact)
+  (remove nil
+          (mapcar (lambda (rec)
+                    (lisa:find-rule (lisa:inference-engine)
+                                    (lisa:derivation-record-rule rec)))
+                  (lisa:fact-derivation (lisa:inference-engine) fact))))
+
+(defun surviving-beliefs (fact policy)
+  "The beliefs that should combine for FACT, under POLICY."
+  (let* ((rules (contributing-rules fact))
+         (beliefs (mapcar (lambda (r) (abs (lisa:rule-belief r))) rules)))
+    (case policy
+      (:dedupe (list (reduce #'max beliefs)))            ; v0.10.0 cautious
+      (:reinforce beliefs)                                ; combine everything
+      (:specificity                                       ; proposed
+       (loop for r in rules
+             for b in beliefs
+             unless (some (lambda (other) (subsumes-p other r)) rules)
+               collect b))
+      (t beliefs))))
+
+(defun combine-beliefs-ds (beliefs)
+  "a + b - ab, iterated -- the confirmatory DS combination Lisa already applies to a
+   duplicate fact."
+  (if (null beliefs) 0.0d0
+      (reduce (lambda (a b) (- (+ a b) (* a b)))
+              (mapcar (lambda (b) (float b 1.0d0)) beliefs))))
+
+(defvar *policy* :reinforce)
+
 (defun answers-for (organism)
   "((set . belief) ...) -- every CANDIDATES fact the engine asserted for ORGANISM.
    Nothing was mutated during inference; this is just what is in working memory."
@@ -160,10 +223,16 @@
         when (and (eq (lisa:fact-name fact) (intern "CANDIDATES" :lisa-user))
                   (eq (lisa:get-slot-value fact (intern "OF" :lisa-user)) organism))
           collect (cons (canonical (lisa:get-slot-value fact (intern "VALUE" :lisa-user)))
-                        (let ((b (belief:belief-factor fact)))
-                          (cond ((null b) 1.0d0)
-                                ((belief:ds-belief-p b) (belief:ds-belief-bel b))
-                                (t (float b 1.0d0)))))))
+                        ;; Recomputed from the CONTRIBUTING RULES rather than read off
+                        ;; the fact, so the policy can be varied without touching the
+                        ;; engine -- combination stays a read.
+                        (let ((survivors (surviving-beliefs fact *policy*)))
+                          (if survivors
+                              (combine-beliefs-ds survivors)
+                              (let ((b (belief:belief-factor fact)))
+                                (cond ((null b) 1.0d0)
+                                      ((belief:ds-belief-p b) (belief:ds-belief-bel b))
+                                      (t (float b 1.0d0)))))))))
 
 (defun consensus (organism)
   (let* ((answers (answers-for organism))
