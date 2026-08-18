@@ -47,9 +47,16 @@
        ;; predicted would make a single file unreviewable, so it is split by cluster.
        ;; context.lisp defines every class the rule files are written against and so
        ;; must load first; everything else depends on it and is otherwise independent.
+       (:file "package")
        (:module "rules"
         :components
           ((:file "context")
+           ;; --- v0.11 shape: rules assert ANSWERS (candidates sets) -------------
+           ;; Confirming only; nothing is excluded by being named. See
+           ;; docs/narrows-to-promotion-sketch.md.
+           (:file "candidates-gram-pos" :depends-on ("context"))
+           (:file "candidates-gram-neg" :depends-on ("context"))
+           ;; --- pre-v0.11 shape, retained until the transition completes --------
            (:file "identity-gram-neg" :depends-on ("context"))
            (:file "chain-enterobacteriaceae" :depends-on ("context"))
            (:file "chain-gram-pos" :depends-on ("context"))
@@ -57,6 +64,7 @@
            (:file "disconfirming" :depends-on ("context"))
            (:file "conclusion" :depends-on ("context"))
            (:file "drivers" :depends-on ("context"))))
+       (:file "consensus" :depends-on ("package" "rules"))
        (:module "therapy"
         :depends-on ("rules")
         :components
@@ -112,6 +120,9 @@
                      ;; The shared-frame belief system, end to end. Depends on
                      ;; provenance-tests for FIND-CONCLUDED-FACT.
                      (:file "frame-tests" :depends-on ("provenance-tests"))
+                     ;; The v0.11 shape. Depends on property-tests for
+                     ;; CANDIDATES-RULES.
+                     (:file "candidates-tests" :depends-on ("property-tests"))
                      (:file "therapy-tests")
                      ;; The exact solver + the ALTERNATIVES both solvers report;
                      ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.

@@ -56,6 +56,25 @@
   (remove-if (lambda (r) (member (lisa:rule-short-name r) *reporting-rules*))
              (lisa:get-rule-list (lisa:inference-engine))))
 
+(defun candidates-rule-p (rule)
+  "True when RULE asserts a CANDIDATES fact -- the v0.11 shape, where a rule states
+   the SET its evidence narrows the answer to.
+
+   The two shapes coexist during the transition and are governed by different
+   invariants: a candidates rule declares no focal set, resolves against no frame, and
+   never excludes anything by naming it. Invariants written for the frame shape are
+   pointed at LEGACY-RULES so they keep guarding what they were written to guard."
+  (some (lambda (pair) (eq (car pair) 'lisa-user::candidates))
+        (lisa:rule-asserted-facts rule)))
+
+(defun candidates-rules ()
+  (remove-if-not #'candidates-rule-p (domain-rules)))
+
+(defun legacy-rules ()
+  "Domain rules in the pre-v0.11 shape -- organism-class / organism-identity, focal
+   sets, and :claims. What the frame invariants below are about."
+  (remove-if #'candidates-rule-p (domain-rules)))
+
 (defun concluded-values (class &key (predicate #'lisa:confirming-rule-p))
   "Every VALUE asserted as a CLASS fact by a rule satisfying PREDICATE."
   (let ((acc '()))
@@ -226,7 +245,7 @@
   ;; disconfirming rules with each new confirming cluster; this asserts the corpus
   ;; has not drifted away from that. The floor (20%) is well below the current ratio
   ;; -- it is a drift alarm, not a target to optimize.
-  (let* ((rules (domain-rules))
+  (let* ((rules (legacy-rules))
          (total (length rules))
          (disconfirming (count-if #'lisa:disconfirming-rule-p rules)))
     (is (>= (/ disconfirming total) 1/5)
@@ -312,7 +331,7 @@
   ;; declared focal sets.
   (let ((f (the-frame)))
     (when f
-      (dolist (rule (domain-rules))
+      (dolist (rule (legacy-rules))
         (when (lisa:disconfirming-rule-p rule)
           (dolist (target (lisa:rule-member-test-values rule))
             (is (belief:frame-member-p f target)
@@ -333,7 +352,7 @@
 (deftest property-every-rule-resolves-to-a-focal-set ()
   (let ((f (the-frame)))
     (when f
-      (dolist (rule (domain-rules))
+      (dolist (rule (legacy-rules))
         (multiple-value-bind (mask kind)
             (handler-case (lisa:rule-focal-set rule f)
               (error (e) (values :error e)))
@@ -348,7 +367,7 @@
   ;; nothing: mass on the whole frame is indistinguishable from ignorance.
   (let ((f (the-frame)))
     (when f
-      (dolist (rule (domain-rules))
+      (dolist (rule (legacy-rules))
         (let ((mask (lisa:rule-focal-set rule f)))
           (when (integerp mask)
             (is (plusp mask)
@@ -362,7 +381,7 @@
   ;; set. Direction is carried by the focal set being a complement, never by a sign.
   (let ((f (the-frame)))
     (when f
-      (dolist (rule (domain-rules))
+      (dolist (rule (legacy-rules))
         (let ((claims (lisa:rule-claims rule f)))
           (is claims (format nil "~A: resolves to no claims at all"
                              (lisa:rule-short-name rule)))
@@ -380,7 +399,7 @@
   ;; large (most of the frame) and must exclude every target it names.
   (let ((f (the-frame)))
     (when f
-      (dolist (rule (domain-rules))
+      (dolist (rule (legacy-rules))
         (when (lisa:disconfirming-rule-p rule)
           (let ((mask (lisa:rule-focal-set rule f)))
             (dolist (target (lisa:rule-member-test-values rule))
@@ -508,3 +527,28 @@
       (is (not (lisa:rule-subsumes-p burn compromised))
           "but neither subsumes the other, so their evidence is distinct")
       (is (not (lisa:rule-subsumes-p compromised burn))))))
+
+
+;;; ------------------------------------------------------------------
+;;; Invariant 11 -- the v0.11 rules must be citable BEFORE they are authoritative.
+;;;
+;;; The candidates rules were written as a spike and carry no :provenance. Every
+;;; pre-v0.11 rule carries an origin, verified literature evidence and a belief-basis,
+;;; and the WHY/HOW facility exists to quote them. Shipping a corpus that cannot cite
+;;; itself would be a real regression, so rather than defer it quietly this fails the
+;;; moment those rules become the default -- and stays silent while they are only a
+;;; parallel shape under review.
+;;; ------------------------------------------------------------------
+
+(deftest property-candidates-rules-carry-provenance-before-default ()
+  (let ((default-p (and belief:*belief-system*
+                        (search "candidate"
+                                (belief:belief-system-name belief:*belief-system*)
+                                :test #'char-equal))))
+    (if (not default-p)
+        (is t "candidates is not the active system; provenance is not yet required")
+        (dolist (rule (candidates-rules))
+          (let ((prov (lisa:rule-provenance rule)))
+            (is (and prov (getf prov :origin) (getf prov :evidence))
+                (format nil "~A is authoritative but carries no provenance"
+                        (lisa:rule-short-name rule))))))))

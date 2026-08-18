@@ -136,6 +136,7 @@
 (defvar *cf-system*)
 (defvar *ds-system*)
 (defvar *frame-system*)
+(defvar *candidates-system*)
 
 (defun use-system (name)
   "Set the active belief system by keyword.
@@ -145,9 +146,14 @@
                        Barnett simplification). Retained for comparison.
    :FRAME              DS on a SHARED frame of discernment declared with DEFRAME:
                        one mass function per entity, rules contributing to SUBSETS.
-                       Requires a declared frame."
+                       Requires a declared frame.
+   :CANDIDATES         DS over an OPEN frame: rules assert ANSWERS -- sets of
+                       hypotheses -- and a client combines them by intersection when
+                       it reads working memory. Nothing is declared, nothing is
+                       enumerated, and exclusion is never authored."
   (setf *belief-system*
         (ecase name
           (:certainty-factors *cf-system*)
           (:dempster-shafer *ds-system*)
-          (:frame *frame-system*))))
+          (:frame *frame-system*)
+          (:candidates *candidates-system*))))

@@ -164,6 +164,16 @@
 ;; the corpus exercises yet.
 (defclass organism-class (param-mixin) ())
 
+;;; An ANSWER (v0.11 shape). VALUE holds the SET of organisms a piece of evidence
+;;; narrows the question to -- '(:streptococcus-pyogenes :streptococcus-agalactiae)
+;;; for beta hemolysis, say -- and the rule's own :belief says how strongly.
+;;;
+;;; This is what replaces both organism-identity and organism-class. A class IS a
+;;; candidates set, so nothing has to reify one; and a species call is a candidates
+;;; set with one member. Exclusion is never asserted: it is what remains when answers
+;;; are intersected. See docs/narrows-to-promotion-sketch.md.
+(defclass candidates (param-mixin) ())
+
 ;;; ------------------------------------------------------------------
 ;;; THE FRAME OF DISCERNMENT
 ;;;

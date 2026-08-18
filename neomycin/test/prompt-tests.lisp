@@ -92,7 +92,10 @@
   ;; the kind of thing that goes stale the next time a cluster lands.
   (let* ((sentence (sentence-after (system-prompt-text) "The engine holds"))
          (stated (and sentence (integers-in sentence)))
-         (rules (domain-rules))
+         ;; The prompt describes the corpus it narrates, which during the v0.11
+         ;; transition is still the legacy shape. It is rewritten when candidates
+         ;; becomes the default.
+         (rules (legacy-rules))
          (actual (list (length rules)
                        (count-if #'lisa:confirming-rule-p rules)
                        (count-if #'lisa:disconfirming-rule-p rules))))

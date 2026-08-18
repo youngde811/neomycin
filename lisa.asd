@@ -89,7 +89,9 @@
        ;; universe. Algebra only -- knows nothing of rules or facts.
        (:module candidates
         :components
-        ((:file "candidates"))))
+        ((:file "candidates")
+         (:file "system"))
+        :serial t))
       :serial t)
      (:module reflect
       :components

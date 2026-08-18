@@ -458,9 +458,11 @@
     (ignore-errors (lisa:undefrule 'lisa-user::kind-probe-both)))
   ;; With the probe gone, the real corpus has no such rule, and the summary says so
   ;; rather than leaving a reader to infer it.
-  (let ((summary (lisa-bridge::rules-summary (lisa-bridge::catalogue-rules))))
+  ;; Counted over the LEGACY shape only. While the v0.11 candidates rules coexist the
+  ;; catalogue holds both, and these numbers are about the frame corpus specifically.
+  (let ((summary (lisa-bridge::rules-summary (legacy-rules))))
     (is (= 0 (gethash "both" summary))
-        "no rule in the corpus yet states both kinds of claim")
+        "no rule in the frame corpus states both kinds of claim")
     (is (= 16 (gethash "disconfirming" summary)) "the 16 excluding rules")
     (is (= 34 (gethash "confirming" summary)) "and the 34 supporting ones")))
 
