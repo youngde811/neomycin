@@ -108,13 +108,13 @@
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298")
                   :belief-basis :illustrative
-                  :note "The reciprocal. Serratia is kept in for the same reason -- a slow or variable lactose reaction makes the marker unreliable for it in either direction."))
+                  :note "The reciprocal. Serratia is kept in for the same reason -- a slow or variable lactose reaction makes the marker unreliable for it in either direction. PSEUDOMONAS IS IN THIS ANSWER: it is the textbook non-lactose-fermenter, the standard contrast to the Enterobacteriaceae. Omitting it was a conversion defect -- the rule this replaced argued AGAINST the fermenters and never had to say what a non-fermenter positively is, so the complement was taken within the Enterobacteriaceae rather than within the gram-negative rods the corpus models. A lactose-negative reading then CONFLICTED with a Pseudomonas case it is in fact consistent with."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
   (lactose (value non-fermenter) (of ?o))
   =>
-  (assert (candidates (value '(:salmonella :proteus :serratia)) (of ?o))))
+  (assert (candidates (value '(:salmonella :proteus :serratia :pseudomonas)) (of ?o))))
 
 ;;; WAS indole-pos-argues-against-indole-negative-species. Proteus was deliberately
 ;;; EXCLUDED from that rule's targets because P. mirabilis is indole-negative while
