@@ -135,8 +135,10 @@ neomycin/
                         + property-tests.lisp (corpus-WIDE invariants checked by
                         introspecting the compiled rulebase, so a new rule is covered the
                         moment it is authored — sketch §8) + prompt-tests.lisp (guards
-                        system-prompt.md against the corpus: every rule name it quotes must
-                        exist, and the counts it states must be the real ones)
+                        system-prompt.md AND tools.json against the corpus: every rule name
+                        quoted must exist, the counts stated must be the real ones, and
+                        every fact value advertised must be one some rule premises on —
+                        or be marked inert (†), which is checked in BOTH directions)
   clinician-samples/  — saved driver transcripts
 docs/                 — design docs, runbook, clinician scenarios, therapy demo
 
@@ -148,7 +150,11 @@ src/
     rule-introspection.lisp — exported, domain-neutral queries over the COMPILED rulebase
                         (what a rule concludes / matches / believes). The read half of the
                         derivation table: that records what a rule DID when it fired, this
-                        records what a rule IS. Consumed by /rules and by property-tests
+                        records what a rule IS. Consumed by /rules and by property-tests.
+                        Also `corpus-premise-vocabulary`: what the whole rulebase can HEAR
+                        — every literal premise value, by parameter. A value absent from it
+                        is inert, and inertness is silent (the assert succeeds), which is
+                        why the vocabulary has to be queryable rather than inferred
   belief-systems/     — Pluggable belief-system protocol
     protocol.lisp     — Generic function surface + dispatcher + use-system
     certainty-factors/— Shortliffe-Buchanan CF implementation
@@ -190,7 +196,7 @@ bin/
 | `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
-| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, and the distribution of `resolutions`. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
+| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, the `parameters` it can *hear*, and the distribution of `resolutions`. `summary.parameters` is the corpus's INPUT vocabulary, computed from rule premises: a parameter or value absent from it is **inert** — assertable, accepted, and matched by no rule. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
 | `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict`, and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
 | `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Echoes `solver`, `gate`, `objective` |
 | `/reset` | POST | Clear working memory and entity registry |

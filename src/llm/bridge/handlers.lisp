@@ -60,6 +60,22 @@
       (unless (and fact-type value)
         (return-from assert-fact-handler
           (error-response "fact_type and value are required.")))
+      ;; Reject an unknown fact TYPE by name, before MAKE-INSTANCE is handed the NIL
+      ;; that FIND-SYMBOL returns for one. The failure was already caught below, but
+      ;; it surfaced as "There is no class named COMMON-LISP:NIL" -- an internal
+      ;; detail that tells a client nothing about what it did wrong or what to do
+      ;; instead. A caller choosing which observation to gather needs to hear "that
+      ;; is not a fact type here", which is a different thing from a 500.
+      (let ((class-sym (find-symbol (string-upcase fact-type) :lisa-user)))
+        (unless (and class-sym (find-class class-sym nil))
+          (return-from assert-fact-handler
+            (error-response
+             (format nil "Unknown fact_type `~A'. This knowledge base has no such ~
+                          parameter, so the observation cannot be recorded and no ~
+                          rule could read it. Query the rule catalogue for the ~
+                          parameters it does define."
+                     fact-type)
+             :status 400))))
       (handler-case
           ;; Scope the fact to its context in the patient -> culture -> organism
           ;; lineage; the bridge creates any missing context facts (see

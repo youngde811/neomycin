@@ -57,6 +57,8 @@
           "CLEAR-BREAK"
           "CLEAR-BREAKS"
           "CONFIRMING-RULE-P"
+          "CORPUS-PREMISE-VOCABULARY"
+          "CORPUS-PREMISES-VALUE-P"
           "RULE-PREMISE-SIGNATURE"
           "RULE-SUBSUMES-P"
           "CONSIDER-TAXONOMY"

@@ -292,9 +292,30 @@
       (setf rules (remove-if-not (lambda (r) (rule-premises-value-p r premises)) rules)))
     rules))
 
+(defun parameters->json (rules)
+  "The corpus's INPUT vocabulary: every observation RULES can act on, by parameter.
+
+   The counterpart to ORGANISMS. That says what the corpus can conclude; this says
+   what it can be told -- and the two failure modes are not symmetric. An organism
+   the corpus cannot name is visible the moment you look for it in the differential.
+   A finding the corpus cannot HEAR is invisible: the bridge accepts the assertion,
+   returns 200, fires nothing, and the consultation proceeds as though the test had
+   never been run.
+
+   A value absent here is therefore not merely unmodelled, it is INERT, and a client
+   must not solicit it. See lisa:corpus-premise-vocabulary."
+  (coerce (mapcar (lambda (entry)
+                    (let ((ht (make-hash-table :test #'equal)))
+                      (setf (gethash "parameter" ht) (organism-name (car entry)))
+                      (setf (gethash "values" ht)
+                            (coerce (mapcar #'organism-name (cdr entry)) 'vector))
+                      ht))
+                  (lisa:corpus-premise-vocabulary rules))
+          'vector))
+
 (defun rules-summary (rules)
-  "The corpus SHAPE: how many rules, which organisms they can speak about, and at
-   what resolutions they answer.
+  "The corpus SHAPE: how many rules, which organisms they can speak about, what
+   observations they can act on, and at what resolutions they answer.
 
    RESOLUTIONS is the distribution of answer sizes -- {1: 19, 2: 6, 4: 3} reads as
    nineteen rules that name a single organism, six that narrow to a pair, three to a
@@ -310,6 +331,7 @@
         (incf (gethash (princ-to-string (length answer)) resolutions 0))))
     (setf (gethash "total" ht) (length rules))
     (setf (gethash "organisms" ht) (coerce (sort organisms #'string<) 'vector))
+    (setf (gethash "parameters" ht) (parameters->json rules))
     (setf (gethash "resolutions" ht) resolutions)
     ht))
 

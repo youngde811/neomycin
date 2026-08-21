@@ -24,17 +24,17 @@ The expert system recognizes these fact types:
 | `growth-conformation` | clumps, chains | How cells cluster on culture |
 | `lactose` | fermenter, non-fermenter | Lactose fermentation (enterobacteriaceae species discriminator) |
 | `indole` | positive, negative | Indole production (IMViC) |
-| `motility` | motile, non-motile, swarming | Motility phenotype (swarming is characteristic of Proteus) |
-| `urease` | positive, negative | Urease activity (positive in Proteus; negative in E. coli/Salmonella) |
-| `pigment` | red, none | Colony pigment (red prodigiosin is characteristic of Serratia) |
-| `catalase` | positive, negative | Catalase (positive in staphylococci; negative in streptococci/enterococci) |
+| `motility` | motile, non-motile†, swarming | Motility phenotype (swarming is characteristic of Proteus) |
+| `urease` | positive, negative† | Urease activity (positive in Proteus; negative in E. coli/Salmonella) |
+| `pigment` | red, none† | Colony pigment (red prodigiosin is characteristic of Serratia) |
+| `catalase` | positive†, negative | Catalase (positive in staphylococci; negative in streptococci/enterococci) |
 | `coagulase` | positive, negative | Coagulase (positive defines S. aureus; negative = the CoNS group) |
-| `hemolysis` | alpha, beta, gamma | Hemolysis on blood agar (partial/green, complete, none) |
+| `hemolysis` | alpha, beta, gamma† | Hemolysis on blood agar (partial/green, complete, none) |
 | `optochin` | sensitive, resistant | Optochin disc (sensitive in S. pneumoniae; resistant in viridans) |
 | `bacitracin` | sensitive, resistant | Bacitracin disc (sensitive in group A; resistant in groups B/C/G) |
-| `novobiocin` | sensitive, resistant | Novobiocin disc (resistant in S. saprophyticus) |
+| `novobiocin` | sensitive†, resistant | Novobiocin disc (resistant in S. saprophyticus) |
 | `bile-esculin` | positive, negative | Esculin hydrolysis in 40% bile (positive in group D/enterococci) |
-| `salt-tolerance` | tolerant, intolerant | Growth in 6.5% NaCl (separates enterococci from other group D) |
+| `salt-tolerance` | tolerant, intolerant† | Growth in 6.5% NaCl (separates enterococci from other group D) |
 | `arabinose` | fermenter, non-fermenter | Arabinose fermentation (positive in E. faecium) |
 | `sorbitol` | fermenter, non-fermenter | Sorbitol fermentation (positive in E. faecalis) |
 
@@ -51,9 +51,12 @@ nothing on its own. Match the panel to the class the organism has landed in:
 - **enterococcus** (gram-pos coccus in chains) → `bile-esculin` + `salt-tolerance` to
   establish the genus, then `arabinose` + `sorbitol` to split faecalis from faecium
 
-`catalase` is a genus-level check rather than a species discriminator: it argues
-*against* the staphylococci when negative, so it is most useful when a gram-positive
-coccus's morphology is ambiguous.
+`catalase` is a genus-level check rather than a species discriminator, and only its
+NEGATIVE reading is read by a rule: catalase-negative answers "one of the chain
+formers", which is the streptococci and enterococci. The staphylococci fall out by
+not being in that answer — nothing argued against them. Catalase *positive* is
+inert (†), so ask for catalase when you expect it to be negative, i.e. when a
+gram-positive coccus's morphology is ambiguous.
 
 ### Patient Facts (no entity needed — the bridge scopes them to the patient)
 
@@ -68,7 +71,7 @@ coccus's morphology is ambiguous.
 | `neutropenia` | t | Patient is neutropenic |
 | `prosthetic-material` | t | Prosthetic valve, joint, line or other device in situ |
 | `iv-drug-use` | t | Injection drug use |
-| `age-group` | neonate, infant, adult, elderly | Patient age band |
+| `age-group` | neonate, infant†, adult†, elderly† | Patient age band |
 
 The last four are **host factors**: they shift belief on hypotheses the morphology and
 biochemistry already raise, rather than naming an organism on their own. Worth asking
@@ -80,7 +83,38 @@ bench eventually reports.
 | Fact Type | Valid Values | Meaning |
 |-----------|-------------|---------|
 | `culture-site` | blood | Where the culture was taken |
-| `culture-age` | (integer) | Days since culture was taken |
+| `culture-age` | (integer)† | Days since culture was taken |
+
+## What the Corpus Can Hear
+
+**† marks an INERT value: the bridge accepts it, returns success, and no rule
+matches it.** The assertion is recorded and the differential does not move. This is
+not an error you will see — there is no error. It looks exactly like a test that
+came back uninformative.
+
+Two rules follow, and the first is the one that matters:
+
+1. **Never recommend a test whose result this corpus cannot act on.** Not a test
+   outside the tables above (there is no `oxidase` here, and no pyocyanin reading —
+   `pigment` means red prodigiosin and Serratia), and not a test whose *only*
+   informative answer is marked †. A clinician who acts on such a suggestion orders
+   real lab work and gets back an answer that can never be entered. When you are
+   about to name a next test, the authoritative list is `describe_rules` →
+   `summary.parameters`, computed from the compiled rules; the tables above are a
+   convenience copy. Prefer a test you have seen in an actual rule's `premises`.
+
+2. **Assert what the clinician reports, including † values — then be honest about
+   the effect.** The record should be faithful, so assert it. But do not narrate an
+   inert result as though it contributed: say plainly that the corpus has no rule
+   keyed on it, so the differential is unchanged. *"Urease negative is recorded, but
+   nothing in this rulebase reads a negative urease — only urease-positive appears
+   in a premise, so this doesn't move the picture."* That is a limitation of the
+   corpus, and naming it as one is more useful than silence.
+
+**A finding the corpus cannot hear is not evidence against anything.** If asked why
+a result changed nothing, the answer is that no rule reads it — never that it argued
+against an organism, and never that it was uninformative clinically. Those are three
+different statements and only the first one is true.
 
 ## The Rulebase
 
@@ -96,10 +130,18 @@ best, and before you name any rule's belief or evidence. `names=<organism>` is
 usually the right query — it returns every rule whose answer still admits that
 organism, from the coarse ones that merely leave it standing to the specific one
 that names it alone. Every response also carries a corpus `summary`: the rule
-count, every organism the corpus can speak about at all, and the distribution of
-`resolutions` — how many rules answer with one organism, how many with two, and
-so on. An organism missing from `summary.organisms` is one the corpus cannot
-name; say that plainly rather than reasoning about it.
+count, every organism the corpus can speak about at all, the `parameters` it can
+act on, and the distribution of `resolutions` — how many rules answer with one
+organism, how many with two, and so on. An organism missing from
+`summary.organisms` is one the corpus cannot name; say that plainly rather than
+reasoning about it. A parameter or value missing from `summary.parameters` is one
+the corpus cannot *hear* — see "What the Corpus Can Hear" above, and never solicit
+it.
+
+**`premises=<value>` is the query for "which test next?"** — it returns every rule
+that reads a given finding, which is what tells you whether asking for it can
+change anything. Reach for it before recommending a test, rather than reasoning
+from clinical plausibility about which test *ought* to discriminate.
 
 What you should carry, because it shapes how you *talk* rather than what you
 look up:

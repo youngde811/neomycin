@@ -164,6 +164,52 @@
                (or (null value)
                    (member value (rule-premise-values rule class)))))
         (rule-premise-patterns rule)))
+
+;;; ------------------------------------------------------------------
+;;; The corpus's INPUT vocabulary.
+;;;
+;;; Everything above asks about one rule. This asks about the whole corpus, and it
+;;; answers a question no other query can: WHAT CAN THIS RULEBASE HEAR? A fact whose
+;;; value appears in no rule premise is inert -- it can be asserted, it will be
+;;; accepted, and it will change nothing, silently.
+;;;
+;;; That silence is the reason this exists. An engine that rejects an unknown fact
+;;; class fails loudly and gets fixed; an engine that accepts an unmatchable VALUE
+;;; looks like it worked. A client with no way to enumerate the vocabulary will
+;;; eventually ask its user for an observation the rulebase cannot act on -- which,
+;;; when the client is an LLM and the user is a clinician, means a real lab test
+;;; ordered for an answer that can never be entered.
+;;; ------------------------------------------------------------------
+
+(defun corpus-premise-vocabulary (rules)
+  "((CLASS VALUE ...) ...) -- every literal premise value RULES can match, by class.
+
+   Classes matched only through variables are omitted: they gate the join (the
+   context wiring -- organism, culture, patient) rather than carrying an
+   observation a caller could supply, so reporting them would advertise an input
+   that is not one.
+
+   Derived from premises rather than from declared fact classes, deliberately. A
+   class the knowledge base declares but no rule matches is assertable and inert,
+   and the whole value of this query is that it does not paper over the difference."
+  (let ((vocab '()))
+    (dolist (rule rules)
+      (dolist (class (remove-duplicates (rule-premise-classes rule)))
+        (dolist (value (rule-premise-values rule class))
+          (let ((entry (assoc class vocab)))
+            (if entry
+                (pushnew value (cdr entry) :test #'eql)
+                (push (list class value) vocab))))))
+    (dolist (entry vocab vocab)
+      (setf (cdr entry)
+            (sort (cdr entry) #'string< :key #'princ-to-string)))
+    (sort vocab #'string< :key (lambda (e) (symbol-name (car e))))))
+
+(defun corpus-premises-value-p (rules class value)
+  "True when some rule in RULES matches CLASS with the literal VALUE -- i.e. when
+   asserting that observation can change what the engine concludes."
+  (let ((entry (assoc class (corpus-premise-vocabulary rules))))
+    (and entry (member value (cdr entry) :test #'eql) t)))
 ;;; ------------------------------------------------------------------
 ;;; Specificity between rules.
 ;;;
