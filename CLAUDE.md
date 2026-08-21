@@ -122,8 +122,10 @@ neomycin/
     antibiogram.lisp  — counts→interval (IDM) + Bayesian combine-susceptibility
     antibiogram-data.lisp — schematic site-local counts; OPT-IN, NOT loaded by default
     solver-common.lisp — SHARED phase A (belief gate, contraindication filter, the two
-                        scalar reductions) + alternative-agents. Solver-independent, so
-                        every solver gates identically and comparisons stay meaningful
+                        scalar reductions) + alternative-agents + below-threshold-for
+                        (what the gate dropped, and what the chosen regimen covers there
+                        anyway). Solver-independent, so every solver gates identically
+                        and comparisons stay meaningful
     stub-solver.lisp / greedy-solver.lisp / exact-solver.lisp — solvers. `exact` is the
                         DEFAULT (ascending-k enumeration over coverage bitmasks); `greedy`
                         is the original approximation, kept because the equivalence
@@ -198,7 +200,7 @@ bin/
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
 | `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, the `parameters` it can *hear*, and the distribution of `resolutions`. `summary.parameters` is the corpus's INPUT vocabulary, computed from rule premises: a parameter or value absent from it is **inert** — assertable, accepted, and matched by no rule. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
 | `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict`, and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
-| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Echoes `solver`, `gate`, `objective` |
+| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Also `below_threshold` — the organisms the coverage gate DROPPED, each with `covered_by`: the chosen regimen's drugs that cover it **anyway**, with susceptibility. A regimen entry's `covers` lists only what the solver was *targeting*, so without this a covered runner-up reads as untreated. Echoes `solver`, `gate`, `objective`, and the dials' values as `coverage_threshold` / `susceptibility_threshold` |
 | `/reset` | POST | Clear working memory and entity registry |
 
 ## Testing the Bridge

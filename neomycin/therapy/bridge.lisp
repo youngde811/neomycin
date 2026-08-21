@@ -206,6 +206,31 @@
     (setf (gethash "reason" ht) (key->name (exclusion-reason exclusion)))
     ht))
 
+(defun incidental-cover->json (cover)
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "drug" ht) (key->name (incidental-cover-drug cover)))
+    (setf (gethash "susceptibility" ht)
+          (susceptibility-entry->json (incidental-cover-susceptibility cover)))
+    ht))
+
+(defun below-threshold->json (item)
+  "One organism the coverage gate dropped: {organism, belief, covered_by}.
+
+   COVERED_BY is the load-bearing field, and it is emitted even when empty. The
+   regimen's own `covers' lists only the organisms the solver was TARGETING, so
+   without this a drug that happens to cover the runner-up looks as though it does
+   not -- which is how a meropenem regimen covering Klebsiella at [0.88, 0.99] was
+   narrated as leaving Klebsiella untreated."
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "organism" ht) (key->name (below-threshold-item-organism item)))
+    (setf (gethash "belief" ht)
+          (lisa-bridge:belief->json-value (below-threshold-item-belief item)))
+    (setf (gethash "covered_by" ht)
+          (coerce (mapcar #'incidental-cover->json
+                          (below-threshold-item-covered-by item))
+                  'vector))
+    ht))
+
 (defun recommendation->json (rec)
   "Render a RECOMMENDATION as a hash-table jzon serializes to a JSON object.
    Lists become vectors so they render as JSON arrays, not nested objects."
@@ -218,6 +243,12 @@
           (coerce (mapcar #'exclusion->json (recommendation-excluded rec)) 'vector))
     (setf (gethash "uncovered" ht)
           (coerce (mapcar #'key->name (recommendation-uncovered rec)) 'vector))
+    ;; The gate's other side: organisms deliberately NOT treated, and what the
+    ;; regimen covers there anyway. Always emitted, for the reason given below.
+    (setf (gethash "below_threshold" ht)
+          (coerce (mapcar #'below-threshold->json
+                          (recommendation-below-threshold rec))
+                  'vector))
     ;; The two "what else was possible" fields. Always emitted, even when empty:
     ;; an absent key reads as "not applicable", an empty array reads as "asked and
     ;; answered -- nothing". Only the second is true, and it is the distinction
@@ -308,6 +339,13 @@
           (setf (gethash "solver" result) (key->name solver-name))
           (setf (gethash "gate" result) (key->name gate))
           (setf (gethash "objective" result) (key->name objective))
+          ;; The gate's NUMBER, not just its kind. It was transcribed into the
+          ;; system prompt as "default 0.2", stayed there through the v0.11
+          ;; recalibration to 0.1, and was quoted to a clinician as the reason an
+          ;; organism went untreated. A dial a client has to narrate is a dial the
+          ;; response has to carry.
+          (setf (gethash "coverage_threshold" result) *coverage-threshold*)
+          (setf (gethash "susceptibility_threshold" result) *susceptibility-threshold*)
           (lisa-bridge:json-response result)))
     (error (e)
       (lisa-bridge:error-response

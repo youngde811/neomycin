@@ -63,6 +63,33 @@
   drug
   reason)          ; :contraindication | :interaction
 
+(defstruct (incidental-cover (:constructor make-incidental-cover))
+  "A chosen drug that covers an organism the coverage gate DROPPED.
+
+   Not part of why the drug was chosen -- the solver never considered this organism
+   -- but a fact about the regimen it returned, and one a clinician needs."
+  drug
+  susceptibility)  ; SUSCEPTIBILITY-ITEM for that drug against that organism
+
+(defstruct (below-threshold-item (:constructor make-below-threshold-item))
+  "An organism in the differential that did NOT clear *coverage-threshold*, with
+   whatever coverage the chosen regimen happens to give it anyway.
+
+   WHY THIS EXISTS. The gate is a hard cut on a number the identification layer
+   often reports as unstable, and the payload used to record only which side of it
+   an organism landed on. So a case where Klebsiella sat at 0.097 against a 0.1 gate
+   was narrated as `Klebsiella was not targeted' -- while the meropenem the solver
+   returned covers Klebsiella at [0.88, 0.99]. Both halves were true and the
+   conjunction was badly misleading: the clinician was told the runner-up was
+   untreated when the drug on the page covers it well.
+
+   The regimen is UNCHANGED by any of this. What changes is that the report no
+   longer understates itself, and that a near-miss at the gate is visible as a near
+   miss rather than as an absence."
+  organism
+  belief           ; its identification belief, as reported (interval or scalar)
+  (covered-by '())); list of INCIDENTAL-COVER; empty when the regimen misses it
+
 (defstruct (alternative-regimen (:constructor make-alternative-regimen))
   "Another regimen of the SAME minimum size the solver could have returned, but
    did not -- the objective's tiebreak chose against it.
@@ -80,6 +107,11 @@
   (excluded '())         ; list of exclusion
   (uncovered '())        ; organisms in U that no candidate drug could cover
                          ; (an honest failure surfaced, not a silent partial cover)
+  ;; The gate's OTHER side. UNCOVERED is "we had to treat it and could not";
+  ;; BELOW-THRESHOLD is "we chose not to treat it" -- together with what the
+  ;; regimen covers there regardless. Solver-independent: a fact about the gate
+  ;; and the KB, so both solvers report it.
+  (below-threshold '()) ; list of BELOW-THRESHOLD-ITEM
   ;; The two "what else was possible" fields (exact-solver-design.md 1.1). Neither
   ;; is a recommendation: they exist so that "is there a narrower agent?" has a
   ;; truthful answer. Without them the payload contains only the winner, and a

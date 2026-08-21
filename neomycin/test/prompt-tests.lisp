@@ -325,6 +325,32 @@
                   (format nil "tools.json's INERT note mentions ~A, but every value ~
                                it advertises is consumable" param))))))))
 
+(deftest prompt-does-not-transcribe-a-policy-dial ()
+  ;; The prompt said the coverage threshold was "0.2" and stayed saying it through
+  ;; the v0.11 recalibration to 0.1 -- so the model quoted a stale number to a
+  ;; clinician as the reason an organism went untreated. The fix is not to correct
+  ;; the digits, which would go stale again on the next tuning; it is to stop
+  ;; carrying them. The response echoes coverage_threshold, and the prompt must
+  ;; point at it rather than restate it.
+  (let ((text (system-prompt-text)))
+    (is (prompt-contains-p "coverage_threshold")
+        "system-prompt.md must tell the model to read the gate off the payload")
+    ;; Any literal that happens to equal the current value is still a transcription,
+    ;; so this looks for the SHAPE of one rather than for a wrong number.
+    (dolist (form (list (format nil "coverage threshold (default ~,1F)"
+                                therapy:*coverage-threshold*)
+                        "coverage threshold (default 0.2)"
+                        "coverage threshold (default 0.1)"))
+      (is (not (search form text :test #'char-equal))
+          (format nil "system-prompt.md transcribes the coverage threshold as ~S; ~
+                       cite the echoed coverage_threshold field instead" form)))))
+
+(deftest tools-describe-the-gate-and-what-it-dropped ()
+  (dolist (topic '("below_threshold" "covered_by" "coverage_threshold"))
+    (is (tools-contains-p topic)
+        (format nil "tools.json does not mention ~A -- the model has no reason to ~
+                     read it, and will report a covered organism as untreated" topic))))
+
 (deftest tools-json-is-well-formed-and-covers-the-endpoints ()
   ;; Cheap structural check: every tool the prompt tells the model to call must exist.
   (let ((text (tools-json-text)))

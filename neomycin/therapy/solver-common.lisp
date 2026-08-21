@@ -167,6 +167,44 @@
           when cov
             collect (regimen-item-for kb d cov))))
 
+(defun below-threshold-for (kb conclusions items regimen)
+  "The organisms *coverage-threshold* dropped, each with whatever coverage REGIMEN
+   gives it anyway.
+
+   Computed here rather than in either search for the same reason ALTERNATIVE-AGENTS
+   is: it is a fact about the gate and the KB, not about how the regimen was found,
+   so both solvers report it identically and a comparison between them stays
+   meaningful.
+
+   Coverage is decided by DRUG-COVERS -- the same predicate, threshold and
+   *susceptibility-gate* the solver itself used. A second notion of `covers' here
+   would let the report disagree with the regimen it describes.
+
+   Ordered by descending belief, then name: the runner-up nearest the gate is the
+   one a clinician most needs to see, and ties break deterministically."
+  (let ((treated (mapcar #'car items))
+        (drugs (mapcar #'regimen-item-drug regimen)))
+    (sort
+     (loop for pair in conclusions
+           for org = (car pair)
+           unless (member org treated)
+             collect (make-below-threshold-item
+                      :organism org
+                      :belief (cdr pair)
+                      :covered-by
+                      (loop for d in drugs
+                            when (drug-covers kb d (list org))
+                              collect (make-incidental-cover
+                                       :drug d
+                                       :susceptibility (susceptibility-item-for kb d org)))))
+     #'(lambda (a b)
+         (let ((ba (scalar-of (below-threshold-item-belief a)))
+               (bb (scalar-of (below-threshold-item-belief b))))
+           (if (= ba bb)
+               (string< (symbol-name (below-threshold-item-organism a))
+                        (symbol-name (below-threshold-item-organism b)))
+               (> ba bb)))))))
+
 ;;; ============================================================
 ;;; Phase A -- what to treat, and with what candidates
 ;;; ============================================================

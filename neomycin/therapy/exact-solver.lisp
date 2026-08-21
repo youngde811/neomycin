@@ -239,14 +239,16 @@
              (ranked (sort (mapcar #'(lambda (e) (cons (first e) (third e))) scored)
                            #'(lambda (a b) (objective-better-p kb a b))))
              (winner (car (first ranked)))
-             (winning-assignment (second (find winner scored :key #'first :test #'equal))))
+             (winning-assignment (second (find winner scored :key #'first :test #'equal)))
+             (regimen (regimen-from-assignment kb winning-assignment)))
         (make-recommendation
-         :regimen (regimen-from-assignment kb winning-assignment)
+         :regimen regimen
          :items-to-treat (mapcar #'(lambda (p)
                                      (make-treat-item :organism (car p) :belief (cdr p)))
                                  items)
          :excluded excluded
          :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)
+         :below-threshold (below-threshold-for kb conclusions items regimen)
          :alternative-agents (alternative-agents-for kb candidates universe winner)
          ;; Every OTHER minimum-size cover, in objective order -- the runners-up the
          ;; tiebreak chose against, not a ranking of clinical merit.

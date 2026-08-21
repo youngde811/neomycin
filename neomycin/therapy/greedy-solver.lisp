@@ -89,20 +89,22 @@
           (push best chosen)
           (setf uncovered (set-difference uncovered best-cov))
           (setf candidates (remove best candidates))))
-      (make-recommendation
-       :regimen (nreverse regimen)
+      (let ((final-regimen (nreverse regimen)))
+       (make-recommendation
+       :regimen final-regimen
        :items-to-treat (mapcar #'(lambda (p)
                                    (make-treat-item :organism (car p) :belief (cdr p)))
                                items)
        :excluded excluded
        ;; name-sort the leftovers for a deterministic report
        :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)
+       :below-threshold (below-threshold-for kb conclusions items final-regimen)
        ;; Greedy CAN report this: it is a KB fact about the gated items, not a
        ;; by-product of the search. It cannot report ALTERNATIVE-REGIMENS, which
        ;; needs the enumeration only the exact solver performs -- so that field
        ;; stays empty here rather than being faked from the drugs greedy happened
        ;; to pass over.
-       :alternative-agents (alternative-agents-for kb all-candidates universe chosen)))))
+       :alternative-agents (alternative-agents-for kb all-candidates universe chosen))))))
 
 (defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
   "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
