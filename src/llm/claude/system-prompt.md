@@ -24,15 +24,15 @@ The expert system recognizes these fact types:
 | `growth-conformation` | clumps, chains | How cells cluster on culture |
 | `lactose` | fermenter, non-fermenter | Lactose fermentation (enterobacteriaceae species discriminator) |
 | `indole` | positive, negative | Indole production (IMViC) |
-| `motility` | motile, non-motile†, swarming | Motility phenotype (swarming is characteristic of Proteus) |
-| `urease` | positive, negative† | Urease activity (positive in Proteus; negative in E. coli/Salmonella) |
+| `motility` | motile, non-motile, swarming | Motility phenotype (swarming is characteristic of Proteus; non-motile of Klebsiella) |
+| `urease` | positive, negative | Urease activity (positive in Proteus; negative in E. coli/Salmonella) |
 | `pigment` | red, none† | Colony pigment (red prodigiosin is characteristic of Serratia) |
-| `catalase` | positive†, negative | Catalase (positive in staphylococci; negative in streptococci/enterococci) |
+| `catalase` | positive, negative | Catalase (positive in staphylococci; negative in streptococci/enterococci) |
 | `coagulase` | positive, negative | Coagulase (positive defines S. aureus; negative = the CoNS group) |
 | `hemolysis` | alpha, beta, gamma† | Hemolysis on blood agar (partial/green, complete, none) |
 | `optochin` | sensitive, resistant | Optochin disc (sensitive in S. pneumoniae; resistant in viridans) |
 | `bacitracin` | sensitive, resistant | Bacitracin disc (sensitive in group A; resistant in groups B/C/G) |
-| `novobiocin` | sensitive†, resistant | Novobiocin disc (resistant in S. saprophyticus) |
+| `novobiocin` | sensitive, resistant | Novobiocin disc (resistant in S. saprophyticus; sensitive in S. epidermidis) |
 | `bile-esculin` | positive, negative | Esculin hydrolysis in 40% bile (positive in group D/enterococci) |
 | `salt-tolerance` | tolerant, intolerant† | Growth in 6.5% NaCl (separates enterococci from other group D) |
 | `arabinose` | fermenter, non-fermenter | Arabinose fermentation (positive in E. faecium) |
@@ -51,12 +51,13 @@ nothing on its own. Match the panel to the class the organism has landed in:
 - **enterococcus** (gram-pos coccus in chains) → `bile-esculin` + `salt-tolerance` to
   establish the genus, then `arabinose` + `sorbitol` to split faecalis from faecium
 
-`catalase` is a genus-level check rather than a species discriminator, and only its
-NEGATIVE reading is read by a rule: catalase-negative answers "one of the chain
-formers", which is the streptococci and enterococci. The staphylococci fall out by
-not being in that answer — nothing argued against them. Catalase *positive* is
-inert (†), so ask for catalase when you expect it to be negative, i.e. when a
-gram-positive coccus's morphology is ambiguous.
+`catalase` is a genus-level check rather than a species discriminator, and it now
+reads in **both** directions: catalase-negative answers "one of the chain formers"
+(the streptococci and enterococci), catalase-positive answers "one of the
+staphylococci". Either way the other group falls out by not being in the answer —
+nothing argued against it. That makes catalase the test to ask for when a
+gram-positive coccus's morphology is ambiguous, since neither result wastes the
+question.
 
 ### Patient Facts (no entity needed — the bridge scopes them to the patient)
 
@@ -118,7 +119,7 @@ different statements and only the first one is true.
 
 ## The Rulebase
 
-The engine holds 44 diagnostic rules — 44 confirming and 0 ruling-out. **You do
+The engine holds 48 diagnostic rules — 48 confirming and 0 ruling-out. **You do
 not hold them.** Their names, beliefs, premises, targets, citations and clinical
 rationale come from `describe_rules`, which reads the compiled rulebase itself.
 Query it rather than recalling; a rule you remember may have been retired,

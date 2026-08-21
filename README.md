@@ -572,7 +572,7 @@ that the clinical association is real; they do not verify the number. Grounding
 some of those numbers in real frequency data is active work.
 
 **Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 44 rules against MYCIN's original 450 —
+its contraindications. The rulebase is 48 rules against MYCIN's original 450 —
 enough to exercise every mechanism in the architecture, and nowhere near enough
 to be clinically meaningful.
 

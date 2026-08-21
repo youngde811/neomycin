@@ -93,15 +93,15 @@ That is production-rule specificity applied to belief. Design:
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rules/              — THE canonical rulebase: 44 rules, every one CONFIRMING. Each
+  rules/              — THE canonical rulebase: 48 rules, every one CONFIRMING. Each
                         states the SET its evidence narrows the answer to and asserts it
                         as a `candidates` fact. No ruling-out rules, no negative beliefs,
                         no organism-class, no declared frame
     context.lisp      — context tree, 31 clinical params, the `candidates` answer class.
                         LOADS FIRST
-    candidates-gram-pos.lisp — 23 rules: the staphylococci, streptococci and enterococci,
+    candidates-gram-pos.lisp — 25 rules: the staphylococci, streptococci and enterococci,
                         their bench discriminators and their host factors
-    candidates-gram-neg.lisp — 21 rules: the Enterobacteriaceae, Pseudomonas and
+    candidates-gram-neg.lisp — 23 rules: the Enterobacteriaceae, Pseudomonas and
                         Bacteroides, the biochemical discriminators, and the two Gram
                         stain answers
     conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/2/3/4/5/multi drivers
@@ -264,7 +264,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~965 assertions / 146 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~1242 assertions / 166 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; the composition

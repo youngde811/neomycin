@@ -44,13 +44,21 @@ print('total rules :', s['total'])
 print('organisms   :', len(s['organisms']))
 print('resolutions :', s['resolutions'])
 "
-check "corpus is 44 rules"        "d['summary']['total']"                  "44"
+# NOT a literal rule count. This file carried "44" in three places and went red the
+# next time a rule was authored -- a smoke test that has to be edited whenever the
+# corpus grows is one people learn to ignore. What is actually worth asserting is
+# self-consistency, which a real defect breaks and a new rule does not.
+TOTAL=$(printf '%s' "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['summary']['total'])")
+check "corpus is non-empty"       "d['summary']['total'] > 0"              "True"
+check "summary counts the rules it returns" \
+                                  "d['summary']['total'] == len(d['rules'])" "True"
 check "organisms are listed"      "len(d['summary']['organisms']) > 10"    "True"
 # The bug this catches: the summary once reported organism_classes/identities from a
 # vocabulary the corpus no longer uses, and every list came back empty while the
 # endpoint returned 200.
 check "organism list is real"     "'pseudomonas' in d['summary']['organisms']" "True"
-check "resolutions are counted"   "sum(int(v) for v in d['summary']['resolutions'].values())" "44"
+check "resolutions account for every rule" \
+                                  "sum(int(v) for v in d['summary']['resolutions'].values()) == d['summary']['total']" "True"
 check "every rule narrows to >=1" "all(len(r['narrows_to']) >= 1 for r in d['rules'])" "True"
 check "every rule has a belief"   "all(0 < r['belief'] <= 1 for r in d['rules'])" "True"
 echo ""
@@ -66,7 +74,9 @@ for r in d['rules']:
 "
 check "some rules name it"      "d['matched'] > 0" "True"
 check "all matches name it"     "all('pseudomonas' in r['narrows_to'] for r in d['rules'])" "True"
-check "summary is unfiltered"   "d['summary']['total']" "44"
+# The summary must describe the WHOLE corpus even under a filter -- a filtered count
+# here would misreport the shape. Compared against the unfiltered total captured above.
+check "summary is unfiltered"   "d['summary']['total']" "$TOTAL"
 echo ""
 
 echo "--- One rule in full (?name=) ---"

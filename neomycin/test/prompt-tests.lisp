@@ -288,6 +288,33 @@
                                changes nothing, silently. Mark it inert (~A) or add a ~
                                rule that reads it" param value +inert-marker+))))))))
 
+(deftest every-inert-value-the-prompt-marks-has-a-reason ()
+  ;; The second half of property-tests' invariant 13, and it lives here because the
+  ;; prompt's tables are the only enumeration of what a client may assert -- the
+  ;; bridge interns whatever value it is handed, so the corpus cannot supply the list.
+  ;;
+  ;; Marking a value inert says "this is silent"; *deliberately-inert* says WHY, and
+  ;; without the second the first is just a dagger nobody has to justify. Eleven
+  ;; values were silent before any of this existed and not one was a decision.
+  (dolist (row (prompt-vocabulary-rows))
+    (destructuring-bind (param value marked-inert) row
+      (when marked-inert
+        (let ((entry (find-if
+                      (lambda (e)
+                        (and (string-equal (symbol-name (first e)) param)
+                             (or (null (second e))
+                                 (string-equal (symbol-name (second e)) value))))
+                      *deliberately-inert*)))
+          (is entry
+              (format nil "system-prompt.md marks ~A=~A inert, but *deliberately-inert* ~
+                           gives no reason for it. Either author a rule that reads it, ~
+                           or record why the marker cannot discriminate here"
+                      param value))
+          (when entry
+            (is (plusp (length (third entry)))
+                (format nil "~A=~A is documented as inert with an empty rationale"
+                        param value))))))))
+
 (deftest prompt-states-the-inert-value-policy ()
   ;; The marking is only half the fix; the model also has to be told what to DO
   ;; about it. Both halves of the policy are load-bearing and both were absent.
