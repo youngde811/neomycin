@@ -162,12 +162,18 @@ src/
     certainty-factors/— Shortliffe-Buchanan CF implementation
     dempster-shafer/  — [Bel, Pl] intervals + ds-combine (Dempster's rule) on the
                         per-hypothesis {H, ¬H} frame (Barnett). Retained for comparison
-    frame/frame.lisp  — THE DEFAULT: DS over a SHARED frame of discernment. Sparse mass
-                        functions on arbitrary subsets (sets are BITMASKS), the cautious
-                        conjunctive rule (exact here, since every rule contributes a
-                        simple support function), Dempster and Yager readouts of one
-                        unnormalized accumulation, and Bel/Pl projection for elements
-                        AND named subsets. Algebra only — knows nothing of rules or facts
+    candidates/       — THE DEFAULT: DS over an OPEN frame. An answer is the SET a rule's
+                        evidence narrows to; answers combine by intersection and Θ is never
+                        enumerated, so nothing declares a frame. Sparse mass functions on
+                        arbitrary subsets, the unnormalized conjunctive rule, and Dempster /
+                        Yager / none readouts of one accumulation. Bel/Pl for elements AND
+                        sets. `conflict-of` (K) and `margin` are a PAIR: K counts rival mass
+                        OVERRULED and so RISES as the winner strengthens — it is not a
+                        reliability score — while `margin` measures the leader against the
+                        nearest DISJOINT focal set, which makes a set-shaped rival count and
+                        a coarser agreeing answer not count. Algebra only — knows nothing of
+                        rules or facts
+                        (the v0.9–v0.10 declared-frame system `frame/` was deleted in v0.11)
   rete/reference/     — Rete network nodes and compiler
   llm/bridge/         — identification HTTP bridge (:lisa-bridge package)
     session.lisp      — Entity registry, session reset
@@ -195,11 +201,11 @@ bin/
 | `/health` | GET | Health check |
 | `/assert-fact` | POST | Assert a fact: `{fact_type, value, entity?, entity_class?, confidence?}` |
 | `/run-inference` | POST | Fire rules (captures rule trace) |
-| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
+| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Per organism it reports `conflict` (K) **with `margin`**, the gap between `leading_answer` and `margin_against` (the nearest answer that *contradicts* the leader — a coarser answer that still admits it is not a rival). The pair is interpretable and neither half is: K counts rival mass **overruled**, so it rises as the winner strengthens. Measured: burn-ICU `K=0.557, margin=0.740` (decisive) vs respiratory-strep `K=0.562, margin=0.000` (dead tie). Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
 | `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, the `parameters` it can *hear*, and the distribution of `resolutions`. `summary.parameters` is the corpus's INPUT vocabulary, computed from rule premises: a parameter or value absent from it is **inert** — assertable, accepted, and matched by no rule. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
-| `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict`, and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
+| `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict` with `margin` / `leading_answer` / `margin_against` (same pairing as `/conclusions`), and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
 | `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Also `below_threshold` — the organisms the coverage gate DROPPED, each with `covered_by`: the chosen regimen's drugs that cover it **anyway**, with susceptibility. A regimen entry's `covers` lists only what the solver was *targeting*, so without this a covered runner-up reads as untreated. Echoes `solver`, `gate`, `objective`, and the dials' values as `coverage_threshold` / `susceptibility_threshold` |
 | `/reset` | POST | Clear working memory and entity registry |
 

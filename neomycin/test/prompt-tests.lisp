@@ -345,6 +345,29 @@
           (format nil "system-prompt.md transcribes the coverage threshold as ~S; ~
                        cite the echoed coverage_threshold field instead" form)))))
 
+(deftest prompt-reads-conflict-with-the-margin ()
+  ;; The retired rule -- "high K means the evidence disagrees, treat the figures as
+  ;; unstable" -- is false in this algebra, and following it the model warned a
+  ;; clinician three times in one consultation while the identification was in fact
+  ;; sharpening. The claims that replace it are pinned in candidates-tests; this
+  ;; guards the prompt against drifting back.
+  (dolist (topic '("margin" "margin_against" "leading_answer"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not explain ~A, so K is left uninterpretable"
+                topic)))
+  (dolist (claim '("High `K` (above ~0.5) means the evidence **disagrees with itself**"
+                   "treat these figures as unstable and get a discriminating test"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md has reintroduced ~S, which the measured ~
+                     behaviour of K contradicts" claim))))
+
+(deftest tools-read-conflict-with-the-margin ()
+  (dolist (topic '("margin" "margin_against"))
+    (is (tools-contains-p topic)
+        (format nil "tools.json does not mention ~A" topic)))
+  (is (not (tools-contains-p "so a high K means the rules that fired DISAGREE and the figures are unstable"))
+      "tools.json still tells the model to read K as a reliability score"))
+
 (deftest tools-describe-the-gate-and-what-it-dropped ()
   (dolist (topic '("below_threshold" "covered_by" "coverage_threshold"))
     (is (tools-contains-p topic)

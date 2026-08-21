@@ -59,9 +59,24 @@
     (multiple-value-bind (mass conflict answers) (consensus organism)
       (setf (gethash "organism" ht) (organism-name organism))
       ;; K, read BEFORE normalization: both normalizations resolve it away, so it
-      ;; cannot be recovered from the result. High K means the rules that fired
-      ;; DISAGREE and the figures should be treated as unstable.
+      ;; cannot be recovered from the result.
+      ;;
+      ;; K counts mass committed to combinations that cannot all be true. It does
+      ;; NOT measure how unreliable the surviving answer is, and it was read that
+      ;; way -- two answers naming different organisms conflict TOTALLY here, so K
+      ;; grows as the winning side strengthens against a fixed rival. MARGIN is
+      ;; emitted beside it because the pair is interpretable and neither half is.
       (setf (gethash "conflict" ht) conflict)
+      (multiple-value-bind (margin leader rival) (candidates:margin mass)
+        (setf (gethash "margin" ht) margin)
+        ;; The leader and its nearest CONTRADICTING answer, named. Without them a
+        ;; narrow margin is a bare number and the reader has to guess what it lost
+        ;; ground to -- and in the case that matters most, the rival is a SET whose
+        ;; members each have Bel 0, so guessing from `hypotheses' finds nothing.
+        (setf (gethash "leading_answer" ht)
+              (coerce (mapcar #'organism-name leader) 'vector))
+        (setf (gethash "margin_against" ht)
+              (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
       (setf (gethash "ignorance" ht) (candidates:ignorance mass))
       (setf (gethash "answers" ht) (answers->json answers))
       (setf (gethash "hypotheses" ht) (hypotheses->json organism))
@@ -189,6 +204,14 @@
         (setf (gethash "bel" ht) (candidates:bel mass hypothesis))
         (setf (gethash "pl" ht) (candidates:pl mass hypothesis))
         (setf (gethash "conflict" ht) conflict)
+        ;; Same pairing as /conclusions: an explanation that quotes K without the
+        ;; margin invites the reading the numbers do not support.
+        (multiple-value-bind (margin leader rival) (candidates:margin mass)
+          (setf (gethash "margin" ht) margin)
+          (setf (gethash "leading_answer" ht)
+                (coerce (mapcar #'organism-name leader) 'vector))
+          (setf (gethash "margin_against" ht)
+                (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
         (setf (gethash "ignorance" ht) (candidates:ignorance mass))
         (setf (gethash "argument" ht)
               (coerce (mapcar (lambda (d) (answer-argument->json d hypothesis))
