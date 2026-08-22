@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.11.0"
+  :version "0.12.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"

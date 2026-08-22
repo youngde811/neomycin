@@ -1,7 +1,7 @@
 # neomycin (research fork of Lisa)
 
 > **This repo is `neomycin`** — a research reconstruction of MYCIN/EMYCIN,
-> forked from Lisa 4.2.0 (full history preserved; the engine here is now 4.3.0).
+> forked from Lisa 4.2.0 (full history preserved; the engine here is now 4.4.0).
 > See `README.md`. **Research
 > only; NOT FOR CLINICAL USE.** This is a *substantive* fork: the `lisa` engine
 > is intentionally *not* renamed and is kept close to upstream where that costs
