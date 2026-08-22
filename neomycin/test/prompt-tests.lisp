@@ -39,11 +39,30 @@
 
 (defun rule-reference-p (token)
   "True when TOKEN is written like a rule name. The corpus names every rule for
-   what it does -- X-suggests-Y or X-argues-against-Y -- which is what lets this
-   guard tell a quoted RULE from a quoted fact type or tool name without a list to
-   maintain. A rule named outside that convention is simply not guarded here."
-  (or (search "-suggests-" token)
-      (search "-argues-against-" token)))
+   what it does -- X-narrows-to-Y -- which is what lets this guard tell a quoted
+   RULE from a quoted fact type or tool name without a list to maintain. A rule
+   named outside that convention is simply not guarded here.
+
+   THIS PREDICATE WENT BLIND ONCE. It matched the pre-v0.11 conventions
+   (-suggests-, -argues-against-), and when the corpus was renamed wholesale to
+   -narrows-to- every token stopped matching, so guard 1 passed by checking
+   nothing for the whole of v0.11. A guard whose subject can be renamed out from
+   under it needs its own guard, which is RULE-NAMING-CONVENTION-STILL-HOLDS below."
+  (search "-narrows-to-" token))
+
+(deftest rule-naming-convention-still-holds ()
+  ;; The meta-guard. RULE-REFERENCE-P recognizes rule names by convention rather
+  ;; than by list, which is what keeps it maintenance-free -- and also what let it
+  ;; silently match nothing after the v0.11 rename. Assert the convention itself,
+  ;; so the next rename fails HERE, loudly, instead of quietly disarming guard 1.
+  (let ((rules (domain-rules)))
+    (is (plusp (length rules)) "there are domain rules to check")
+    (dolist (rule rules)
+      (let ((name (string-downcase (symbol-name (lisa:rule-short-name rule)))))
+        (is (rule-reference-p name)
+            (format nil "rule `~A` does not follow the naming convention ~
+                         RULE-REFERENCE-P recognizes -- either rename the rule or ~
+                         update the predicate, but do not leave guard 1 blind" name))))))
 
 (defun integers-in (text)
   "Every non-negative integer appearing in TEXT, in order."
@@ -111,8 +130,27 @@
 ;;; would have the LLM narrating an arithmetic the engine does not perform.
 ;;; ------------------------------------------------------------------
 
+(defun collapse-whitespace (s)
+  "S with every run of whitespace reduced to a single space.
+
+   The prompt is hard-wrapped, so a multi-word phrase can be split across a newline
+   and a literal SEARCH for it fails -- silently turning a guard off. That is exactly
+   how RULE-REFERENCE-P went blind, one layer down: a check that matches nothing
+   passes. Normalising both sides makes these guards insensitive to re-wrapping, which
+   also strengthens the negative ones -- a banned phrase cannot be smuggled back in by
+   letting it fall across a line break."
+  (let ((out (make-string-output-stream))
+        (in-space nil))
+    (loop for ch across s
+          do (if (member ch '(#\Space #\Tab #\Newline #\Return))
+                 (unless in-space (write-char #\Space out) (setf in-space t))
+                 (progn (write-char ch out) (setf in-space nil))))
+    (get-output-stream-string out)))
+
 (defun prompt-contains-p (needle)
-  (search needle (system-prompt-text) :test #'char-equal))
+  (search (collapse-whitespace needle)
+          (collapse-whitespace (system-prompt-text))
+          :test #'char-equal))
 
 (deftest prompt-does-not-claim-a-mechanism-the-engine-lacks ()
   ;; Every phrase here was TRUE of an earlier representation and is now false. They
@@ -122,7 +160,13 @@
                    "class belief * rule belief"
                    "composes through its class"
                    "below 1.0 means a ruling-out rule fired"  ; nothing rules out
-                   "negative belief"))                        ; no rule carries a sign
+                   "negative belief"                          ; no rule carries a sign
+                   ;; The affirmative "X argues *against* Y" -- emphasised, which is
+                   ;; what distinguishes it from the DENIALS the prompt makes
+                   ;; correctly ("no rule argues against an organism"). This one
+                   ;; described catalase and outlived the v0.11 rewrite by hiding in
+                   ;; the fact-ontology section, where these guards were not looking.
+                   "argues *against*"))
     (is (not (prompt-contains-p claim))
         (format nil "system-prompt.md still describes ~S, which the engine no longer does"
                 claim))))
@@ -164,6 +208,252 @@
   (is (tools-contains-p "answer") "tools.json describes a rule's answer")
   (is (not (tools-contains-p "confirming | disconfirming)"))
       "and does not offer a rule KIND the corpus no longer has"))
+
+;;; ------------------------------------------------------------------
+;;; Guard 3 -- the prompt advertises exactly the vocabulary the corpus can hear.
+;;;
+;;; The defect this exists for: the prompt's fact tables listed 11 values across 9
+;;; parameters that NO rule premises on -- urease=negative, hemolysis=gamma,
+;;; catalase=positive, culture-age at any value, and six more. Asserting one
+;;; succeeds. The bridge interns the value, files the fact, returns 200, and no
+;;; rule matches it. Nothing anywhere reports that the observation was inert.
+;;;
+;;; That is worse than an unknown fact TYPE, which at least 500s. It cost a real
+;;; consultation: the model was told a negative urease, asserted it, and then --
+;;; reasoning from clinical plausibility rather than from the corpus -- recommended
+;;; an oxidase test and a pyocyanin reading to resolve the case. Neither exists
+;;; here. A clinician following that advice orders lab work whose result can never
+;;; be entered.
+;;;
+;;; So the tables are allowed to list an inert value -- a clinician may report one
+;;; and the model should record it -- but they must MARK it, and the marking is
+;;; checked against the compiled rules rather than trusted. A dagger that should
+;;; not be there fails just as loudly as one that is missing: the prompt must not
+;;; under-claim the corpus either, or the model will stop asking for a test that
+;;; works.
+;;; ------------------------------------------------------------------
+
+(defparameter +inert-marker+ (code-char 8224)
+  "DAGGER. Written by code point so this file stays ASCII and no source-encoding
+   setting can quietly change what the guard compares against.")
+
+(defun corpus-vocabulary ()
+  "The corpus's input vocabulary as lowercase strings: ((param value ...) ...)."
+  (mapcar (lambda (entry)
+            (cons (string-downcase (symbol-name (car entry)))
+                  (mapcar (lambda (v) (string-downcase (princ-to-string v)))
+                          (cdr entry))))
+          (lisa:corpus-premise-vocabulary (domain-rules))))
+
+(defun trim-cell (s)
+  (string-trim '(#\Space #\Tab) s))
+
+(defun split-on (char s)
+  (let ((acc '()) (start 0))
+    (loop for pos = (position char s :start start)
+          do (push (subseq s start (or pos (length s))) acc)
+             (if pos (setf start (1+ pos)) (return (nreverse acc))))))
+
+(defun backticked-cell (cell)
+  "CELL's content when it is a single `backticked` token, else NIL."
+  (let ((trimmed (trim-cell cell)))
+    (when (and (> (length trimmed) 2)
+               (char= (char trimmed 0) #\`)
+               (char= (char trimmed (1- (length trimmed))) #\`)
+               (not (find #\` trimmed :start 1 :end (1- (length trimmed)))))
+      (subseq trimmed 1 (1- (length trimmed))))))
+
+(defun prompt-vocabulary-rows ()
+  "((param value inert-marked-p) ...) parsed from the prompt's fact tables.
+
+   A table row qualifies when its first cell is a single backticked token -- which
+   is how the three fact-ontology tables are written and the contraindication table
+   (whose first cell is quoted clinician speech) is not."
+  (let ((acc '()))
+    (dolist (line (split-on #\Newline (system-prompt-text)) (nreverse acc))
+      (let ((cells (split-on #\| line)))
+        (when (>= (length cells) 4)
+          (let ((param (backticked-cell (second cells))))
+            (when param
+              (dolist (raw (split-on #\, (third cells)))
+                (let* ((value (trim-cell raw))
+                       (inert (and (plusp (length value))
+                                   (char= (char value (1- (length value)))
+                                          +inert-marker+))))
+                  (when (plusp (length value))
+                    (push (list param
+                                (if inert (subseq value 0 (1- (length value))) value)
+                                inert)
+                          acc)))))))))))
+
+(deftest prompt-marks-exactly-the-inert-values ()
+  (let ((vocab (corpus-vocabulary))
+        (rows (prompt-vocabulary-rows)))
+    (is (plusp (length rows))
+        "system-prompt.md still has parseable fact-ontology tables")
+    (dolist (row rows)
+      (destructuring-bind (param value marked-inert) row
+        (let ((consumable (and (member value (cdr (assoc param vocab :test #'string=))
+                                       :test #'string-equal)
+                               t)))
+          (if marked-inert
+              (is (not consumable)
+                  (format nil "system-prompt.md marks ~A=~A inert, but a rule ~
+                               premises on it -- drop the dagger, or the model will ~
+                               stop asking for a test that works" param value))
+              (is consumable
+                  (format nil "system-prompt.md advertises ~A=~A with no marking, ~
+                               but no rule premises on it. Asserting it succeeds and ~
+                               changes nothing, silently. Mark it inert (~A) or add a ~
+                               rule that reads it" param value +inert-marker+))))))))
+
+(deftest every-inert-value-the-prompt-marks-has-a-reason ()
+  ;; The second half of property-tests' invariant 13, and it lives here because the
+  ;; prompt's tables are the only enumeration of what a client may assert -- the
+  ;; bridge interns whatever value it is handed, so the corpus cannot supply the list.
+  ;;
+  ;; Marking a value inert says "this is silent"; *deliberately-inert* says WHY, and
+  ;; without the second the first is just a dagger nobody has to justify. Eleven
+  ;; values were silent before any of this existed and not one was a decision.
+  (dolist (row (prompt-vocabulary-rows))
+    (destructuring-bind (param value marked-inert) row
+      (when marked-inert
+        (let ((entry (find-if
+                      (lambda (e)
+                        (and (string-equal (symbol-name (first e)) param)
+                             (or (null (second e))
+                                 (string-equal (symbol-name (second e)) value))))
+                      *deliberately-inert*)))
+          (is entry
+              (format nil "system-prompt.md marks ~A=~A inert, but *deliberately-inert* ~
+                           gives no reason for it. Either author a rule that reads it, ~
+                           or record why the marker cannot discriminate here"
+                      param value))
+          (when entry
+            (is (plusp (length (third entry)))
+                (format nil "~A=~A is documented as inert with an empty rationale"
+                        param value))))))))
+
+(deftest prompt-states-the-inert-value-policy ()
+  ;; The marking is only half the fix; the model also has to be told what to DO
+  ;; about it. Both halves of the policy are load-bearing and both were absent.
+  (dolist (claim '("Never recommend a test whose result this corpus cannot act on"
+                   "summary.parameters"
+                   "oxidase"))                 ; named because it is what was suggested
+    (is (prompt-contains-p claim)
+        (format nil "system-prompt.md no longer states ~S -- the inert-value policy ~
+                     is incomplete without it" claim))))
+
+(deftest tools-json-marks-the-same-inert-values ()
+  ;; tools.json is the THIRD copy of the vocabulary (prompt table, enum, value
+  ;; description) and drifted once already while the suite stayed green. Guard it
+  ;; against the same computed truth, in both directions.
+  (let* ((text (tools-json-text))
+         (start (search "INERT VALUES" text))
+         ;; Bounded by the enclosing JSON string, not by a character count: the
+         ;; descriptions that follow enumerate every fact type, so an over-long
+         ;; window finds each parameter "mentioned" and the guard reports nothing.
+         (blurb (and start (subseq text start (or (position #\" text :start start)
+                                                  (length text)))))
+         (rows (prompt-vocabulary-rows))
+         (params (remove-duplicates (mapcar #'first rows) :test #'string=)))
+    (is blurb "tools.json names its inert values -- expected an \"INERT VALUES\" note")
+    (when blurb
+      (dolist (param params)
+        (let ((any-inert (some (lambda (r) (and (string= (first r) param) (third r)))
+                               rows))
+              (mentioned (and (search param blurb :test #'char-equal) t)))
+          (if any-inert
+              (is mentioned
+                  (format nil "tools.json's INERT note does not mention ~A, which has ~
+                               a value no rule reads" param))
+              (is (not mentioned)
+                  (format nil "tools.json's INERT note mentions ~A, but every value ~
+                               it advertises is consumable" param))))))))
+
+(deftest prompt-does-not-transcribe-a-policy-dial ()
+  ;; The prompt said the coverage threshold was "0.2" and stayed saying it through
+  ;; the v0.11 recalibration to 0.1 -- so the model quoted a stale number to a
+  ;; clinician as the reason an organism went untreated. The fix is not to correct
+  ;; the digits, which would go stale again on the next tuning; it is to stop
+  ;; carrying them. The response echoes coverage_threshold, and the prompt must
+  ;; point at it rather than restate it.
+  (let ((text (system-prompt-text)))
+    (is (prompt-contains-p "coverage_threshold")
+        "system-prompt.md must tell the model to read the gate off the payload")
+    ;; Any literal that happens to equal the current value is still a transcription,
+    ;; so this looks for the SHAPE of one rather than for a wrong number.
+    (dolist (form (list (format nil "coverage threshold (default ~,1F)"
+                                therapy:*coverage-threshold*)
+                        "coverage threshold (default 0.2)"
+                        "coverage threshold (default 0.1)"))
+      (is (not (search form text :test #'char-equal))
+          (format nil "system-prompt.md transcribes the coverage threshold as ~S; ~
+                       cite the echoed coverage_threshold field instead" form)))))
+
+(deftest prompt-reads-conflict-with-the-margin ()
+  ;; The retired rule -- "high K means the evidence disagrees, treat the figures as
+  ;; unstable" -- is false in this algebra, and following it the model warned a
+  ;; clinician three times in one consultation while the identification was in fact
+  ;; sharpening. The claims that replace it are pinned in candidates-tests; this
+  ;; guards the prompt against drifting back.
+  (dolist (topic '("margin" "margin_against" "leading_answer"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not explain ~A, so K is left uninterpretable"
+                topic)))
+  (dolist (claim '("High `K` (above ~0.5) means the evidence **disagrees with itself**"
+                   "treat these figures as unstable and get a discriminating test"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md has reintroduced ~S, which the measured ~
+                     behaviour of K contradicts" claim))))
+
+(deftest tools-read-conflict-with-the-margin ()
+  (dolist (topic '("margin" "margin_against"))
+    (is (tools-contains-p topic)
+        (format nil "tools.json does not mention ~A" topic)))
+  (is (not (tools-contains-p "so a high K means the rules that fired DISAGREE and the figures are unstable"))
+      "tools.json still tells the model to read K as a reliability score"))
+
+(deftest prompt-explains-support-versus-share ()
+  ;; The single most trust-destroying thing the engine does: a clinician reports a
+  ;; finding that supports an organism and the organism's number goes DOWN. The
+  ;; arithmetic is right (Bel is a share of one unit of mass, and the same fact
+  ;; strengthened a rival more), so the fix is narration -- but narration nothing
+  ;; guards is narration that drifts. The behaviour itself is pinned by
+  ;; SUPPORT-CAN-RISE-WHILE-SHARE-FALLS in candidates-tests.lisp.
+  (dolist (claim '("Support and share are different quantities"
+                   "can make its belief go down"))
+    (is (prompt-contains-p claim)
+        (format nil "system-prompt.md no longer explains ~S" claim)))
+  ;; The two failure modes the guidance exists to prevent, either of which would be a
+  ;; false statement about a correct computation. Asserted POSITIVELY -- that the
+  ;; prohibitions are still there -- because a negative guard on this text matches the
+  ;; prohibition itself ("Never say the finding was unhelpful" contains the phrase) and
+  ;; would fail on the very wording it is meant to protect.
+  (dolist (prohibition '("Never say the finding was unhelpful"
+                         "never suggest the engine made a mistake"))
+    (is (prompt-contains-p prohibition)
+        (format nil "system-prompt.md no longer prohibits ~S" prohibition))))
+
+(deftest prompt-describes-set-obligations ()
+  ;; Stage D put a coverage requirement in the payload that names no organism. If the
+  ;; prompt does not explain it, the model will either ignore it or -- worse -- narrate
+  ;; it as treating a species, which is the one thing a set answer does not claim.
+  (dolist (topic '("set_obligations"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not explain ~A" topic)))
+  ;; The family backstop is gone; the prompt described it for two releases after the
+  ;; taxonomy stopped being reified, and it would now be a mechanism the solver lacks.
+  (dolist (claim '("enterobacteriaceae family" "as a *backstop*"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md still describes ~S, which the solver no longer does"
+                claim))))
+
+(deftest tools-describe-the-gate-and-what-it-dropped ()
+  (dolist (topic '("set_obligations" "below_threshold" "covered_by" "coverage_threshold"))
+    (is (tools-contains-p topic)
+        (format nil "tools.json does not mention ~A -- the model has no reason to ~
+                     read it, and will report a covered organism as untreated" topic))))
 
 (deftest tools-json-is-well-formed-and-covers-the-endpoints ()
   ;; Cheap structural check: every tool the prompt tells the model to call must exist.

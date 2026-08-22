@@ -285,8 +285,13 @@ something else:
 - **Belief committed to one organism is belief unavailable to its rivals**, so evidence
   for one lowers the ceiling on the others automatically. An organism nobody has
   mentioned can still be effectively excluded.
-- **Belief that lands on an impossible combination is the conflict**, `K`. When the
-  evidence disagrees with itself, `K` rises and says so.
+- **Belief that lands on an impossible combination is the conflict**, `K` — and it is
+  reported with a companion, the **margin**, because `K` alone does not mean what it
+  looks like it means. Two answers naming different organisms are incompatible
+  *totally*, so `K` counts how much rival evidence was **overruled**, and it therefore
+  climbs as the winning side strengthens. A high `K` can describe a case that is
+  perfectly clear-cut. The margin — how far the leading answer sits above the nearest
+  answer that contradicts it — is what says whether the disagreement resolved.
 
 The frame is **open**. The system never enumerates every organism that exists — only
 the sets its rules actually name. So the question *"could this be something you don't
@@ -308,15 +313,23 @@ findings simply give answers that do not overlap, and the arithmetic does the re
 | E. coli | 0.670 | 0.758 |
 | Serratia | 0.242 | 0.303 |
 
-with **conflict `K` = 0.736**.
+with **conflict `K` = 0.736** and a **margin of 0.427**.
 
 Read the ceilings first. Both have fallen well below 1.0, which is the signature of
 genuine contradiction; in an ordinary case where the evidence agrees, both would sit at
-1.0. E. coli leads because three answers admit it and only one admits Serratia — but
-the number that matters is `K`. **Nearly three quarters of the belief in this case
-landed on a combination that cannot be true.** The right thing to tell a clinician is
-not "E. coli, 67%"; it is that the bench results contradict each other and should be
-repeated.
+1.0. E. coli leads because three answers admit it and only one admits Serratia. But
+**nearly three quarters of the belief in this case landed on a combination that cannot
+be true**, and the two specific answers driving it — `{e-coli}` at 0.80 and
+`{serratia}` at 0.80 — are *equally* strong and cannot both hold. The right thing to
+tell a clinician is not "E. coli, 67%"; it is that the bench results contradict each
+other and should be repeated.
+
+The margin is what licenses reading it that way, and it is worth seeing the contrast.
+A burn-ICU case elsewhere in this project runs `K = 0.557` — comparably high — with a
+margin of **0.740**, and there the answer is simply Pseudomonas: one specific answer at
+0.93 against a rival at 0.60, decisively overruled. Same shape of number, opposite
+meaning. Here the margin is 0.427 and the two specific answers are tied, so the high
+`K` is what it appears to be. **Neither figure is interpretable alone**; the pair is.
 
 That is the property worth building for. A system that reports its own inputs disagree
 is more useful than one that smooths the disagreement into a confident-looking average
@@ -572,7 +585,7 @@ that the clinical association is real; they do not verify the number. Grounding
 some of those numbers in real frequency data is active work.
 
 **Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 44 rules against MYCIN's original 450 —
+its contraindications. The rulebase is 48 rules against MYCIN's original 450 —
 enough to exercise every mechanism in the architecture, and nowhere near enough
 to be clinically meaningful.
 

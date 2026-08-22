@@ -260,7 +260,7 @@ Some rows are not reachable end to end — see the note after finding 3.
 | klebsiella 0.40 alone | meropenem | **gentamicin** | diverges |
 | enterobacteriaceae 0.80 | meropenem | **gentamicin** | diverges |
 | pseudomonas 0.76 alone | meropenem | **ceftazidime** | diverges |
-| culture-1 pair | meropenem | **ceftazidime** | diverges |
+| culture-1 pair *(two organisms only — see note)* | meropenem | **ceftazidime** | diverges |
 | salmonella 0.65 | meropenem | **ciprofloxacin** | diverges |
 | S. pneumoniae 0.70 | meropenem | **vancomycin** | diverges |
 | enterococcus 0.60 | ampicillin | **linezolid** | diverges |
@@ -268,6 +268,26 @@ Some rows are not reachable end to end — see the note after finding 3.
 | three organisms | meropenem, vancomycin | **ceftazidime**, vancomycin | diverges |
 | S. aureus 0.60 alone | vancomycin | vancomycin | same |
 | bacteroides + S. aureus | metronidazole, vancomycin | metronidazole, vancomycin | same |
+
+> **Superseded for the culture-1 row (Stage D).** Every row above is measured by
+> handing the solver a list of ORGANISM conclusions. Real culture-1, run through
+> `conclusions-for-solver`, also carries **0.155 on the seven aerobic gram-negative
+> rods** — a set-valued answer that is now a coverage obligation in its own right.
+> Ceftazidime does not discharge it: it covers `:salmonella` at bel 0.46 against a
+> 0.50 threshold. So the pipeline returns **meropenem under both objectives**, and
+> the divergence disappears.
+>
+> That is not the dial failing. It is the dial's earlier win being **an artifact of
+> an unsound suppression rule** — the narrower agent looked narrower because a
+> member of the differential was being silently dropped. Four of sixty
+> scenario × patient × objective configurations were under-covering this way.
+> `spectrum-sparing` still genuinely de-escalates where the whole obligation can be
+> met narrowly (salmonella → ciprofloxacin), and drug COUNT remains primary under
+> both objectives, which is why a single broad agent beats a narrow pair here.
+>
+> The rows above are retained as SOLVER behaviour, which is what they always
+> measured, and the pipeline behaviour is pinned separately by
+> `set-obligation-constrains-spectrum-sparing` in `therapy-bridge-tests.lisp`.
 
 Three findings, and two of them are problems:
 

@@ -132,6 +132,97 @@
     (is (> (reduce #'+ (mapcar #'cdr sets)) 0.1)
         "and it is a meaningful share, not a rounding remnant")))
 
+;;; ------------------------------------------------------------------
+;;; Conflict is not a reliability score -- MARGIN is what makes it readable.
+;;;
+;;; The system prompt told the model that K above ~0.5 means "the evidence disagrees
+;;; with itself, treat these figures as unstable". Under this algebra two answers
+;;; naming different organisms conflict TOTALLY, so K counts how much rival mass was
+;;; OVERRULED and grows as the winning side strengthens. In one consultation the model
+;;; gave that caveat three times, escalating, while the identification was sharpening.
+;;;
+;;; These tests pin the claims the prompt now makes, so the guidance cannot drift from
+;;; the algebra it describes.
+;;; ------------------------------------------------------------------
+
+(defun combined (&rest answers)
+  (multiple-value-list (candidates:combine-answers answers)))
+
+(deftest conflict-rises-while-the-answer-sharpens ()
+  ;; The rival is FIXED at 0.60 throughout; only the challenger's support grows. If K
+  ;; measured disagreement it would peak at the tie and fall away as one side won.
+  ;;
+  ;; It does neither. K rises MONOTONICALLY across the whole sweep -- straight through
+  ;; the crossover and on past it -- because every increment of winning mass is more
+  ;; mass that contradicts the rival. The margin, meanwhile, is V-shaped: it collapses
+  ;; to zero at the tie and climbs again as the leader pulls away. That divergence IS
+  ;; the finding. At 0.60 the two readouts disagree about the state of the evidence,
+  ;; and the margin is the one that is right.
+  (let ((rows (loop for b in '(0.40d0 0.60d0 0.76d0 0.85d0 0.928d0 0.97d0)
+                    collect (destructuring-bind (mass k)
+                                (combined (cons '(:pseudomonas) b)
+                                          (cons '(:klebsiella) 0.60d0))
+                              (list b k (candidates:margin mass))))))
+    ;; K: monotone increasing, no exceptions.
+    (loop for (a b) on rows while b
+          do (is (> (second b) (second a))
+                 (format nil "K rises from ~,2F to ~,2F support" (first a) (first b))))
+    ;; The margin bottoms out exactly where the evidence is actually tied.
+    (is (approx= (third (second rows)) 0.0d0)
+        "margin is 0 at the crossover, where support is equal")
+    (is (> (third (first rows)) 0.0d0)
+        "positive before it, with the rival ahead")
+    ;; ...and rises monotonically once the leader is clear.
+    (loop for (a b) on (cddr rows) while b
+          do (is (> (third b) (third a))
+                 (format nil "margin widens from ~,2F to ~,2F support"
+                         (first a) (first b))))))
+
+(deftest near-equal-conflict-opposite-meaning ()
+  ;; THE PAIR the prompt quotes. Two cases with K within 0.03 of each other, one as
+  ;; decisive as this corpus gets and one exactly tied. Any narration keyed on K
+  ;; alone must give these the same reading, and that reading is wrong for one of them.
+  (destructuring-bind (decisive-mass decisive-k)
+      (combined (cons '(:pseudomonas) 0.928d0) (cons '(:klebsiella) 0.60d0))
+    (destructuring-bind (tied-mass tied-k)
+        (combined (cons '(:pseudomonas) 0.76d0) (cons '(:klebsiella) 0.76d0))
+      (is (< (abs (- decisive-k tied-k)) 0.03d0)
+          "the two cases carry near-identical conflict")
+      (is (> (candidates:margin decisive-mass) 0.7d0)
+          "yet one is decisive")
+      (is (approx= (candidates:margin tied-mass) 0.0d0)
+          "and the other is a dead tie"))))
+
+(deftest margin-ignores-a-coarser-answer-that-agrees ()
+  ;; A set CONTAINING the leader is the same claim at lower resolution. Counting it as
+  ;; a rival would report competition where there is agreement -- and would make every
+  ;; well-supported species look contested by its own genus.
+  (destructuring-bind (mass k)
+      (combined (cons '(:pseudomonas) 0.928d0)
+                (cons '(:e-coli :enterobacter :klebsiella :proteus :pseudomonas
+                        :salmonella :serratia) 0.80d0))
+    (is (approx= k 0.0d0) "nested answers do not conflict at all")
+    (multiple-value-bind (margin leader rival) (candidates:margin mass)
+      (declare (ignore leader))
+      (is (null rival) "and nothing contradicts the leader")
+      (is (> margin 0.9d0) "so the margin is the leader's own mass"))))
+
+(deftest margin-counts-a-set-shaped-rival ()
+  ;; The case a singleton-only margin gets WRONG, and it is a real scenario: a
+  ;; respiratory gram-positive coccus in chains with beta hemolysis. Both members of
+  ;; the beta pair have Bel 0 individually, so a leader-minus-runner-up-singleton
+  ;; reading sees no rival at all and calls an exact tie decisive.
+  (destructuring-bind (mass k)
+      (combined (cons '(:streptococcus-pneumoniae) 0.75d0)
+                (cons '(:streptococcus-pyogenes :streptococcus-agalactiae) 0.75d0))
+    (declare (ignore k))
+    (is (approx= (candidates:bel mass :streptococcus-pyogenes) 0.0d0)
+        "neither member of the pair carries any belief of its own")
+    (multiple-value-bind (margin leader rival) (candidates:margin mass)
+      (declare (ignore leader))
+      (is (approx= margin 0.0d0) "and the margin reports the tie")
+      (is rival "naming the set it is tied against"))))
+
 (deftest candidates-a-genus-needs-no-class-fact ()
   ;; Asking "is this a streptococcus" is asking Bel/Pl of that SET. Nothing reifies a
   ;; class, which is why the three carried-over class beliefs ceased to exist.
@@ -163,3 +254,44 @@
     (is (plusp (length rules)) "S. pyogenes has rules behind it")
     (is (member 'lisa-user::bacitracin-sensitive-narrows-to-pyogenes rules)
         "including the bacitracin discriminator that narrowed to it")))
+
+;;; ------------------------------------------------------------------
+;;; SUPPORT and SHARE are different quantities, and they can move opposite ways.
+;;;
+;;; A clinician reported a hospital-acquired infection -- a fact that SUPPORTS
+;;; Klebsiella, firing a stronger and more specific rule for it -- and Klebsiella's
+;;; number went DOWN. That is correct: the same fact also fires a third Pseudomonas
+;;; rule, and Bel is a share of one unit of mass, so a hypothesis can gain support
+;;; while losing share.
+;;;
+;;; It is also the single most trust-destroying thing this engine does, so the
+;;; behaviour is pinned here and the prompt is required to explain it rather than
+;;; apologise for it. culture-1 and culture-1a differ by exactly that one fact.
+;;; ------------------------------------------------------------------
+
+(defun answer-strength (organism set)
+  "The belief of the answer that narrows to exactly SET, or 0 if no rule gave it."
+  (declare (ignore organism))
+  (or (loop for (s . b) in (neomycin:answers-for 'lisa-user::o1)
+            when (equal s set) return b)
+      0.0d0))
+
+(deftest support-can-rise-while-share-falls ()
+  (let (support-1 bel-1 margin-1)
+    (candidates-run 'lisa-user::culture-1)
+    (setf support-1 (answer-strength :klebsiella '(:klebsiella))
+          bel-1 (candidates:bel (neomycin:consensus 'lisa-user::o1) :klebsiella)
+          margin-1 (candidates:margin (neomycin:consensus 'lisa-user::o1)))
+    (candidates-run 'lisa-user::culture-1a)
+    (let* ((mass (neomycin:consensus 'lisa-user::o1))
+           (support-2 (answer-strength :klebsiella '(:klebsiella)))
+           (bel-2 (candidates:bel mass :klebsiella))
+           (margin-2 (candidates:margin mass)))
+      (is (> support-2 support-1)
+          (format nil "the answer naming klebsiella alone STRENGTHENS, ~,3F -> ~,3F"
+                  support-1 support-2))
+      (is (< bel-2 bel-1)
+          (format nil "while its share of belief FALLS, ~,4F -> ~,4F" bel-1 bel-2))
+      (is (> margin-2 margin-1)
+          (format nil "because the differential sharpened, margin ~,3F -> ~,3F"
+                  margin-1 margin-2)))))

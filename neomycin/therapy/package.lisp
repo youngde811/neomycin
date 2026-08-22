@@ -42,7 +42,8 @@
    ;; --- recommendation object (the auditable result; design doc 4.4) ---
    #:recommendation #:make-recommendation #:recommendation-p
    #:recommendation-regimen #:recommendation-items-to-treat #:recommendation-excluded
-   #:recommendation-uncovered
+   #:recommendation-uncovered #:recommendation-below-threshold
+   #:recommendation-set-obligations
    #:recommendation-alternative-agents #:recommendation-alternative-regimens
    #:alternative-regimen #:make-alternative-regimen #:alternative-regimen-p
    #:alternative-regimen-drugs
@@ -52,6 +53,15 @@
    #:susceptibility-item-value #:susceptibility-item-n-tested #:susceptibility-item-source
    #:treat-item #:make-treat-item #:treat-item-organism #:treat-item-belief
    #:exclusion #:make-exclusion #:exclusion-drug #:exclusion-reason
+   #:below-threshold-item #:make-below-threshold-item #:below-threshold-item-p
+   #:below-threshold-item-organism #:below-threshold-item-belief
+   #:below-threshold-item-covered-by
+   #:incidental-cover #:make-incidental-cover #:incidental-cover-p
+   #:incidental-cover-drug #:incidental-cover-susceptibility
+   #:below-threshold-for
+   #:set-obligation #:make-set-obligation #:set-obligation-p
+   #:set-obligation-members #:set-obligation-mass #:set-obligation-uncovered
+   #:discharge-obligations #:set-entry-p
    ;; --- knowledge base abstraction (design doc 3.2) ---
    #:therapy-kb #:make-therapy-kb #:therapy-kb-p
    #:add-drug #:add-sensitivity #:add-contraindication #:add-antibiogram #:add-family-member

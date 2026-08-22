@@ -20,7 +20,28 @@ rather than re-synced, so an older one can lag the current rulebase.
 > `alternative_agents` reporting that closes §1.1 — see `docs/clinician-scenarios.md`
 > Scenario 15 and `docs/runbook.md` demo 6.
 
+> **⚠️ Every transcript below `v011-burn-icu-release-check.md` predates v0.11.0**
+> (2026-08-18), which replaced the representation wholesale. They narrate **negative
+> beliefs**, **ruling-out rules** and an **organism-class** — none of which the corpus
+> still has. A rule that "argues against" something at −0.75 is not a thing that can
+> happen now: a rule states the SET its evidence narrows to, and exclusion is what
+> remains after intersecting. Read them as records of what the system said on the date
+> shown, not as descriptions of how it works. The same applies as for therapy above —
+> they are specimens, kept because editing them would falsify the record.
+
 ## Current
+
+- **`v011-burn-icu-release-check.md`** (2026-08-22) — the burn-ICU case under v0.11
+  candidate sets, run as the **release check** and checked figure-by-figure against
+  independently computed goldens (the table is in the file). Shows the three
+  narrations the 2026-08-18 audit added: `conflict` read together with `margin` (a
+  high K with a wide margin is a decisive overrule, not an unstable tie), a
+  below-threshold organism reported *with* the coverage it still gets, and a
+  negative-polarity bench reading that now fires a rule. It also caught a live
+  defect on its first run — `?premises=` could not be queried by parameter name, and
+  the model consequently made a false statement about the corpus to a clinician.
+  The best current example of what the narration should look like.
+
 
 - **`strep-hemolysis-conflict-rule-catalogue.md`** (2026-08-11) — a respiratory
   gram-positive case where the bench reading **contradicts** the clinical site: the

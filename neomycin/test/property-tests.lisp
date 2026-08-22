@@ -231,7 +231,23 @@
       Chemother, PMC183804.")
     (lisa-user::lactose lisa-user::fermenter (:serratia)
      "Serratia is a slow and variable lactose reactor, so the marker is not clean for
-      it in either direction. NBK8035."))
+      it in either direction. NBK8035.")
+    ;; The reciprocal readings, added with the rules that first read them. A marker
+    ;; that cannot exclude an organism cannot do so in EITHER direction, so every
+    ;; entry above implies one here -- which is why the negative polarities were the
+    ;; place to look once the reciprocals were authored.
+    (lisa-user::urease lisa-user::negative (:klebsiella :enterobacter :serratia
+                                            :pseudomonas)
+     "The variable urease producers. Klebsiella, Enterobacter and Serratia are
+      variable (NBK8035) and 72% of P. aeruginosa is positive (PMC86256), so the
+      other 28% reads negative -- none of them can be excluded by a negative urease.
+      Only Proteus can, being rapid and strong. NBK442017.")
+    (lisa-user::motility lisa-user::non-motile (:e-coli)
+     "E. coli is flagellated and described as motile, but motility is variably
+      EXPRESSED and a substantial minority of clinical isolates read non-motile on a
+      standard tube test -- so a non-motile result cannot exclude it. Klebsiella,
+      characteristically non-motile, is what the marker is actually for. NBK8035,
+      NBK564298."))
   "(MARKER VALUE ORGANISMS-IT-CANNOT-EXCLUDE RATIONALE).
 
    Read as: any rule resting on MARKER = VALUE ALONE must leave every listed organism
@@ -266,6 +282,79 @@
      (and (member value (lisa:rule-premise-values rule marker) :test #'eq)
           (equal (list marker) (rule-bench-markers rule))))
    (neomycin:catalogue-rules)))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 13 -- no UNDOCUMENTED silence.
+;;;
+;;; A parameter value the knowledge base declares but no rule premises on is INERT:
+;;; the bridge accepts the assertion, returns success, and nothing happens. There is
+;;; no error, and the consultation looks exactly as it would if the test had come
+;;; back uninformative.
+;;;
+;;; That is sometimes the right answer -- some markers genuinely cannot discriminate
+;;; among the organisms this corpus models, and the honest thing is to say so. What
+;;; is never right is for it to be an ACCIDENT. Eleven values were inert before this
+;;; invariant existed and not one of them was a decision: they were the polarities
+;;; nobody wrote, left over from a corpus of ruling-out rules where a marker had only
+;;; one direction to state.
+;;;
+;;; So each surviving one carries a reason here, checked in both directions. This file
+;;; owns the first: a documented value that a rule now READS is a stale note. The
+;;; second -- an advertised value that is inert and has NO entry -- is checked in
+;;; prompt-tests.lisp (EVERY-INERT-VALUE-THE-PROMPT-MARKS-HAS-A-REASON), because the
+;;; set of values a client may assert is enumerated by the prompt's fact tables and
+;;; nowhere in the corpus: the bridge interns whatever value it is handed.
+;;; ------------------------------------------------------------------
+
+(defparameter *deliberately-inert*
+  '((lisa-user::pigment lisa-user::none
+     "Many clinical Serratia isolates are non-pigmented, so the ABSENCE of red
+      pigment excludes nothing -- an answer naming every organism would be the
+      honest one, and a rule that narrows to everything is not worth firing. The
+      positive reading is the whole of this marker's value.")
+    (lisa-user::hemolysis lisa-user::gamma
+     "Non-hemolysis is characteristic of the enterococci but is also shown by group D
+      and some viridans streptococci, and both enterococci here are already reached
+      by bile-esculin plus salt tolerance on stronger evidence. Authoring it would
+      add a wide answer that duplicates a narrow one.")
+    (lisa-user::salt-tolerance lisa-user::intolerant
+     "A bile-esculin-positive, salt-INTOLERANT chain former is a non-enterococcal
+      group D streptococcus -- S. gallolyticus/bovis -- which this corpus does not
+      model. The answer lies entirely outside the named organisms, so there is no set
+      to assert. Under the open frame that hypothesis keeps its plausibility as
+      residual ignorance, which is the correct outcome and needs no rule.")
+    (lisa-user::age-group lisa-user::infant
+     "Only NEONATE carries a rule (group B streptococcal disease of the newborn).
+      The other bands have no epidemiological discriminator in this corpus, and
+      inventing one would be belief without evidence.")
+    (lisa-user::age-group lisa-user::adult
+     "As INFANT: recorded for the chart, read by no rule.")
+    (lisa-user::age-group lisa-user::elderly
+     "As INFANT: recorded for the chart, read by no rule.")
+    (lisa-user::culture-age nil
+     "MYCIN used culture age for contamination reasoning -- an old culture growing a
+      skin organism suggests a contaminant. That inference is not reconstructed here,
+      so the parameter is accepted and unread at EVERY value."))
+  "(PARAMETER VALUE RATIONALE), VALUE NIL meaning the parameter is unread at every
+   value. Each entry is a decision that a marker cannot usefully discriminate among
+   the organisms this corpus models -- not a gap left open.")
+
+(deftest property-every-inert-value-is-a-decision ()
+  ;; Direction 1: nothing documented as inert may have quietly acquired a rule.
+  (let ((vocab (lisa:corpus-premise-vocabulary (neomycin:catalogue-rules))))
+    (dolist (entry *deliberately-inert*)
+      (destructuring-bind (param value rationale) entry
+        (declare (ignore rationale))
+        (let ((known (cdr (assoc param vocab))))
+          (if (null value)
+              (is (null known)
+                  (format nil "~(~a~) is documented as unread at every value, but a ~
+                               rule now premises on it -- update *deliberately-inert*"
+                          param))
+              (is (not (member value known :test #'eq))
+                  (format nil "~(~a~)=~(~a~) is documented as inert, but a rule now ~
+                               reads it -- the note is stale"
+                          param value))))))))
 
 (deftest property-variable-marker-cannot-exclude-an-organism ()
   (dolist (entry *variable-markers*)

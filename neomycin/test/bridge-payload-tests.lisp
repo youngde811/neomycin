@@ -147,3 +147,41 @@
       (is (numberp (gethash "ignorance" differential)) "residual ignorance is reported"))
     (is (plusp (length (gethash "conclusions" payload)))
         "the flat leading-calls list is populated")))
+;;; ------------------------------------------------------------------
+;;; /rules ?premises= answers by PARAMETER as well as by value.
+;;;
+;;; Found by the release-check consultation, not by this suite. The filter compared
+;;; values only, so `?premises=urease' returned zero rules -- and the model, having
+;;; asked exactly that, told a clinician there was no rule reading a negative urease
+;;; and that it could not rule out Proteus. Both false.
+;;;
+;;; The failure mode is the one this project keeps meeting: a query that returns
+;;; NOTHING is indistinguishable from a corpus that CONTAINS nothing.
+;;; ------------------------------------------------------------------
+
+(deftest rules-premises-filter-matches-parameter-names ()
+  (let ((by-name (neomycin::matching-rules :premises "urease")))
+    (is (plusp (length by-name))
+        "?premises=urease finds the rules that read urease -- naming the parameter is
+         a sensible question and used to return silence")
+    ;; Both polarities, which is the point of asking by parameter: a clinician wants
+    ;; to know what the TEST is worth, not what one of its readings is worth.
+    (dolist (expected '(lisa-user::urease-positive-narrows-to-urease-producers
+                        lisa-user::urease-negative-narrows-to-non-proteus-rods))
+      (is (find expected by-name :key #'lisa:rule-short-name)
+          (format nil "~(~a~) is among them" expected)))))
+
+(deftest rules-premises-filter-still-matches-values ()
+  ;; The original behaviour, unchanged: naming a reading narrows to that reading.
+  (let ((by-value (neomycin::matching-rules :premises "non-motile")))
+    (is (plusp (length by-value)) "?premises=non-motile finds the rule reading it")
+    (is (every (lambda (r) (member 'lisa-user::non-motile
+                                   (lisa:rule-premise-values r 'lisa-user::motility)))
+               by-value)
+        "and only rules that actually read that value")))
+
+(deftest rules-premises-filter-is-honestly-empty ()
+  ;; An empty result must still be possible, or the filter would be useless. `oxidase'
+  ;; is not a parameter this corpus has at all.
+  (is (zerop (length (neomycin::matching-rules :premises "oxidase")))
+      "a finding the corpus does not model returns nothing"))

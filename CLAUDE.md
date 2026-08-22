@@ -1,7 +1,7 @@
 # neomycin (research fork of Lisa)
 
 > **This repo is `neomycin`** — a research reconstruction of MYCIN/EMYCIN,
-> forked from Lisa 4.2.0 (full history preserved; the engine here is now 4.3.0).
+> forked from Lisa 4.2.0 (full history preserved; the engine here is now 4.4.0).
 > See `README.md`. **Research
 > only; NOT FOR CLINICAL USE.** This is a *substantive* fork: the `lisa` engine
 > is intentionally *not* renamed and is kept close to upstream where that costs
@@ -93,18 +93,24 @@ That is production-rule specificity applied to belief. Design:
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rules/              — THE canonical rulebase: 44 rules, every one CONFIRMING. Each
+  rules/              — THE canonical rulebase: 48 rules, every one CONFIRMING. Each
                         states the SET its evidence narrows the answer to and asserts it
                         as a `candidates` fact. No ruling-out rules, no negative beliefs,
                         no organism-class, no declared frame
     context.lisp      — context tree, 31 clinical params, the `candidates` answer class.
                         LOADS FIRST
-    candidates-gram-pos.lisp — 23 rules: the staphylococci, streptococci and enterococci,
+    candidates-gram-pos.lisp — 25 rules: the staphylococci, streptococci and enterococci,
                         their bench discriminators and their host factors
-    candidates-gram-neg.lisp — 21 rules: the Enterobacteriaceae, Pseudomonas and
+    candidates-gram-neg.lisp — 23 rules: the Enterobacteriaceae, Pseudomonas and
                         Bacteroides, the biochemical discriminators, and the two Gram
                         stain answers
-    conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/2/3/4/5/multi drivers
+    conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/1b/2/3/4/5/multi
+                        drivers. culture-1b is the burn-ICU case from the 2026-08-18
+                        clinician session: adding `hospital-acquired' SUPPORTS klebsiella
+                        (its rule 0.5 -> 0.6) while its Bel FALLS 0.194 -> 0.097 across
+                        the coverage gate, because the same fact strengthens pseudomonas
+                        more. Support and share are different quantities. It is also the
+                        only scenario that exercises `below_threshold' against real rules
   package.lisp        — the :neomycin package
   consensus.lisp      — the READ that turns answers into a differential: combines them
                         by intersection and applies rule SPECIFICITY (a rule whose
@@ -122,8 +128,12 @@ neomycin/
     antibiogram.lisp  — counts→interval (IDM) + Bayesian combine-susceptibility
     antibiogram-data.lisp — schematic site-local counts; OPT-IN, NOT loaded by default
     solver-common.lisp — SHARED phase A (belief gate, contraindication filter, the two
-                        scalar reductions) + alternative-agents. Solver-independent, so
-                        every solver gates identically and comparisons stay meaningful
+                        scalar reductions; the universe it returns now spans set-valued
+                        obligations as well as named organisms) + alternative-agents
+                        + below-threshold-for + discharge-obligations
+                        (what the gate dropped, and what the chosen regimen covers there
+                        anyway). Solver-independent, so every solver gates identically
+                        and comparisons stay meaningful
     stub-solver.lisp / greedy-solver.lisp / exact-solver.lisp — solvers. `exact` is the
                         DEFAULT (ascending-k enumeration over coverage bitmasks); `greedy`
                         is the original approximation, kept because the equivalence
@@ -135,8 +145,10 @@ neomycin/
                         + property-tests.lisp (corpus-WIDE invariants checked by
                         introspecting the compiled rulebase, so a new rule is covered the
                         moment it is authored — sketch §8) + prompt-tests.lisp (guards
-                        system-prompt.md against the corpus: every rule name it quotes must
-                        exist, and the counts it states must be the real ones)
+                        system-prompt.md AND tools.json against the corpus: every rule name
+                        quoted must exist, the counts stated must be the real ones, and
+                        every fact value advertised must be one some rule premises on —
+                        or be marked inert (†), which is checked in BOTH directions)
   clinician-samples/  — saved driver transcripts
 docs/                 — design docs, runbook, clinician scenarios, therapy demo
 
@@ -148,18 +160,28 @@ src/
     rule-introspection.lisp — exported, domain-neutral queries over the COMPILED rulebase
                         (what a rule concludes / matches / believes). The read half of the
                         derivation table: that records what a rule DID when it fired, this
-                        records what a rule IS. Consumed by /rules and by property-tests
+                        records what a rule IS. Consumed by /rules and by property-tests.
+                        Also `corpus-premise-vocabulary`: what the whole rulebase can HEAR
+                        — every literal premise value, by parameter. A value absent from it
+                        is inert, and inertness is silent (the assert succeeds), which is
+                        why the vocabulary has to be queryable rather than inferred
   belief-systems/     — Pluggable belief-system protocol
     protocol.lisp     — Generic function surface + dispatcher + use-system
     certainty-factors/— Shortliffe-Buchanan CF implementation
     dempster-shafer/  — [Bel, Pl] intervals + ds-combine (Dempster's rule) on the
                         per-hypothesis {H, ¬H} frame (Barnett). Retained for comparison
-    frame/frame.lisp  — THE DEFAULT: DS over a SHARED frame of discernment. Sparse mass
-                        functions on arbitrary subsets (sets are BITMASKS), the cautious
-                        conjunctive rule (exact here, since every rule contributes a
-                        simple support function), Dempster and Yager readouts of one
-                        unnormalized accumulation, and Bel/Pl projection for elements
-                        AND named subsets. Algebra only — knows nothing of rules or facts
+    candidates/       — THE DEFAULT: DS over an OPEN frame. An answer is the SET a rule's
+                        evidence narrows to; answers combine by intersection and Θ is never
+                        enumerated, so nothing declares a frame. Sparse mass functions on
+                        arbitrary subsets, the unnormalized conjunctive rule, and Dempster /
+                        Yager / none readouts of one accumulation. Bel/Pl for elements AND
+                        sets. `conflict-of` (K) and `margin` are a PAIR: K counts rival mass
+                        OVERRULED and so RISES as the winner strengthens — it is not a
+                        reliability score — while `margin` measures the leader against the
+                        nearest DISJOINT focal set, which makes a set-shaped rival count and
+                        a coarser agreeing answer not count. Algebra only — knows nothing of
+                        rules or facts
+                        (the v0.9–v0.10 declared-frame system `frame/` was deleted in v0.11)
   rete/reference/     — Rete network nodes and compiler
   llm/bridge/         — identification HTTP bridge (:lisa-bridge package)
     session.lisp      — Entity registry, session reset
@@ -187,12 +209,12 @@ bin/
 | `/health` | GET | Health check |
 | `/assert-fact` | POST | Assert a fact: `{fact_type, value, entity?, entity_class?, confidence?}` |
 | `/run-inference` | POST | Fire rules (captures rule trace) |
-| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
+| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Per organism it reports `conflict` (K) **with `margin`**, the gap between `leading_answer` and `margin_against` (the nearest answer that *contradicts* the leader — a coarser answer that still admits it is not a rival). The pair is interpretable and neither half is: K counts rival mass **overruled**, so it rises as the winner strengthens. Measured: burn-ICU `K=0.557, margin=0.740` (decisive) vs respiratory-strep `K=0.562, margin=0.000` (dead tie). Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
-| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, and the distribution of `resolutions`. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
-| `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict`, and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
-| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Echoes `solver`, `gate`, `objective` |
+| `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, the `parameters` it can *hear*, and the distribution of `resolutions`. `summary.parameters` is the corpus's INPUT vocabulary, computed from rule premises: a parameter or value absent from it is **inert** — assertable, accepted, and matched by no rule. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
+| `/why` | GET/POST | Authoritative explanation for an organism (`?organism=` or `{organism}`): the `argument` — every answer given about the culture, each with the set it `narrows_to`, its belief, the `rules` that said it with two-axis `:provenance` (origin + verified `evidence` + `belief_basis`), and an `admits` flag. **Answers that do NOT admit the organism are returned deliberately**: nothing argues against anything, so a hypothesis loses plausibility only because other evidence named something else, and the explanation has to show that. Plus `intersection`, `bel`/`pl`, `conflict` with `margin` / `leading_answer` / `margin_against` (same pairing as `/conclusions`), and a quotable plain-language `narrative`. Nothing chains, so there is no nested derivation. **Served from `neomycin/bridge.lisp`** |
+| `/recommend-therapy` | POST | Therapy regimen over the canonical KB (optionally overlaid with a site-local antibiogram): `{patient?, solver?, gate?, objective?}` → regimen with belief-valued (`{bel, pl, ignorance}`) susceptibilities, each carrying provenance (`source`, `n_tested`), plus `alternative_agents` (other drugs that covered but weren't chosen — always emitted, both solvers) and `alternative_regimens` (other equally-minimal regimens; `exact` only). Also `below_threshold` — the organisms the coverage gate DROPPED, each with `covered_by`: the chosen regimen's drugs that cover it **anyway**, with susceptibility. And `set_obligations` — the SET-valued answers the regimen had to cover ("one of these seven, unsaid which"), each with its `mass` and any `uncovered` members. A set clearing the gate is a coverage obligation in its own right, discharged **member by member** (never through a KB family, which can read covered while a member is not). A regimen entry's `covers` lists only what the solver was *targeting*, so without this a covered runner-up reads as untreated. Echoes `solver`, `gate`, `objective`, and the dials' values as `coverage_threshold` / `susceptibility_threshold` |
 | `/reset` | POST | Clear working memory and entity registry |
 
 ## Testing the Bridge
@@ -224,11 +246,14 @@ against a pinned golden:
 # bridge up (see Build & Load), then:
 python src/llm/claude/driver.py --plain --no-transcript
 # work a scenario from docs/clinician-scenarios.md and confirm the figures the model
-# quotes match the corresponding golden in neomycin/test/frame-tests.lisp
+# quotes match the corresponding golden in neomycin/test/candidates-tests.lisp
+# (frame-tests.lisp was deleted with the declared-frame system in v0.11)
 ```
 
 A worked example, with the goldens it reproduces, is
-`neomycin/clinician-samples/frame-end-to-end-burn-icu.md`.
+`neomycin/clinician-samples/v011-burn-icu-release-check.md`, which carries the
+golden table it was checked against. (The older `frame-end-to-end-burn-icu.md`
+reproduces goldens from the declared-frame system deleted in v0.11.)
 
 ## Running the Test Suite
 
@@ -250,7 +275,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~965 assertions / 146 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~1266 assertions / 172 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; the composition
