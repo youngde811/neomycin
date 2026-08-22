@@ -348,10 +348,21 @@
     (is (equal '(:ciprofloxacin) (regimen-drugs (solve-with :exact '((:salmonella . 0.65))
                                                             (therapy:therapy-kb))))
         "salmonella: de-escalates to ciprofloxacin")
+    ;; NOTE THE INPUT. This is a hand-built pair of organism conclusions, NOT culture-1
+    ;; through the pipeline, and since Stage D the two no longer agree. Real culture-1
+    ;; also carries 0.155 on the seven aerobic gram-negative rods, and covering that
+    ;; obligation takes an agent ceftazidime cannot match -- so spectrum-sparing returns
+    ;; meropenem there. See SET-OBLIGATION-CONSTRAINS-SPECTRUM-SPARING in
+    ;; therapy-bridge-tests.lisp, which asserts what a clinician actually gets.
+    ;;
+    ;; Kept as a SOLVER unit test, which is what it always was: given exactly these two
+    ;; organisms and nothing else, the narrower agent wins. The old name claimed more
+    ;; than the input supported, and that mislabelling is why the pipeline could change
+    ;; underneath a green suite.
     (is (equal '(:ceftazidime)
                (regimen-drugs (solve-with :exact '((:pseudomonas . 0.76) (:klebsiella . 0.40))
                                           (therapy:therapy-kb))))
-        "culture-1: de-escalates to ceftazidime, as 3.2 predicted")))
+        "two gram-negative organisms alone: de-escalates to ceftazidime, as 3.2 predicted")))
 
 (deftest spectrum-sparing-agrees-where-narrow-already-won ()
   ;; bacteroides + S. aureus does NOT diverge: :lexicographic ALREADY returns
@@ -507,6 +518,85 @@
           (is (equal (sort (copy-list (treated g)) #'string< :key #'symbol-name)
                      (sort (copy-list (treated e)) #'string< :key #'symbol-name))
               (format nil "~A ~S: shared phase A gates identically" label patient)))))))
+
+;;; ------------------------------------------------------------------
+;;; 3.1 The gate's other side -- BELOW-THRESHOLD and incidental coverage.
+;;;
+;;; The defect: a live consultation put Klebsiella at 0.097 against a 0.1 gate, so
+;;; it was not treated -- and the meropenem the solver returned covers Klebsiella
+;;; at [0.88, 0.99]. The payload said `items_to_treat: [pseudomonas]` and the
+;;; regimen said `covers: [pseudomonas]`, both true, and the clinician was told the
+;;; runner-up was untreated while holding a prescription that covers it well.
+;;;
+;;; REGIMEN-ITEM-COVERS reports what the solver was TARGETING; it cannot be widened
+;;; to mean "everything this drug happens to cover" without changing what the
+;;; solver's own coverage arithmetic means. So the fact is reported alongside it
+;;; instead.
+;;; ------------------------------------------------------------------
+
+(defun below-threshold-organisms (rec)
+  (mapcar #'therapy:below-threshold-item-organism
+          (therapy:recommendation-below-threshold rec)))
+
+(defun incidental-drugs-for (rec organism)
+  (let ((item (find organism (therapy:recommendation-below-threshold rec)
+                    :key #'therapy:below-threshold-item-organism)))
+    (and item (mapcar #'therapy:incidental-cover-drug
+                      (therapy:below-threshold-item-covered-by item)))))
+
+(deftest below-threshold-reports-incidental-coverage ()
+  ;; The regression, at the beliefs the live case actually produced.
+  (let* ((conclusions '((:pseudomonas . 0.8375) (:klebsiella . 0.0975)))
+         (rec (solve-with :exact conclusions (therapy:therapy-kb))))
+    (is (equal (treated rec) '(:pseudomonas))
+        "the 0.1 gate still drops klebsiella at 0.0975 -- the gate is unchanged")
+    (is (equal (below-threshold-organisms rec) '(:klebsiella))
+        "and klebsiella is now REPORTED as dropped rather than simply absent")
+    (is (member :meropenem (incidental-drugs-for rec :klebsiella))
+        "the chosen regimen covers klebsiella anyway, and the payload says so")))
+
+(deftest below-threshold-covered-by-is-empty-when-truly-uncovered ()
+  ;; The other half, and the reason COVERED-BY is a list rather than a flag: a
+  ;; dropped organism the regimen does NOT reach must be distinguishable from one
+  ;; it does. Bacteroides is below the gate here and nafcillin does not cover it.
+  (let* ((conclusions '((:staphylococcus-aureus . 0.70) (:bacteroides . 0.02)))
+         (rec (solve-with :exact conclusions (therapy:therapy-kb))))
+    (is (equal (below-threshold-organisms rec) '(:bacteroides))
+        "bacteroides is below the gate and reported")
+    (is (null (incidental-drugs-for rec :bacteroides))
+        "and nothing in the regimen covers it -- an empty covered_by, not a missing one")))
+
+(deftest below-threshold-and-treated-partition-the-differential ()
+  ;; Nothing in the differential may be silently dropped from the report, and
+  ;; nothing may appear on both sides of the gate. This is the invariant that makes
+  ;; the field trustworthy to narrate from.
+  (dolist (case *equivalence-cases*)
+    (destructuring-bind (label conclusions) case
+      (let* ((rec (solve-with :exact conclusions (therapy:therapy-kb)))
+             (all (sort (mapcar #'car conclusions) #'string< :key #'symbol-name))
+             (reported (sort (append (treated rec) (below-threshold-organisms rec))
+                             #'string< :key #'symbol-name)))
+        (is (equal all reported)
+            (format nil "~A: every concluded organism appears exactly once, either ~
+                         treated or below threshold" label))))))
+
+(deftest exact-greedy-agree-on-below-threshold ()
+  ;; Like ALTERNATIVE-AGENTS, this is a fact about the gate and the KB rather than
+  ;; about the search, so a solver swap must not change it. It is computed against
+  ;; the CHOSEN regimen, so incidental coverage is only comparable when the two
+  ;; solvers picked the same drugs.
+  (dolist (case *equivalence-cases*)
+    (destructuring-bind (label conclusions) case
+      (let ((g (solve-with :greedy conclusions (therapy:therapy-kb)))
+            (e (solve-with :exact conclusions (therapy:therapy-kb))))
+        (is (equal (below-threshold-organisms g) (below-threshold-organisms e))
+            (format nil "~A: both solvers drop the same organisms at the gate" label))
+        (when (equal (sort (copy-list (regimen-drugs g)) #'string< :key #'symbol-name)
+                     (sort (copy-list (regimen-drugs e)) #'string< :key #'symbol-name))
+          (dolist (org (below-threshold-organisms e))
+            (is (equal (incidental-drugs-for g org) (incidental-drugs-for e org))
+                (format nil "~A: same regimen => same incidental coverage of ~A"
+                        label org))))))))
 
 (deftest exact-greedy-agree-on-alternative-agents ()
   ;; ALTERNATIVE-AGENTS is a KB fact about the gated items, not a search artifact,

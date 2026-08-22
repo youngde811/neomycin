@@ -59,9 +59,24 @@
     (multiple-value-bind (mass conflict answers) (consensus organism)
       (setf (gethash "organism" ht) (organism-name organism))
       ;; K, read BEFORE normalization: both normalizations resolve it away, so it
-      ;; cannot be recovered from the result. High K means the rules that fired
-      ;; DISAGREE and the figures should be treated as unstable.
+      ;; cannot be recovered from the result.
+      ;;
+      ;; K counts mass committed to combinations that cannot all be true. It does
+      ;; NOT measure how unreliable the surviving answer is, and it was read that
+      ;; way -- two answers naming different organisms conflict TOTALLY here, so K
+      ;; grows as the winning side strengthens against a fixed rival. MARGIN is
+      ;; emitted beside it because the pair is interpretable and neither half is.
       (setf (gethash "conflict" ht) conflict)
+      (multiple-value-bind (margin leader rival) (candidates:margin mass)
+        (setf (gethash "margin" ht) margin)
+        ;; The leader and its nearest CONTRADICTING answer, named. Without them a
+        ;; narrow margin is a bare number and the reader has to guess what it lost
+        ;; ground to -- and in the case that matters most, the rival is a SET whose
+        ;; members each have Bel 0, so guessing from `hypotheses' finds nothing.
+        (setf (gethash "leading_answer" ht)
+              (coerce (mapcar #'organism-name leader) 'vector))
+        (setf (gethash "margin_against" ht)
+              (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
       (setf (gethash "ignorance" ht) (candidates:ignorance mass))
       (setf (gethash "answers" ht) (answers->json answers))
       (setf (gethash "hypotheses" ht) (hypotheses->json organism))
@@ -189,6 +204,14 @@
         (setf (gethash "bel" ht) (candidates:bel mass hypothesis))
         (setf (gethash "pl" ht) (candidates:pl mass hypothesis))
         (setf (gethash "conflict" ht) conflict)
+        ;; Same pairing as /conclusions: an explanation that quotes K without the
+        ;; margin invites the reading the numbers do not support.
+        (multiple-value-bind (margin leader rival) (candidates:margin mass)
+          (setf (gethash "margin" ht) margin)
+          (setf (gethash "leading_answer" ht)
+                (coerce (mapcar #'organism-name leader) 'vector))
+          (setf (gethash "margin_against" ht)
+                (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
         (setf (gethash "ignorance" ht) (candidates:ignorance mass))
         (setf (gethash "argument" ht)
               (coerce (mapcar (lambda (d) (answer-argument->json d hypothesis))
@@ -275,10 +298,30 @@
   (some (lambda (o) (string-equal (organism-name o) query)) (rule-answer rule)))
 
 (defun rule-premises-value-p (rule query)
-  (some (lambda (class)
-          (some (lambda (v) (string-equal (organism-name v) query))
-                (lisa:rule-premise-values rule class)))
-        (remove-duplicates (lisa:rule-premise-classes rule))))
+  "True when RULE reads QUERY -- matched against premise VALUES *and* against
+   parameter NAMES.
+
+   MATCHING NAMES TOO IS THE FIX FOR A FALSE NEGATIVE THAT REACHED A CLINICIAN. The
+   filter used to compare values only, so `?premises=urease' returned zero rules: a
+   perfectly sensible question -- \"what does this corpus do with urease?\" -- answered
+   with silence indistinguishable from \"nothing reads it\". In a release-check
+   consultation the model asked exactly that, got nothing back, and told the clinician
+   there was no rule reading a negative urease and that it could not rule out Proteus.
+   Both false: UREASE-NEGATIVE-NARROWS-TO-NON-PROTEUS-RODS exists and excludes
+   precisely Proteus.
+
+   The tool schema made it worse by offering `lactose' as an example value, which is a
+   parameter name -- so the documented query was one of the ones that returned nothing.
+
+   A caller asking which rules read a finding should get them whether they name the
+   parameter or the reading. Both forms are now answerable, and neither can be
+   mistaken for an empty corpus."
+  (let ((classes (remove-duplicates (lisa:rule-premise-classes rule))))
+    (or (some (lambda (class) (string-equal (organism-name class) query)) classes)
+        (some (lambda (class)
+                (some (lambda (v) (string-equal (organism-name v) query))
+                      (lisa:rule-premise-values rule class)))
+              classes))))
 
 (defun matching-rules (&key name names premises)
   (let ((rules (catalogue-rules)))
@@ -292,9 +335,30 @@
       (setf rules (remove-if-not (lambda (r) (rule-premises-value-p r premises)) rules)))
     rules))
 
+(defun parameters->json (rules)
+  "The corpus's INPUT vocabulary: every observation RULES can act on, by parameter.
+
+   The counterpart to ORGANISMS. That says what the corpus can conclude; this says
+   what it can be told -- and the two failure modes are not symmetric. An organism
+   the corpus cannot name is visible the moment you look for it in the differential.
+   A finding the corpus cannot HEAR is invisible: the bridge accepts the assertion,
+   returns 200, fires nothing, and the consultation proceeds as though the test had
+   never been run.
+
+   A value absent here is therefore not merely unmodelled, it is INERT, and a client
+   must not solicit it. See lisa:corpus-premise-vocabulary."
+  (coerce (mapcar (lambda (entry)
+                    (let ((ht (make-hash-table :test #'equal)))
+                      (setf (gethash "parameter" ht) (organism-name (car entry)))
+                      (setf (gethash "values" ht)
+                            (coerce (mapcar #'organism-name (cdr entry)) 'vector))
+                      ht))
+                  (lisa:corpus-premise-vocabulary rules))
+          'vector))
+
 (defun rules-summary (rules)
-  "The corpus SHAPE: how many rules, which organisms they can speak about, and at
-   what resolutions they answer.
+  "The corpus SHAPE: how many rules, which organisms they can speak about, what
+   observations they can act on, and at what resolutions they answer.
 
    RESOLUTIONS is the distribution of answer sizes -- {1: 19, 2: 6, 4: 3} reads as
    nineteen rules that name a single organism, six that narrow to a pair, three to a
@@ -310,6 +374,7 @@
         (incf (gethash (princ-to-string (length answer)) resolutions 0))))
     (setf (gethash "total" ht) (length rules))
     (setf (gethash "organisms" ht) (coerce (sort organisms #'string<) 'vector))
+    (setf (gethash "parameters" ht) (parameters->json rules))
     (setf (gethash "resolutions" ht) resolutions)
     ht))
 

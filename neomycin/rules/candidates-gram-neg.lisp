@@ -258,6 +258,73 @@
   =>
   (assert (candidates (value '(:enterobacter :serratia)) (of ?o))))
 
+;;; THE RECIPROCAL OF THE UREASE RULE, and its whole value is one exclusion: Proteus.
+;;;
+;;; The answer names seven of the eight gram-negative rods the corpus models, which
+;;; looks useless until you notice that is the honest reading. Proteus is rapidly and
+;;; strongly urease-positive, so a negative urease genuinely rules it out. Everything
+;;; else stays: E. coli and Salmonella are characteristically negative and belong here
+;;; outright; Klebsiella, Enterobacter and Serratia are VARIABLE, and the corpus policy
+;;; is that a marker unreliable for an organism cannot exclude it in EITHER direction --
+;;; the same reason they appear in the urease-positive answer too; Pseudomonas is 72%
+;;; positive (PMC86256), so 28% of strains read negative and it stays; and Bacteroides
+;;; is generally urease-negative, so it belongs here more than most.
+;;;
+;;; NOT GATED ON AEROBIC GROWTH, unlike the lactose pair. A lactose reading presupposes
+;;; growth on MacConkey and therefore an aerobe; a urease test does not, and gating it
+;;; would silently drop Bacteroides out of an answer it belongs in.
+;;;
+;;; A seven-of-eight answer with one real exclusion is worth authoring precisely
+;;; because the alternative -- what shipped before -- was SILENCE. A clinician reported
+;;; a negative urease, the bridge accepted it, and no rule read it; the model then had
+;;; to say the panel "hasn't independently triggered any rule". Now it excludes Proteus,
+;;; and can say so.
+(defrule urease-negative-narrows-to-non-proteus-rods
+    (:belief 0.6
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017"
+                             "Interference of Pseudomonas Strains in the Identification of Helicobacter pylori, J Clin Microbiol, PMC86256")
+                  :belief-basis :illustrative
+                  :note "Proteus is rapidly and strongly urease-positive, so a negative urease excludes it. It excludes nothing else: the variable producers (Klebsiella, Enterobacter, Serratia, and Pseudomonas at 72% positive) stay in under the policy that an unreliable marker cannot exclude, and E. coli, Salmonella and Bacteroides are characteristically negative. 0.6 reflects a real but narrow claim -- one organism removed from eight -- not a weak one."))
+  (organism (id ?o))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (urease (value negative) (of ?o))
+  =>
+  (assert (candidates (value '(:e-coli :salmonella :klebsiella :enterobacter
+                               :serratia :pseudomonas :bacteroides))
+                      (of ?o))))
+
+;;; THE RECIPROCAL OF THE MOTILITY PREMISE, which until now only ever appeared inside
+;;; conjunctions. Klebsiella is the textbook non-motile member of the family -- the
+;;; corpus already says so on MOTILE-LACTOSE-POS-INDOLE-NEG-NARROWS-TO-MOTILE-FERMENTERS
+;;; ("motility separates the motile Enterobacter from the non-motile Klebsiella") --
+;;; but nothing read a non-motile result.
+;;;
+;;; E. COLI IS KEPT IN, and this is the judgement call in this rule. E. coli is
+;;; flagellated and described as motile, but motility is variably EXPRESSED and a
+;;; substantial minority of clinical isolates read non-motile on a standard tube test.
+;;; That is the same unreliability the corpus already honours for Serratia on lactose
+;;; and Pseudomonas on urease, so the conservative move is to widen the answer rather
+;;; than exclude on a marker the organism does not reliably show. Excluding requires
+;;; evidence; including requires none.
+(defrule non-motile-narrows-to-non-motile-rods
+    (:belief 0.6
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004"
+                             "NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298")
+                  :belief-basis :illustrative
+                  :note "Klebsiella is characteristically non-motile, which is what makes motility the Klebsiella/Enterobacter discriminator this corpus already relies on. Salmonella, Proteus, Serratia, Enterobacter and Pseudomonas are characteristically motile and are excluded. E. coli is kept in because motility, though characteristic, is variably expressed and a substantial minority of isolates test non-motile -- the marker is not clean enough for it to be excluded on. GATED ON AEROBIC GROWTH: motility is read from a growth-based test, and Bacteroides is neither aerobic nor usefully described by it."))
+  (organism (id ?o))
+  (gram (value neg) (of ?o))
+  (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  (motility (value non-motile) (of ?o))
+  =>
+  (assert (candidates (value '(:klebsiella :e-coli)) (of ?o))))
+
 ;;; Swarming motility plus strong urease is close to Proteus-specific.
 (defrule urease-pos-swarming-narrows-to-proteus
     (:belief 0.8

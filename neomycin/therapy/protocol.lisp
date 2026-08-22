@@ -63,6 +63,54 @@
   drug
   reason)          ; :contraindication | :interaction
 
+(defstruct (set-obligation (:constructor make-set-obligation))
+  "A SET-valued conclusion the regimen must cover: 'one of these, the evidence does
+   not say which', carrying enough mass to clear the coverage gate.
+
+   WHY IT IS AN OBLIGATION IN ITS OWN RIGHT. A set answer used to be discarded the
+   moment any ONE of its members cleared the gate, on the reasoning that the member
+   'carries the coverage need'. It does not. Mass on {A..G} is mass committed to no
+   member in particular, and covering A and B leaves it undischarged. Measured on the
+   corpus: culture-1 puts 0.155 on the seven aerobic gram-negative rods, and the
+   narrow regimens -- ceftazidime under spectrum-sparing, or under a carbapenem
+   allergy -- miss Salmonella while reporting nothing uncovered.
+
+   DISCHARGED MEMBER-WISE, never through a family. The KB's family roll-up exists so a
+   species with no entry of its own inherits one; it is not a proxy for the whole set,
+   and using it as one is what made the gap invisible. Ceftazidime covers
+   :enterobacteriaceae at bel 0.66 and :salmonella at 0.46 -- against a 0.5 threshold
+   the family reads covered and the member does not."
+  members          ; the organisms the answer named
+  mass             ; belief committed to the set without naming a member
+  (uncovered '())) ; members the chosen regimen does not cover; NIL when fully covered
+
+(defstruct (incidental-cover (:constructor make-incidental-cover))
+  "A chosen drug that covers an organism the coverage gate DROPPED.
+
+   Not part of why the drug was chosen -- the solver never considered this organism
+   -- but a fact about the regimen it returned, and one a clinician needs."
+  drug
+  susceptibility)  ; SUSCEPTIBILITY-ITEM for that drug against that organism
+
+(defstruct (below-threshold-item (:constructor make-below-threshold-item))
+  "An organism in the differential that did NOT clear *coverage-threshold*, with
+   whatever coverage the chosen regimen happens to give it anyway.
+
+   WHY THIS EXISTS. The gate is a hard cut on a number the identification layer
+   often reports as unstable, and the payload used to record only which side of it
+   an organism landed on. So a case where Klebsiella sat at 0.097 against a 0.1 gate
+   was narrated as `Klebsiella was not targeted' -- while the meropenem the solver
+   returned covers Klebsiella at [0.88, 0.99]. Both halves were true and the
+   conjunction was badly misleading: the clinician was told the runner-up was
+   untreated when the drug on the page covers it well.
+
+   The regimen is UNCHANGED by any of this. What changes is that the report no
+   longer understates itself, and that a near-miss at the gate is visible as a near
+   miss rather than as an absence."
+  organism
+  belief           ; its identification belief, as reported (interval or scalar)
+  (covered-by '())); list of INCIDENTAL-COVER; empty when the regimen misses it
+
 (defstruct (alternative-regimen (:constructor make-alternative-regimen))
   "Another regimen of the SAME minimum size the solver could have returned, but
    did not -- the objective's tiebreak chose against it.
@@ -80,6 +128,16 @@
   (excluded '())         ; list of exclusion
   (uncovered '())        ; organisms in U that no candidate drug could cover
                          ; (an honest failure surfaced, not a silent partial cover)
+  ;; The gate's OTHER side. UNCOVERED is "we had to treat it and could not";
+  ;; BELOW-THRESHOLD is "we chose not to treat it" -- together with what the
+  ;; regimen covers there regardless. Solver-independent: a fact about the gate
+  ;; and the KB, so both solvers report it.
+  (below-threshold '()) ; list of BELOW-THRESHOLD-ITEM
+  ;; Set-valued conclusions the regimen had to cover, each with any member it
+  ;; missed. Emitted whether or not anything was missed: a fully-covered set is
+  ;; the answer to "does this regimen cover the group you could not resolve?",
+  ;; which is a question worth answering explicitly rather than by silence.
+  (set-obligations '()) ; list of SET-OBLIGATION
   ;; The two "what else was possible" fields (exact-solver-design.md 1.1). Neither
   ;; is a recommendation: they exist so that "is there a narrower agent?" has a
   ;; truthful answer. Without them the payload contains only the winner, and a
@@ -128,13 +186,20 @@
    -- the cost of covering a runner-up is breadth, and the cost of missing it is an
    untreated organism.
 
-   WHAT THIS GATE STILL CANNOT SEE: belief committed to a SET rather than an organism.
-   In the respiratory strep case the largest single focal mass in the differential --
-   0.368 on {E. faecalis, E. faecium} -- belongs to organisms whose individual Bel is
-   0.000, so no value of this threshold reaches them, and because S. pneumoniae DOES
-   clear, the family backstop is suppressed and they go uncovered entirely. That is a
-   gap in the gate's SHAPE, not its value, and it is recorded here rather than papered
-   over by lowering the number until something unrelated happens to fire.")
+   THE GATE NOW READS SETS TOO, and against the same number. Belief committed to a
+   SET rather than an organism used to be invisible to it: in the respiratory strep
+   case the largest single focal mass in the differential -- 0.368 on {E. faecalis,
+   E. faecium} -- belongs to organisms whose individual Bel is 0.000, so no value of
+   this threshold reached them. A set clearing this gate is now a coverage obligation
+   in its own right, discharged member by member (see SET-OBLIGATION). That was a gap
+   in the gate's SHAPE rather than its value, which is why lowering the number would
+   never have fixed it.
+
+   The plateau argument above is unaffected: it is about which ORGANISM beliefs the
+   dial decides between, and the set masses that clear it here -- 0.155, 0.368, 0.111,
+   0.101 -- are not near enough to 0.1 to make a different value on the plateau change
+   which sets qualify, except for culture-4's 0.101. That one clears by 0.001 and is
+   fully covered by the regimen either way.")
 
 (defvar *susceptibility-threshold* 0.5
   "Minimum susceptibility for a drug to count as covering an organism.")

@@ -24,6 +24,26 @@
 
 ;; Update the version symbol in this file whenever you do a new release.
 ;;
+;; 4.4.0 (2026-08-22) -- a MINOR bump: the engine gained exported API, and one
+;; endpoint changed its behaviour on bad input.
+;;
+;;   ADDED   LISA:CORPUS-PREMISE-VOCABULARY / CORPUS-PREMISES-VALUE-P -- what a whole
+;;           rulebase can HEAR: every literal premise value, by parameter. Derived from
+;;           premises rather than declared fact classes, deliberately, because a class
+;;           the knowledge base declares but no rule reads is assertable and INERT --
+;;           accepted, matched by nothing, and silent about it. The query exists so a
+;;           client cannot mistake that silence for an empty answer.
+;;   ADDED   CANDIDATES:MARGIN / LEADING-FOCUS -- how far the leading answer sits above
+;;           the nearest answer that CONTRADICTS it. The companion to CONFLICT-OF, and
+;;           not optional: two answers naming different hypotheses conflict totally in
+;;           this algebra, so K counts rival mass OVERRULED and rises as the winner
+;;           strengthens. K alone is not a measure of disagreement and was read as one.
+;;   CHANGED /assert-fact rejects an unknown fact_type by name with 400, in place of a
+;;           500 leaking "There is no class named COMMON-LISP:NIL".
+;;
+;; Certainty factors and the Barnett per-hypothesis Dempster-Shafer system are again
+;; UNCHANGED.
+;;
 ;; 4.3.0 (2026-08-18) -- first Lisa version bump since the neomycin fork, and it is a
 ;; MINOR rather than a patch because the engine gained and lost real capability rather
 ;; than being tuned:
@@ -43,4 +63,4 @@
 ;; UNCHANGED and still the systems Lisa's own examples and suite exercise.
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :lisa4.3.0 *features*))
+  (pushnew :lisa4.4.0 *features*))

@@ -85,6 +85,32 @@
                                :enterococcus-faecalis :enterococcus-faecium))
                       (of ?o))))
 
+;;; THE RECIPROCAL. Catalase partitions the gram-positive cocci cleanly in both
+;;; directions -- the same single fact licenses both answers -- yet only the negative
+;;; reading had a rule, because the pre-v0.11 corpus wrote it as "catalase-negative
+;;; argues against the staphylococci" and a ruling-out rule has only one direction to
+;;; write. Converting to narrows-to made the other direction expressible; nobody wrote
+;;; it. A clinician reporting a positive catalase got silence.
+;;;
+;;; Note this does NOT subsume, and is not subsumed by, CLUMPS-NARROWS-TO-STAPHYLOCOCCI,
+;;; which reaches the same answer from the growth conformation: neither premise set
+;;; contains the other, so they are distinct evidence and reinforce.
+(defrule catalase-positive-narrows-to-staphylococci
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Gram-Positive Bacteria, NBK470553"
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.12 (Staphylococcus), NBK8448")
+                  :belief-basis :illustrative
+                  :note "Staphylococci are catalase-positive; streptococci and enterococci are catalase-negative. The mirror of CATALASE-NEGATIVE-NARROWS-TO-CHAIN-FORMERS and carries its belief (0.7), because it is the same partition read from the other side and the test is no more or less reliable in one direction than the other."))
+  (organism (id ?o))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
+  (catalase (value positive) (of ?o))
+  =>
+  (assert (candidates (value '(:staphylococcus-aureus :staphylococcus-epidermidis
+                               :staphylococcus-saprophyticus))
+                      (of ?o))))
+
 ;;; Bile-esculin hydrolysis PLUS growth in 6.5% NaCl is the enterococcal pair; the
 ;;; salt tolerance is what separates them from the non-enterococcal group D strep.
 (defrule bile-esculin-salt-tolerant-narrows-to-enterococci
@@ -209,6 +235,29 @@
   (novobiocin (value resistant) (of ?o))
   =>
   (assert (candidates (value '(:staphylococcus-saprophyticus)) (of ?o))))
+
+;;; THE RECIPROCAL, and it is weaker than the resistant direction for a reason worth
+;;; stating. Novobiocin RESISTANCE is close to S. saprophyticus-specific; novobiocin
+;;; SENSITIVITY is the common case among coagulase-negative staphylococci, and most of
+;;; the organisms it admits -- S. haemolyticus, S. hominis, S. lugdunensis -- are ones
+;;; this corpus does not model. Naming S. epidermidis alone is therefore a claim about
+;;; the MODELLED organisms only, which is exactly what the open frame makes safe: an
+;;; organism no rule can name keeps its plausibility as residual ignorance rather than
+;;; being excluded by omission. The belief is discounted to 0.7 to reflect that the
+;;; answer is narrow only because the corpus is.
+(defrule novobiocin-sensitive-narrows-to-epidermidis
+    (:belief 0.7
+     :provenance (:origin :neomycin-extrapolation
+                  :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240"
+                             "NCBI Bookshelf / StatPearls, Staphylococcus saprophyticus Infection, NBK482367"
+                             "J Clin Microbiol, Use of Mueller-Hinton agar to determine novobiocin susceptibility of coagulase-negative staphylococci, PMC272557")
+                  :belief-basis :illustrative
+                  :note "A novobiocin-SENSITIVE coagulase-negative staphylococcus is not S. saprophyticus, which leaves S. epidermidis among the species this corpus models. Discounted relative to the resistant direction (0.8) because sensitivity is the unremarkable result: it separates saprophyticus off cleanly but does not distinguish S. epidermidis from the other sensitive coagulase-negative staphylococci, none of which the corpus can name."))
+  (organism (id ?o))
+  (coagulase (value negative) (of ?o))
+  (novobiocin (value sensitive) (of ?o))
+  =>
+  (assert (candidates (value '(:staphylococcus-epidermidis)) (of ?o))))
 
 ;;; WAS beta-hemolysis-argues-against-non-beta-streptococci. Beta hemolysis means one
 ;;; of the beta-hemolytic streptococci; pneumococcus and viridans are excluded by

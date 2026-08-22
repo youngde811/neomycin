@@ -222,4 +222,66 @@
         (push e acc)))
     (sort acc #'> :key #'cdr)))
 
+(defun leading-focus (m)
+  "The focal set carrying the most mass, Theta excluded -- the answer the evidence has
+   settled on, at whatever resolution it settled. Ties break by set name, so the choice
+   is deterministic. NIL when nothing but Theta is focal."
+  (let ((best nil) (best-mass -1.0d0))
+    (dolist (e m best)
+      (let ((s (car e)))
+        (unless (or (null s) (universe-p s))
+          (when (or (> (cdr e) best-mass)
+                    (and (= (cdr e) best-mass)
+                         (string< (set-name s) (set-name best))))
+            (setf best s best-mass (cdr e))))))))
+
+(defun margin (m)
+  "How far the leading answer sits above the best answer that CONTRADICTS it.
+
+   Returns (values MARGIN LEADER RIVAL): the mass gap, the focal set that leads, and
+   the disjoint focal set nearest it (NIL when nothing contradicts the leader).
+
+   COMPARED AGAINST DISJOINT SETS ONLY, which is the whole subtlety. A coarser answer
+   that CONTAINS the leader -- `one of the seven aerobic gram-negative rods' sitting
+   under `pseudomonas' -- is not a rival at all; it is the same claim at lower
+   resolution, and it agrees. Only a set the leader is absent from competes.
+
+   That also makes a SET-SHAPED rival count, which a singleton-only reading misses.
+   Measured on the corpus: a respiratory gram-positive coccus in chains with beta
+   hemolysis puts 0.429 on {pneumoniae} and 0.429 on {pyogenes, agalactiae}. Both
+   members of that pair have Bel 0 individually, so `leader minus runner-up singleton'
+   would report a decisive 0.429 for a case that is exactly tied. This reports 0.000.
+
+   THE COMPANION TO CONFLICT-OF, AND IT IS NOT OPTIONAL. K alone cannot be read as a
+   measure of how much the evidence disagrees, because in this algebra two answers
+   naming different hypotheses conflict TOTALLY -- so K counts how much rival mass was
+   overruled, and grows as the winning side strengthens. Measured on the corpus:
+
+     {pseudomonas} 0.928 vs {klebsiella} 0.60  ->  K=0.557, margin=0.740
+     {pseudomonas} 0.760 vs {klebsiella} 0.760 ->  K=0.578, margin=0.000
+
+   Near-identical conflict; the first is as decisive as this corpus gets and the
+   second is a dead tie. K is not even monotone in disagreement -- a clear three-way
+   winner scores K=0.700 where a genuine three-way tie scores 0.500. Reporting K
+   without MARGIN invites exactly the reading the numbers do not support.
+
+   MARGIN IS NOT A CONFIDENCE SCORE, and must not be pressed into service as one. A
+   wide margin says the evidence has converged on ONE ANSWER; it says nothing about
+   how precise that answer is. Settling firmly on a seven-member set scores exactly as
+   decisively as settling on a species, because it IS decisive -- about a coarser
+   question. SET-SIZE of the leader is what reports the resolution, and SET-VALUED
+   what reports the alternatives. Three readouts, three questions, none a substitute
+   for another."
+  (let ((leader (leading-focus m)))
+    (if (null leader)
+        (values 0.0d0 nil nil)
+        (let ((rival nil) (rival-mass 0.0d0))
+          (dolist (e m)
+            (let ((s (car e)))
+              (when (and s (not (universe-p s)) (not (equal s leader))
+                         (null (set-intersect s leader))
+                         (> (cdr e) rival-mass))
+                (setf rival s rival-mass (cdr e)))))
+          (values (- (mass-ref m leader) rival-mass) leader rival)))))
+
 (defun total-mass (m) (loop for e in m sum (cdr e)))
