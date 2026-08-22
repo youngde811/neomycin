@@ -246,11 +246,14 @@ against a pinned golden:
 # bridge up (see Build & Load), then:
 python src/llm/claude/driver.py --plain --no-transcript
 # work a scenario from docs/clinician-scenarios.md and confirm the figures the model
-# quotes match the corresponding golden in neomycin/test/frame-tests.lisp
+# quotes match the corresponding golden in neomycin/test/candidates-tests.lisp
+# (frame-tests.lisp was deleted with the declared-frame system in v0.11)
 ```
 
 A worked example, with the goldens it reproduces, is
-`neomycin/clinician-samples/frame-end-to-end-burn-icu.md`.
+`neomycin/clinician-samples/v011-burn-icu-release-check.md`, which carries the
+golden table it was checked against. (The older `frame-end-to-end-burn-icu.md`
+reproduces goldens from the declared-frame system deleted in v0.11.)
 
 ## Running the Test Suite
 

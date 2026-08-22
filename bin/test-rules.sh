@@ -91,6 +91,13 @@ echo ""
 echo "--- Rules premising on a finding (?premises=) ---"
 BODY=$(curl -s "$BASE_URL/rules?premises=neg")
 check "gram-neg rules found"    "d['matched'] > 0" "True"
+# By PARAMETER as well as by value. This form returned zero rules until a
+# release-check consultation asked it and was told, falsely, that no rule reads a
+# negative urease. An empty result reads as an empty corpus.
+BODY=$(curl -s "$BASE_URL/rules?premises=urease")
+check "premises= accepts a parameter name" "d['matched'] > 0" "True"
+check "and returns BOTH polarities" \
+  "len({v for r in d['rules'] for p in r['premises'] if p['class']=='urease' for v in p['values']}) == 2" "True"
 echo ""
 
 if [ "$FAILURES" -eq 0 ]; then

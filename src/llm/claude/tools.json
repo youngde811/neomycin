@@ -118,7 +118,7 @@
         },
         "premises": {
           "type": "string",
-          "description": "A value appearing as a premise (e.g. 'neg', 'lactose'). Returns every rule that reads it -- what this finding buys you."
+          "description": "A finding, named EITHER by its parameter ('urease', 'lactose', 'motility') OR by the value it took ('neg', 'non-motile', 'positive'). Returns every rule that reads it -- what this finding buys you. Prefer the PARAMETER form when asking what a test is worth, since it returns the rules for every value that parameter can take, both polarities included; the value form narrows to one reading. An empty result means no rule reads it at all, which is a real answer -- but check the parameter form before reporting a finding as uninformative, because a value that no rule reads may still have a sibling reading that several do."
         },
         "name": {
           "type": "string",

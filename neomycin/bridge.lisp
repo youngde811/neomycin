@@ -298,10 +298,30 @@
   (some (lambda (o) (string-equal (organism-name o) query)) (rule-answer rule)))
 
 (defun rule-premises-value-p (rule query)
-  (some (lambda (class)
-          (some (lambda (v) (string-equal (organism-name v) query))
-                (lisa:rule-premise-values rule class)))
-        (remove-duplicates (lisa:rule-premise-classes rule))))
+  "True when RULE reads QUERY -- matched against premise VALUES *and* against
+   parameter NAMES.
+
+   MATCHING NAMES TOO IS THE FIX FOR A FALSE NEGATIVE THAT REACHED A CLINICIAN. The
+   filter used to compare values only, so `?premises=urease' returned zero rules: a
+   perfectly sensible question -- \"what does this corpus do with urease?\" -- answered
+   with silence indistinguishable from \"nothing reads it\". In a release-check
+   consultation the model asked exactly that, got nothing back, and told the clinician
+   there was no rule reading a negative urease and that it could not rule out Proteus.
+   Both false: UREASE-NEGATIVE-NARROWS-TO-NON-PROTEUS-RODS exists and excludes
+   precisely Proteus.
+
+   The tool schema made it worse by offering `lactose' as an example value, which is a
+   parameter name -- so the documented query was one of the ones that returned nothing.
+
+   A caller asking which rules read a finding should get them whether they name the
+   parameter or the reading. Both forms are now answerable, and neither can be
+   mistaken for an empty corpus."
+  (let ((classes (remove-duplicates (lisa:rule-premise-classes rule))))
+    (or (some (lambda (class) (string-equal (organism-name class) query)) classes)
+        (some (lambda (class)
+                (some (lambda (v) (string-equal (organism-name v) query))
+                      (lisa:rule-premise-values rule class)))
+              classes))))
 
 (defun matching-rules (&key name names premises)
   (let ((rules (catalogue-rules)))
