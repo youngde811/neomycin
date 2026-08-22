@@ -104,7 +104,13 @@ neomycin/
     candidates-gram-neg.lisp — 23 rules: the Enterobacteriaceae, Pseudomonas and
                         Bacteroides, the biochemical discriminators, and the two Gram
                         stain answers
-    conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/2/3/4/5/multi drivers
+    conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/1b/2/3/4/5/multi
+                        drivers. culture-1b is the burn-ICU case from the 2026-08-18
+                        clinician session: adding `hospital-acquired' SUPPORTS klebsiella
+                        (its rule 0.5 -> 0.6) while its Bel FALLS 0.194 -> 0.097 across
+                        the coverage gate, because the same fact strengthens pseudomonas
+                        more. Support and share are different quantities. It is also the
+                        only scenario that exercises `below_threshold' against real rules
   package.lisp        — the :neomycin package
   consensus.lisp      — the READ that turns answers into a differential: combines them
                         by intersection and applies rule SPECIFICITY (a rule whose
@@ -266,7 +272,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1254 assertions / 169 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~1266 assertions / 172 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; the composition

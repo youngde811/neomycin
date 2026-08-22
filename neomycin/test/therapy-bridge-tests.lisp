@@ -192,3 +192,33 @@
       (is (equal '(:meropenem) sparing)
           "and spectrum-sparing no longer diverges here -- the narrower agent did not
            cover the set-valued answer, which is why it looked narrower"))))
+
+(deftest supporting-evidence-can-drop-an-organism-out-of-coverage ()
+  ;; culture-1b is culture-1 plus `hospital-acquired'. That fact SUPPORTS klebsiella --
+  ;; it fires a stronger, more specific rule (0.6) that subsumes the compromised-host
+  ;; one (0.5) -- and klebsiella nonetheless falls from 0.194 to 0.097, across the 0.1
+  ;; coverage gate, because the same fact fires a third pseudomonas rule.
+  ;;
+  ;; The engine is right and the optics are terrible, so the payload has to carry
+  ;; everything needed to explain it. This is also the ONLY scenario that exercises
+  ;; BELOW-THRESHOLD against the real corpus: measured across every other scenario x
+  ;; patient x objective configuration, no organism falls below the gate at all.
+  (run-scenario 'lisa-user::culture-1b :candidates)
+  (therapy:with-exact-solver
+    (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
+                                   (therapy:therapy-kb) '()))
+           (treated (mapcar #'therapy:treat-item-organism
+                            (therapy:recommendation-items-to-treat rec)))
+           (dropped (therapy:recommendation-below-threshold rec)))
+      (is (member :pseudomonas treated) "pseudomonas is treated")
+      (is (not (member :klebsiella treated))
+          "klebsiella is NOT -- the supporting fact pushed it below the gate")
+      (is (find :klebsiella dropped :key #'therapy:below-threshold-item-organism)
+          "and it is reported in below_threshold rather than simply vanishing")
+      ;; The half that keeps this defensible: the regimen covers it anyway, and says so.
+      (let ((k (find :klebsiella dropped :key #'therapy:below-threshold-item-organism)))
+        (is (therapy:below-threshold-item-covered-by k)
+            "the chosen regimen covers klebsiella incidentally")
+        (is (member :meropenem (mapcar #'therapy:incidental-cover-drug
+                                       (therapy:below-threshold-item-covered-by k)))
+            "specifically meropenem, at bel 0.88")))))

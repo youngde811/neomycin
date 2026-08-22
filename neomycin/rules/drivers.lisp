@@ -110,6 +110,34 @@
   (when runp
     (run)))
 
+(defun culture-1b (&key (runp t))
+  "culture-1 PLUS a hospital-acquired infection: the burn-ICU case from the
+   2026-08-18 clinician session, and the sharpest form of a behaviour worth pinning.
+
+   Learning `hospital-acquired' SUPPORTS klebsiella -- it fires a stronger, more
+   specific rule (0.6) that subsumes the compromised-host-only one (0.5). Klebsiella's
+   belief nonetheless FALLS, 0.194 -> 0.097, because the same fact also fires a third
+   pseudomonas rule and the two compete for one unit of mass. SUPPORT and SHARE are
+   different quantities and they move in opposite directions here.
+
+   Far enough for the fall to cross the 0.1 coverage gate, so klebsiella stops being
+   an item to treat -- which is also the only scenario in the corpus that exercises
+   BELOW-THRESHOLD and its incidental-coverage reporting against real rules rather
+   than a hand-built conclusion list."
+  (reset)
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (burn (value serious) (of p1)))
+  (assert (compromised-host (value t) (of p1)))
+  (assert (hospital-acquired (value t) (of p1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (gram (value neg) (of o1)))
+  (assert (morphology (value rod) (of o1)))
+  (assert (aerobicity (value aerobic) (of o1)))
+  (when runp
+    (run)))
+
 (defun culture-multi (&key (runp t))
   "Two organisms in one culture, to exercise lineage scoping. o1 is an aerobic
    gram-neg rod (=> enterobacteriaceae CLASS only, no leaf identity after C2); o2

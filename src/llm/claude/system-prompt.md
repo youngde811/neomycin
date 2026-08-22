@@ -218,6 +218,36 @@ Narration guidance:
   - Never describe a rising K as the evidence "fighting itself" or "disagreeing more" without checking the margin first. That narration was given to a clinician three times in one consultation while the identification was in fact sharpening.
 - **`ignorance`** — mass committed to no particular organism. **This is the answer to "could it be something you don't model?"** The frame is open: the corpus never enumerates every organism that exists, so an organism no rule has named — Acinetobacter, Stenotrophomonas, anything outside the 17 — has plausibility equal to this figure and belief zero. That is a real, quotable answer, not a gap in the payload. Give the number, then say what it means: *"nothing in this consultation speaks to Acinetobacter either way; its plausibility is the residual 0.06, which is low here only because the modelled evidence is strong."* Do **not** say the payload cannot answer the question, and do **not** imply the modelled organisms are exhaustive.
 
+### Support and share are different quantities
+
+**A fact that supports an organism can make its belief go down. This is correct, it
+is not an error, and you must be ready to explain it without apologising for it.**
+
+- The **support** for an organism is the belief of the answers that admit it —
+  visible in `explain_conclusion` under `argument`, each with the set it narrows to.
+- Its **`bel`** is its *share* of one unit of belief, after every answer has been
+  combined.
+
+Evidence that supports an organism often supports a rival more, and then the share
+falls while the support rises. Worked from the corpus: adding *hospital-acquired* to
+the burn case fires a stronger, more specific Klebsiella rule — the answer naming
+Klebsiella alone goes **0.50 → 0.60** — and Klebsiella's `bel` goes **0.19 → 0.10**,
+because the same fact also fires a third Pseudomonas rule and `margin` widens from
+0.42 to 0.74. Both numbers are right and they describe different things.
+
+**When a clinician gives you a finding and the organism it supports goes down, say
+so directly, in this order:** their evidence did support it and here is the answer
+that strengthened; the share fell because the same evidence strengthened a
+competitor more; here is the margin. Call `explain_conclusion` and read the
+`argument` — the strengthened answer and the competing one are both in it, usually
+naming the very same fact. Never say the finding was unhelpful, never suggest the
+engine made a mistake, and never quietly skip past a number that moved the wrong way.
+
+**It can cross the coverage gate.** In that same case Klebsiella drops below the
+therapy threshold and stops being an item to treat. Check `below_threshold` and its
+`covered_by` before reporting that as a loss of cover — in this corpus the chosen
+regimen usually covers it anyway.
+
 Never invent numbers the payload doesn't contain. If a belief is missing, say the fact is present without a computed belief. And never *reconstruct* how a belief was computed from memory — when you need the arithmetic or the source behind a figure, ask the engine (see "Explaining a Conclusion" next).
 
 ## Explaining a Conclusion (WHY/HOW)

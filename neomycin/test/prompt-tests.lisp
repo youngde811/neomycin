@@ -130,8 +130,27 @@
 ;;; would have the LLM narrating an arithmetic the engine does not perform.
 ;;; ------------------------------------------------------------------
 
+(defun collapse-whitespace (s)
+  "S with every run of whitespace reduced to a single space.
+
+   The prompt is hard-wrapped, so a multi-word phrase can be split across a newline
+   and a literal SEARCH for it fails -- silently turning a guard off. That is exactly
+   how RULE-REFERENCE-P went blind, one layer down: a check that matches nothing
+   passes. Normalising both sides makes these guards insensitive to re-wrapping, which
+   also strengthens the negative ones -- a banned phrase cannot be smuggled back in by
+   letting it fall across a line break."
+  (let ((out (make-string-output-stream))
+        (in-space nil))
+    (loop for ch across s
+          do (if (member ch '(#\Space #\Tab #\Newline #\Return))
+                 (unless in-space (write-char #\Space out) (setf in-space t))
+                 (progn (write-char ch out) (setf in-space nil))))
+    (get-output-stream-string out)))
+
 (defun prompt-contains-p (needle)
-  (search needle (system-prompt-text) :test #'char-equal))
+  (search (collapse-whitespace needle)
+          (collapse-whitespace (system-prompt-text))
+          :test #'char-equal))
 
 (deftest prompt-does-not-claim-a-mechanism-the-engine-lacks ()
   ;; Every phrase here was TRUE of an earlier representation and is now false. They
@@ -394,6 +413,27 @@
         (format nil "tools.json does not mention ~A" topic)))
   (is (not (tools-contains-p "so a high K means the rules that fired DISAGREE and the figures are unstable"))
       "tools.json still tells the model to read K as a reliability score"))
+
+(deftest prompt-explains-support-versus-share ()
+  ;; The single most trust-destroying thing the engine does: a clinician reports a
+  ;; finding that supports an organism and the organism's number goes DOWN. The
+  ;; arithmetic is right (Bel is a share of one unit of mass, and the same fact
+  ;; strengthened a rival more), so the fix is narration -- but narration nothing
+  ;; guards is narration that drifts. The behaviour itself is pinned by
+  ;; SUPPORT-CAN-RISE-WHILE-SHARE-FALLS in candidates-tests.lisp.
+  (dolist (claim '("Support and share are different quantities"
+                   "can make its belief go down"))
+    (is (prompt-contains-p claim)
+        (format nil "system-prompt.md no longer explains ~S" claim)))
+  ;; The two failure modes the guidance exists to prevent, either of which would be a
+  ;; false statement about a correct computation. Asserted POSITIVELY -- that the
+  ;; prohibitions are still there -- because a negative guard on this text matches the
+  ;; prohibition itself ("Never say the finding was unhelpful" contains the phrase) and
+  ;; would fail on the very wording it is meant to protect.
+  (dolist (prohibition '("Never say the finding was unhelpful"
+                         "never suggest the engine made a mistake"))
+    (is (prompt-contains-p prohibition)
+        (format nil "system-prompt.md no longer prohibits ~S" prohibition))))
 
 (deftest prompt-describes-set-obligations ()
   ;; Stage D put a coverage requirement in the payload that names no organism. If the

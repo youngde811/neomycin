@@ -254,3 +254,44 @@
     (is (plusp (length rules)) "S. pyogenes has rules behind it")
     (is (member 'lisa-user::bacitracin-sensitive-narrows-to-pyogenes rules)
         "including the bacitracin discriminator that narrowed to it")))
+
+;;; ------------------------------------------------------------------
+;;; SUPPORT and SHARE are different quantities, and they can move opposite ways.
+;;;
+;;; A clinician reported a hospital-acquired infection -- a fact that SUPPORTS
+;;; Klebsiella, firing a stronger and more specific rule for it -- and Klebsiella's
+;;; number went DOWN. That is correct: the same fact also fires a third Pseudomonas
+;;; rule, and Bel is a share of one unit of mass, so a hypothesis can gain support
+;;; while losing share.
+;;;
+;;; It is also the single most trust-destroying thing this engine does, so the
+;;; behaviour is pinned here and the prompt is required to explain it rather than
+;;; apologise for it. culture-1 and culture-1a differ by exactly that one fact.
+;;; ------------------------------------------------------------------
+
+(defun answer-strength (organism set)
+  "The belief of the answer that narrows to exactly SET, or 0 if no rule gave it."
+  (declare (ignore organism))
+  (or (loop for (s . b) in (neomycin:answers-for 'lisa-user::o1)
+            when (equal s set) return b)
+      0.0d0))
+
+(deftest support-can-rise-while-share-falls ()
+  (let (support-1 bel-1 margin-1)
+    (candidates-run 'lisa-user::culture-1)
+    (setf support-1 (answer-strength :klebsiella '(:klebsiella))
+          bel-1 (candidates:bel (neomycin:consensus 'lisa-user::o1) :klebsiella)
+          margin-1 (candidates:margin (neomycin:consensus 'lisa-user::o1)))
+    (candidates-run 'lisa-user::culture-1a)
+    (let* ((mass (neomycin:consensus 'lisa-user::o1))
+           (support-2 (answer-strength :klebsiella '(:klebsiella)))
+           (bel-2 (candidates:bel mass :klebsiella))
+           (margin-2 (candidates:margin mass)))
+      (is (> support-2 support-1)
+          (format nil "the answer naming klebsiella alone STRENGTHENS, ~,3F -> ~,3F"
+                  support-1 support-2))
+      (is (< bel-2 bel-1)
+          (format nil "while its share of belief FALLS, ~,4F -> ~,4F" bel-1 bel-2))
+      (is (> margin-2 margin-1)
+          (format nil "because the differential sharpened, margin ~,3F -> ~,3F"
+                  margin-1 margin-2)))))
