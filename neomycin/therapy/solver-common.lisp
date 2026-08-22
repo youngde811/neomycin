@@ -185,7 +185,9 @@
   (let ((treated (mapcar #'car items))
         (drugs (mapcar #'regimen-item-drug regimen)))
     (sort
-     (loop for pair in conclusions
+     ;; Organism entries only. A set-valued entry is not an organism that fell below
+     ;; the gate -- it is an obligation in its own right, reported as one.
+     (loop for pair in (remove-if #'set-entry-p conclusions)
            for org = (car pair)
            unless (member org treated)
              collect (make-below-threshold-item
@@ -209,24 +211,59 @@
 ;;; Phase A -- what to treat, and with what candidates
 ;;; ============================================================
 
+(defun set-entry-p (entry)
+  "True when a CONCLUSIONS entry is a set-valued obligation rather than a named
+   organism. An organism id is a symbol; a set names its members in a list."
+  (and (consp entry) (consp (car entry))))
+
 (defun solve-regimen-phase-a (conclusions kb patient)
   "Phase A, shared by every solver: the belief gate and the candidate filter.
 
-   Returns (values ITEMS EXCLUDED CANDIDATES UNIVERSE):
-     ITEMS      -- the (organism . belief) pairs clearing *coverage-threshold*
-     EXCLUDED   -- contraindicated drugs, each with its reason
-     CANDIDATES -- the drugs left, name-sorted so downstream ties resolve
-                   deterministically to the earliest name
-     UNIVERSE   -- just the organisms of ITEMS: the set a regimen must cover
+   Returns (values ITEMS EXCLUDED CANDIDATES UNIVERSE WEIGHTS OBLIGATIONS):
+     ITEMS       -- the (organism . belief) pairs clearing *coverage-threshold*
+     EXCLUDED    -- contraindicated drugs, each with its reason
+     CANDIDATES  -- the drugs left, name-sorted so downstream ties resolve
+                    deterministically to the earliest name
+     UNIVERSE    -- every organism a regimen must cover: the organisms of ITEMS,
+                    PLUS every member of every set-valued obligation
+     WEIGHTS     -- (organism . scalar) over the whole UNIVERSE, for objectives that
+                    weight coverage by identification belief. A member reachable only
+                    through a set carries that set's mass, since that is the belief
+                    which obliges covering it
+     OBLIGATIONS -- the SET-OBLIGATION structs, for reporting
+
+   UNIVERSE IS NO LONGER just (mapcar #'car ITEMS). A set-valued answer -- 'one of
+   these seven, the evidence does not say which' -- is a conclusion, and covering two
+   of its members does not discharge it. Keeping the members in the universe is what
+   makes the search actually solve for them; reporting them as ITEMS-TO-TREAT would
+   instead claim an individual belief none of them has.
 
    Deliberately returns no regimen accumulator: how a search builds one up is the
    search's own business, and threading greedy's empty list through a shared
    entry point would be shaping the interface around one caller."
-  (let* ((items (remove-if-not
+  (let* ((organism-entries (remove-if #'set-entry-p conclusions))
+         (set-entries (remove-if-not #'set-entry-p conclusions))
+         (items (remove-if-not
                  #'(lambda (pair)
                      (>= (scalar-of (cdr pair)) *coverage-threshold*))
-                 conclusions))
-         (universe (mapcar #'car items))
+                 organism-entries))
+         (obligations (loop for (members . mass) in set-entries
+                            collect (make-set-obligation :members members
+                                                         :mass (scalar-of mass))))
+         (universe (let ((acc (mapcar #'car items)))
+                     (dolist (o obligations acc)
+                       (dolist (m (set-obligation-members o))
+                         (pushnew m acc)))))
+         (weights (loop for org in universe
+                        collect (cons org
+                                      (let ((direct (assoc org items)))
+                                        (reduce #'max
+                                                (loop for o in obligations
+                                                      when (member org (set-obligation-members o))
+                                                        collect (set-obligation-mass o))
+                                                :initial-value (if direct
+                                                                   (scalar-of (cdr direct))
+                                                                   0.0))))))
          (all-drugs (sort (kb-drug-ids kb) #'string< :key #'symbol-name))
          (excluded (loop for d in all-drugs
                          when (patient-contraindicates-p kb d patient)
@@ -234,4 +271,19 @@
          (candidates (remove-if #'(lambda (d)
                                     (patient-contraindicates-p kb d patient))
                                 all-drugs)))
-    (values items excluded candidates universe)))
+    (values items excluded candidates universe weights obligations)))
+
+(defun discharge-obligations (kb obligations regimen)
+  "Fill in each OBLIGATION's UNCOVERED members against the chosen REGIMEN.
+
+   Member-wise, through DRUG-COVERS -- the same predicate, threshold and
+   *susceptibility-gate* the search itself used, so the report cannot disagree with
+   the regimen it describes, and no family figure is allowed to stand in for a member
+   it does not actually cover."
+  (let ((drugs (mapcar #'regimen-item-drug regimen)))
+    (dolist (o obligations obligations)
+      (setf (set-obligation-uncovered o)
+            (sort (remove-if (lambda (m)
+                               (some (lambda (d) (drug-covers kb d (list m))) drugs))
+                             (set-obligation-members o))
+                  #'string< :key #'symbol-name)))))

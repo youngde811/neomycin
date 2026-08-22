@@ -348,10 +348,21 @@
     (is (equal '(:ciprofloxacin) (regimen-drugs (solve-with :exact '((:salmonella . 0.65))
                                                             (therapy:therapy-kb))))
         "salmonella: de-escalates to ciprofloxacin")
+    ;; NOTE THE INPUT. This is a hand-built pair of organism conclusions, NOT culture-1
+    ;; through the pipeline, and since Stage D the two no longer agree. Real culture-1
+    ;; also carries 0.155 on the seven aerobic gram-negative rods, and covering that
+    ;; obligation takes an agent ceftazidime cannot match -- so spectrum-sparing returns
+    ;; meropenem there. See SET-OBLIGATION-CONSTRAINS-SPECTRUM-SPARING in
+    ;; therapy-bridge-tests.lisp, which asserts what a clinician actually gets.
+    ;;
+    ;; Kept as a SOLVER unit test, which is what it always was: given exactly these two
+    ;; organisms and nothing else, the narrower agent wins. The old name claimed more
+    ;; than the input supported, and that mislabelling is why the pipeline could change
+    ;; underneath a green suite.
     (is (equal '(:ceftazidime)
                (regimen-drugs (solve-with :exact '((:pseudomonas . 0.76) (:klebsiella . 0.40))
                                           (therapy:therapy-kb))))
-        "culture-1: de-escalates to ceftazidime, as 3.2 predicted")))
+        "two gram-negative organisms alone: de-escalates to ceftazidime, as 3.2 predicted")))
 
 (deftest spectrum-sparing-agrees-where-narrow-already-won ()
   ;; bacteroides + S. aureus does NOT diverge: :lexicographic ALREADY returns

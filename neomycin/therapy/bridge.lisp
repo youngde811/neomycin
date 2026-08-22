@@ -77,52 +77,48 @@
   (loop for organism in (neomycin:organisms-with-answers)
         append (candidates:set-valued (neomycin:consensus organism))))
 
-(defun backstop-items (kb members)
-  "The KB items that between them cover MEMBERS: each distinct family among them, plus
-   any member that belongs to no family and so must be named directly.
+(defun set-obligation-entries (set-valued)
+  "((MEMBERS . MASS) ...) for every set-valued answer, carried through to the solver
+   as a coverage obligation. MEMBERS is a LIST, which is how phase A tells a set entry
+   from an organism entry -- an organism id is a symbol and never a list.
 
-   A set-valued answer need not correspond to a single family. 'An aerobic
-   gram-negative rod' spans the Enterobacteriaceae AND Pseudomonas, and covering it
-   empirically means covering both -- which is what a clinician does. The pre-v0.11
-   corpus could not express that, because it reified one organism-class per rule and
-   the answer was whatever class had been asserted."
-  (let ((items '()))
-    (dolist (organism members (nreverse items))
-      (let ((family (kb-family-of kb organism)))
-        (pushnew (or family organism) items)))))
+   NO SUPPRESSION, and that is the change. This was FAMILY-BACKSTOPS, which dropped a
+   set the moment any one of its members cleared the gate, reasoning that the member
+   'carries the coverage need'. It does not: mass on {A..G} is committed to no member
+   in particular, so covering A and B leaves it undischarged. Culture-1 puts 0.155 on
+   the seven aerobic gram-negative rods; the narrow regimens missed Salmonella and
+   reported nothing uncovered. Measured across the scenario x patient x objective
+   matrix, four configurations of sixty were silently under-covering this way.
 
-(defun family-backstops (species set-valued kb)
-  "Items to treat empirically for answers that never resolved to an organism.
+   Nor does a set collapse to its KB FAMILY any more. That was the other half of the
+   illusion: ceftazidime covers :enterobacteriaceae at bel 0.66 and :salmonella at
+   0.46, so against a 0.5 threshold the family proxy read as covered while the member
+   was not. The family roll-up keeps its real job -- a species with no entry of its
+   own inherits its family's figure in KB-SUSCEPTIBILITY -- but it is no longer
+   allowed to stand in for the set. An obligation is discharged member by member.
 
-   A set-valued answer is carried in ONLY when identification could not pin down a
-   member firmly enough: it is included IFF no organism in it clears the coverage gate
-   (*coverage-threshold*, reduced by SCALAR-OF -- the same gate the solver's Phase A
-   applies). When a member DOES clear it, that member carries the coverage need and
-   the set is suppressed, so a family and its own member are never both treated.
-
-   Each surviving set contributes the items that cover it (see BACKSTOP-ITEMS), at the
-   set's own mass. Where two sets contribute the same item the stronger mass governs."
-  (let ((acc '()))
-    (dolist (entry set-valued (nreverse acc))
-      (destructuring-bind (members . mass) entry
-        (unless (some (lambda (pair)
-                        (and (member (car pair) members)
-                             (>= (scalar-of (cdr pair)) *coverage-threshold*)))
-                      species)
-          (dolist (item (backstop-items kb members))
-            (let ((seen (assoc item acc)))
-              (if seen
-                  (setf (cdr seen) (max (cdr seen) mass))
-                  (push (cons item mass) acc)))))))))
+   Sets BELOW the gate are dropped here rather than in phase A, so that what the
+   solver receives is exactly what it must act on."
+  (loop for (members . mass) in set-valued
+        when (>= (scalar-of mass) *coverage-threshold*)
+          collect (cons members mass)))
 
 (defun conclusions-for-solver (&optional (kb (therapy-kb)))
-  "Return ((organism-keyword . belief) ...) for the solver: every organism-identity
-   (leaf species) in working memory, PLUS a family backstop entry for any
-   organism-class whose member species all fall below the coverage gate (see
-   FAMILY-BACKSTOPS). KB supplies the family taxonomy; it defaults to the canonical
-   therapy KB, matching what the handler recommends over."
-  (let ((species (collect-identity-conclusions)))
-    (append species (family-backstops species (collect-set-valued-conclusions) kb))))
+  "What the solver must cover: every organism the consultation named with belief of
+   its own, PLUS every set-valued answer carrying enough mass to clear the gate.
+
+   Two kinds of entry share one alist. (ORGANISM . BELIEF) is a hypothesis with
+   belief committed to it specifically; ((MEMBER ...) . MASS) is an answer that
+   committed mass to a group without naming a member, and phase A tells them apart by
+   whether the car is a list. Both must be covered and they are not interchangeable --
+   which is the whole lesson of the suppression rule that used to conflate them.
+
+   KB is accepted for interface stability and is no longer consulted: the taxonomy was
+   only ever used to collapse a set onto a family, which SET-OBLIGATION-ENTRIES
+   explains is unsound."
+  (declare (ignore kb))
+  (append (collect-identity-conclusions)
+          (set-obligation-entries (collect-set-valued-conclusions))))
 
 ;;; ------------------------------------------------------------------
 ;;; Serializer: RECOMMENDATION -> JSON-ready hash-tables
@@ -213,6 +209,21 @@
           (susceptibility-entry->json (incidental-cover-susceptibility cover)))
     ht))
 
+(defun set-obligation->json (obligation)
+  "One set-valued conclusion the regimen had to cover: {members, mass, uncovered}.
+
+   UNCOVERED is emitted even when empty, and empty is the answer to a real question --
+   'does this regimen cover the group you could not resolve?' A non-empty list is a
+   member the evidence says could be the organism and the regimen does not treat,
+   which is the failure this field was added to stop hiding."
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "members" ht)
+          (coerce (mapcar #'key->name (set-obligation-members obligation)) 'vector))
+    (setf (gethash "mass" ht) (set-obligation-mass obligation))
+    (setf (gethash "uncovered" ht)
+          (coerce (mapcar #'key->name (set-obligation-uncovered obligation)) 'vector))
+    ht))
+
 (defun below-threshold->json (item)
   "One organism the coverage gate dropped: {organism, belief, covered_by}.
 
@@ -248,6 +259,13 @@
     (setf (gethash "below_threshold" ht)
           (coerce (mapcar #'below-threshold->json
                           (recommendation-below-threshold rec))
+                  'vector))
+    ;; Set-valued answers the regimen was obliged to cover. Distinct from
+    ;; items_to_treat: these name no organism in particular, so reporting them as
+    ;; treated organisms would claim an individual belief none of them has.
+    (setf (gethash "set_obligations" ht)
+          (coerce (mapcar #'set-obligation->json
+                          (recommendation-set-obligations rec))
                   'vector))
     ;; The two "what else was possible" fields. Always emitted, even when empty:
     ;; an absent key reads as "not applicable", an empty array reads as "asked and

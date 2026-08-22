@@ -395,8 +395,22 @@
   (is (not (tools-contains-p "so a high K means the rules that fired DISAGREE and the figures are unstable"))
       "tools.json still tells the model to read K as a reliability score"))
 
+(deftest prompt-describes-set-obligations ()
+  ;; Stage D put a coverage requirement in the payload that names no organism. If the
+  ;; prompt does not explain it, the model will either ignore it or -- worse -- narrate
+  ;; it as treating a species, which is the one thing a set answer does not claim.
+  (dolist (topic '("set_obligations"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not explain ~A" topic)))
+  ;; The family backstop is gone; the prompt described it for two releases after the
+  ;; taxonomy stopped being reified, and it would now be a mechanism the solver lacks.
+  (dolist (claim '("enterobacteriaceae family" "as a *backstop*"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md still describes ~S, which the solver no longer does"
+                claim))))
+
 (deftest tools-describe-the-gate-and-what-it-dropped ()
-  (dolist (topic '("below_threshold" "covered_by" "coverage_threshold"))
+  (dolist (topic '("set_obligations" "below_threshold" "covered_by" "coverage_threshold"))
     (is (tools-contains-p topic)
         (format nil "tools.json does not mention ~A -- the model has no reason to ~
                      read it, and will report a covered organism as untreated" topic))))

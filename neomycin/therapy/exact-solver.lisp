@@ -214,9 +214,11 @@
   "CONCLUSIONS: alist (organism . belief). KB: a THERAPY-KB. PATIENT: a list of
    patient-state tokens. Returns a RECOMMENDATION."
   (declare (ignore solver))
-  (multiple-value-bind (items excluded candidates universe)
+  (multiple-value-bind (items excluded candidates universe weights obligations)
       (solve-regimen-phase-a conclusions kb patient)
-    (flet ((belief-of (org) (scalar-of (cdr (assoc org conclusions)))))
+    ;; WEIGHTS, not CONCLUSIONS: the universe now includes organisms reachable only
+    ;; through a set-valued obligation, which have no entry of their own to look up.
+    (flet ((belief-of (org) (or (cdr (assoc org weights)) 0.0)))
       (let* ((masks (let ((h (make-hash-table :test #'eq)))
                       (dolist (d candidates h)
                         (setf (gethash d h) (coverage-mask kb d universe)))))
@@ -249,6 +251,7 @@
          :excluded excluded
          :uncovered (sort (copy-list uncovered) #'string< :key #'symbol-name)
          :below-threshold (below-threshold-for kb conclusions items regimen)
+         :set-obligations (discharge-obligations kb obligations regimen)
          :alternative-agents (alternative-agents-for kb candidates universe winner)
          ;; Every OTHER minimum-size cover, in objective order -- the runners-up the
          ;; tiebreak chose against, not a ranking of clinical merit.

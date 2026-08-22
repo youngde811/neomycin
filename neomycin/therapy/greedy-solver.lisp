@@ -57,9 +57,11 @@
    the file header on what that does and does not amount to. No notion of spectrum.
    No interaction handling in this increment."))
 
-(defun solve-regimen-phase-b (kb conclusions items excluded candidates uncovered regimen)
-  "Solve Regimen Phase B: greedy weighted set cover. BELIEF-OF is rebuilt here as
-   a local closure over CONCLUSIONS -- it is the only consumer."
+(defun solve-regimen-phase-b (kb conclusions items excluded candidates uncovered regimen
+                              weights obligations)
+  "Solve Regimen Phase B: greedy weighted set cover. BELIEF-OF closes over WEIGHTS,
+   which phase A computed over the WHOLE universe -- an organism reachable only
+   through a set-valued obligation has no CONCLUSIONS entry of its own to look up."
   ;; The loop rebinds CANDIDATES and UNCOVERED as it consumes them, so capture the
   ;; originals first: ALTERNATIVE-AGENTS is about what was available at the start,
   ;; not what survived to the end.
@@ -67,7 +69,7 @@
         (universe uncovered)
         (chosen '()))
     (flet ((belief-of (org)
-             (scalar-of (cdr (assoc org conclusions)))))
+             (or (cdr (assoc org weights)) 0.0)))
       (loop
         (when (null uncovered)
           (return))
@@ -104,6 +106,7 @@
        ;; needs the enumeration only the exact solver performs -- so that field
        ;; stays empty here rather than being faked from the drugs greedy happened
        ;; to pass over.
+       :set-obligations (discharge-obligations kb obligations final-regimen)
        :alternative-agents (alternative-agents-for kb all-candidates universe chosen))))))
 
 (defmethod solve-regimen ((solver greedy-solver) conclusions kb patient)
@@ -112,9 +115,10 @@
   (declare (ignore solver))
   ;; Phase A is shared (solver-common.lisp); the empty regimen accumulator is
   ;; greedy's own, so it starts here rather than being handed back by phase A.
-  (multiple-value-bind (items excluded candidates universe)
+  (multiple-value-bind (items excluded candidates universe weights obligations)
       (solve-regimen-phase-a conclusions kb patient)
-    (solve-regimen-phase-b kb conclusions items excluded candidates universe '())))
+    (solve-regimen-phase-b kb conclusions items excluded candidates universe '()
+                           weights obligations)))
 
 ;; Register on load so (use-solver :greedy) works out of the box.
 (register-solver :greedy (make-instance 'greedy-solver :name "greedy"))
