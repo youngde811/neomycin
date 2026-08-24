@@ -179,17 +179,40 @@ As of this writing the suite is **1368 assertions / 186 tests, all green.** It c
 
 ### Live bridge smoke tests
 
-With the bridge running (see above), two curl scripts exercise the whole HTTP path:
+With the bridge running (see above), four curl scripts exercise the whole HTTP path.
+All of them ASSERT and exit non-zero on any mismatch:
 
 ```bash
-./bin/test-culture-1.sh    # identification: culture-1 → pseudomonas + klebsiella ...
-./bin/test-therapy.sh      # therapy: culture-1 → a regimen; + a contraindication case
+./bin/test-culture-1.sh    # identification: the culture-1 differential
+./bin/test-therapy.sh      # therapy: a regimen, a contraindication case, the objective dial
+./bin/test-why.sh          # explanation: /why for an organism, with citations
+./bin/test-rules.sh        # catalogue: /rules corpus shape and its filters
 ```
 
 `test-therapy.sh` asserts the culture-1 findings, runs inference, then calls
 `/recommend-therapy` twice — once with no patient state, once with a cephalosporin
-allergy — checking the regimen and the recorded exclusion. It exits non-zero on
-any mismatch.
+allergy — checking the regimen and the recorded exclusion.
+
+> **These live outside `asdf:test-system` and drift silently.** `test-therapy.sh` was
+> red for two weeks before anyone noticed. Run them when touching the bridge or the
+> therapy phase.
+
+### The release gate
+
+```bash
+./bin/release-check.py     # needs the bridge AND a configured LLM backend
+```
+
+The four scripts above test the *bridge*. `release-check.py` tests the layer above it —
+**what the model says about what the engine returned** — by driving scripted
+consultations and asserting over the captured transcript: every rule name quoted exists,
+every test named is one the corpus can hear, **every number quoted appears in a payload
+received earlier in the same transcript**, and nothing is described as having "argued
+against" or been "ruled out".
+
+It costs API calls, so it is a release gate rather than something to run per commit.
+Design, and an honest account of what it cannot catch:
+[`release-check-design.md`](release-check-design.md).
 
 ---
 

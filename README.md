@@ -639,7 +639,10 @@ Being clear about this is part of the project's purpose.
 
 **Real:** the inference engine, the belief algebra and its arithmetic, the set
 intersection and the conflict behavior, the explanation and provenance records, the
-therapy solver and its guarantees, the antibiogram mathematics, and the test suite —
+therapy solver and its guarantees, the antibiogram mathematics, the release gate that
+checks the model's narration against the payloads it was actually given
+(`bin/release-check.py` — every quoted number must appear in something the engine
+returned), and the test suite —
 roughly 1390 assertions across 190 tests, including every rule fired in isolation,
 hand-verified golden values for each scenario, and corpus-wide invariants checked by
 introspecting the compiled rulebase so that a new rule is covered the moment it is

@@ -334,6 +334,12 @@ no LLM judge:
 **It is a release gate, not a commit hook** — it costs API calls and is
 non-deterministic. Same cadence as the manual check it replaces.
 
+**Read `docs/release-check-design.md` before trusting it**, in particular §5: it
+verifies that names and numbers are *referenced* rather than invented, NOT that they are
+used correctly. Misattribution, a right number in a wrong claim, an invented *mechanism*
+(the v0.14 subsumption fabrication would not have been flagged), and omissions all pass.
+It replaces the mechanical half of the manual check, not the judgement half.
+
 When it fails, it names the scenario, the check and the offending text, and points at
 the transcript. `--transcript` re-runs the assertions over a saved file for free, which
 is how to iterate on a failure.
