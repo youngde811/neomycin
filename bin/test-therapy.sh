@@ -46,24 +46,22 @@ echo "$REC" | python3 -c '
 import sys, json
 r = json.load(sys.stdin)
 assert len(r["regimen"]) >= 1, "expected a non-empty regimen"
-# TWO items, not three. The enterobacteriaceae family is a therapy backstop only when
-# NO member species clears the coverage gate; here Klebsiella does, so the species is
-# treated and the family is not listed as well (5317e30, 2026-07-29). This assertion
-# read 3 from when the script was authored on 2026-07-20 until that behaviour changed
-# under it -- the smoke test lives outside asdf:test-system, so nothing caught it.
-# CHANGED AGAIN at v0.11, and this time deliberately. Under the candidate-set shape
-# organisms share one unit of belief instead of each carrying their own, so individual
-# figures are systematically lower for the same evidence: Klebsiella projects to Bel
-# 0.194 and misses *coverage-threshold* (0.2) by 0.006, where it sat at 0.286 before.
-# The threshold was calibrated against the old scale and needs review -- see its
-# docstring in neomycin/therapy/protocol.lisp. Moving a clinical dial is not something
-# to do as a side effect of a representation change, so the assertion follows the code.
+# THIS COUNT HAS MOVED THREE TIMES AND THE HISTORY IS THE WARNING. It read 3 when the
+# script was authored (2026-07-20), silently became wrong when the family backstop was
+# suppressed (5317e30, 2026-07-29) and stayed wrong for weeks because bin/*.sh lives
+# outside asdf:test-system and nothing runs it; it went to 2 deliberately at v0.11,
+# when the candidate-set shape made organisms share one unit of belief; and it is 3
+# again after Category B, for the opposite reason to the original 3 -- not a family
+# backstop, but a real organism the corpus had been wrongly excluding.
 treated = sorted(i["organism"] for i in r["items_to_treat"])
-# Both, since the v0.11 recalibration of *coverage-threshold* to 0.1. Klebsiella
-# projects to Bel 0.194 on culture-1; it missed the old 0.2 gate by 0.006 once
-# organisms began competing for one unit of mass.
-assert treated == ["klebsiella", "pseudomonas"], \
-    "expected pseudomonas and klebsiella under the recalibrated gate, got %r" % (treated,)
+# THREE since Category B. Graded answers put e-coli in the differential at 0.232 --
+# ahead of both the others -- where the singleton context rules had claimed a burn or
+# a compromised host made it impossible. It never was: E. coli is the commonest
+# gram-negative bacteraemia isolate there is, and the corpus previously could not say
+# so. The regimen is still a single agent, so a wider differential did not widen the
+# treatment.
+assert treated == ["e-coli", "klebsiella", "pseudomonas"], \
+    "expected e-coli, klebsiella and pseudomonas above the gate, got %r" % (treated,)
 assert len(r["uncovered"]) == 0, "expected nothing uncovered, got %r" % (r["uncovered"],)
 assert "solver" in r and "belief_system" in r, "response should echo solver + belief_system"
 print("  OK: %d-drug regimen, %d items treated, none uncovered" % (len(r["regimen"]), len(r["items_to_treat"])))

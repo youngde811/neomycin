@@ -408,3 +408,43 @@
       (is (not (member :ceftazidime drugs)) "contraindicated ceftazidime not used")
       (is (member :ceftazidime excl) "ceftazidime recorded as excluded")
       (is (null (therapy:recommendation-uncovered rec)) "pseudomonas still covered"))))
+
+
+;;; ------------------------------------------------------------------
+;;; The coverage gate compares in DOUBLE precision.
+;;; ------------------------------------------------------------------
+
+(deftest coverage-gate-admits-a-belief-sitting-exactly-on-it ()
+  ;; A REAL RECOMMENDATION TURNED ON THIS. Beliefs arrive as double-floats from the
+  ;; candidates algebra; the dial is a decimal literal and reads as a SINGLE-float.
+  ;; Comparing them promotes the single, and 0.1f0 promotes to 0.10000000149011612d0 --
+  ;; strictly greater than an exact 0.1d0 belief. So an organism sitting precisely ON
+  ;; the gate failed it, excluded by float representation rather than by policy.
+  ;;
+  ;; Reachable, not theoretical: culture-1a puts Pseudomonas at exactly 0.1d0, and it
+  ;; was being dropped from empiric cover with nothing in the payload explaining why.
+  (is (therapy:clears-gate-p 0.1d0 0.1)
+      "a belief exactly ON the gate clears it, single-float dial or not")
+  (is (therapy:clears-gate-p 0.1d0 0.1d0)
+      "and equally when the dial is already a double")
+  (is (not (therapy:clears-gate-p 0.09999d0 0.1))
+      "while a belief genuinely below it still fails")
+  (is (therapy:clears-gate-p 0.2d0 0.1)
+      "and one above it still passes")
+  ;; The same edge one dial-setting down, so the fix is not specific to 0.1.
+  (is (therapy:clears-gate-p 0.05d0 0.05)
+      "the property holds for other decimal dial settings too"))
+
+(deftest coverage-gate-edge-reaches-the-solver ()
+  ;; The end-to-end half: culture-1a's Pseudomonas must actually be treated.
+  (run-scenario 'lisa-user::culture-1a :candidates)
+  (therapy:with-exact-solver
+    (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
+                                   (therapy:therapy-kb) '()))
+           (treated (mapcar #'therapy:treat-item-organism
+                            (therapy:recommendation-items-to-treat rec))))
+      (is (member :pseudomonas treated)
+          "pseudomonas sits exactly on the gate at 0.1 and must be treated")
+      (is (member :e-coli treated) "e-coli, clearly above, is treated")
+      (is (member :klebsiella treated) "and klebsiella"))))
+

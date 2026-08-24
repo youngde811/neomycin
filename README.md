@@ -163,22 +163,35 @@ A **rule** pairs a set of conditions with a conclusion. Here is one, lightly
 trimmed, from the Neomycin rulebase:
 
 ```lisp
-(defrule gram-neg-rod-in-burn-patient-suggests-pseudomonas
+(defrule burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods
     (:belief 0.4
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 ..."
-                             "NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa ...")
+                             "Highly Drug-Resistant Pathogens Implicated in Burn-Associated ...")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a leading cause of wound ..."))
+                  :note "Pseudomonas aeruginosa is a classic cause of bacteraemia in ..."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (burn (value serious) (of ?p))
   =>
-  (assert (organism-identity (value :pseudomonas) (of ?o))))
+  (assert (candidates (value '((0.20 :pseudomonas)
+                               (0.07 :klebsiella)
+                               (0.05 :enterobacter)
+                               (0.08 :e-coli :proteus :serratia)))
+                      (of ?o))))
 ```
+
+The conclusion is worth a second look, because it is not what most rule engines
+assert. The rule does **not** say "this is Pseudomonas". It says *"one of these six
+organisms, and here is how my confidence is spread across them"* — 0.20 on
+Pseudomonas, 0.07 on Klebsiella, 0.05 on Enterobacter, 0.08 shared among the rest,
+and the remaining 0.60 left explicitly undecided. A burn makes Pseudomonas likelier.
+It does not make Klebsiella impossible, and an earlier version of this rule said it
+did.
 
 The clauses in the middle are patterns matched against **working memory**, the
 set of facts asserted so far. The `?o`, `?c`, and `?p` are variables: they bind
@@ -365,16 +378,24 @@ Malformed facts are rejected there, not silently absorbed.
 met, each one asserting the set of organisms its evidence narrows the answer to, and
 records which rules said what.
 
-**The model reads back what concluded.** For the case above, two candidates:
-*pseudomonas* at belief 0.613 with plausibility 0.806, and *klebsiella* at 0.194 with
-plausibility 0.387. Neither reaches plausibility 1.0, because the belief supporting one
-is belief the other cannot also have — and the organisms no rule mentioned have been
-squeezed well below certainty by the same arithmetic, without anything having been
-written to exclude them. A further slice of belief, 0.155, sits on the *set* of seven
-aerobic gram-negative rods without naming a member: the honest statement that the family
-is better established than any species in it. And `K` = 0.380 records that better than a
-third of the belief went to combinations that cannot all hold — the burn and host
-evidence point somewhere the Klebsiella rule does not.
+**The model reads back what concluded.** For the case above, a three-way
+differential: *E. coli* at belief 0.232 with plausibility 0.564, *pseudomonas* at
+0.176 / 0.468, and *klebsiella* at 0.165 / 0.458. Nothing reaches plausibility 1.0,
+because belief supporting one organism is belief the others cannot also have — and
+nothing has been *excluded* either, because the only evidence so far is a stain and
+two facts about the patient. A further 0.234 sits on the *set* of seven aerobic
+gram-negative rods without naming a member: the honest statement that the family is
+better established than any species in it, and often the right headline. `K` = 0.180
+records the belief that went to combinations which cannot all hold.
+
+The reading a clinician should take from this is that **the culture has not been
+discriminated yet.** A burn raises Pseudomonas and an immunocompromised host raises
+E. coli, and the engine says both — but epidemiology ranks organisms, it does not
+identify one. A lactose or indole result would. An earlier version of this rulebase
+returned pseudomonas at 0.613 here and looked far more decisive; it reached that
+number by asserting that a burn made Klebsiella, E. coli, Enterobacter, Serratia and
+Proteus *impossible*, which is not true and is not what burn-unit surveillance data
+say. The smaller numbers are the more honest ones.
 
 **The model narrates the result.** It reports the differential, the beliefs, and
 the reasoning — all of it read from the engine rather than composed.
@@ -585,7 +606,7 @@ that the clinical association is real; they do not verify the number. Grounding
 some of those numbers in real frequency data is active work.
 
 **Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 48 rules against MYCIN's original 450 —
+its contraindications. The rulebase is 46 rules against MYCIN's original 450 —
 enough to exercise every mechanism in the architecture, and nowhere near enough
 to be clinically meaningful.
 

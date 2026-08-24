@@ -152,9 +152,9 @@
   ;; NAME because it is the case the specificity policy exists for -- if a corpus edit
   ;; breaks the relationship, that is worth knowing deliberately.
   (let ((general (lisa:find-rule (lisa:inference-engine)
-                                 'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-klebsiella))
+                                 'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods))
         (specific (lisa:find-rule (lisa:inference-engine)
-                                  'lisa-user::hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella)))
+                                  'lisa-user::hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods)))
     (is (and general specific) "both klebsiella context rules are present")
     (when (and general specific)
       (is (lisa:rule-subsumes-p specific general)
@@ -168,9 +168,9 @@
   ;; context rules both read a gram-negative rod, but one adds a burn and the other an
   ;; immunocompromised host -- different facts about the patient, so neither subsumes.
   (let ((burn (lisa:find-rule (lisa:inference-engine)
-                              'lisa-user::burn-blood-gram-neg-rod-narrows-to-pseudomonas))
+                              'lisa-user::burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods))
         (compromised (lisa:find-rule (lisa:inference-engine)
-                                     'lisa-user::compromised-gram-neg-rod-narrows-to-pseudomonas)))
+                                     'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods)))
     (is (and burn compromised) "both pseudomonas context rules are present")
     (when (and burn compromised)
       (is (intersection (lisa:rule-premise-signature burn)
@@ -331,6 +331,17 @@
      "As INFANT: recorded for the chart, read by no rule.")
     (lisa-user::age-group lisa-user::elderly
      "As INFANT: recorded for the chart, read by no rule.")
+    (lisa-user::white-blood-count lisa-user::low
+     "INERT SINCE CATEGORY B. Its only rule --
+      blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella -- was RETIRED as the
+      wrong conditional docs/belief-conditional-audit.md 3.3 predicted: it fired ON a
+      low white count, so it owed P(Salmonella | low WBC), while the 15-25% figure it
+      cited is P(low WBC | typhoid), a sensitivity. Correcting the conditional does not
+      rescue it, because leukopenia in gram-negative bacteraemia marks SEVERITY rather
+      than species -- it occurs across E. coli, Klebsiella and Pseudomonas sepsis
+      alike, so the honest answer is the whole aerobic set and adds nothing the Gram
+      stain already said. Still assertable, because a clinician reporting a low count
+      should have it recorded; it just no longer moves anything.")
     (lisa-user::culture-age nil
      "MYCIN used culture age for contamination reasoning -- an old culture growing a
       skin organism suggests a contaminant. That inference is not reconstructed here,
@@ -375,3 +386,158 @@
       (declare (ignore organisms rationale))
       (is (rules-reading-only-marker marker value)
           (format nil "some single-marker rule still reads ~(~a~)=~(~a~)" marker value)))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 14 -- a GRADED rule asserts exactly what its :belief declares.
+;;;
+;;; A flat rule's belief is applied by the engine, so the declaration and the
+;;; assertion cannot disagree. A graded rule states its masses on the RHS, where
+;;; nothing forces them to add up to the :belief in the header -- and the two are read
+;;; by different callers. /rules and the conflict machinery quote the header; the
+;;; consensus quotes the RHS. Left unchecked they would drift, and the drift would be
+;;; invisible: every number involved is plausible on its own.
+;;;
+;;; This is the guard that keeps "a rule contributes exactly its :belief" true for the
+;;; graded shape as well, which is what CHECK-RULE already enforces for the flat one.
+;;; ------------------------------------------------------------------
+
+(defun graded-rules ()
+  (remove-if-not #'neomycin:rule-grading (candidates-rules)))
+
+(deftest property-graded-rules-exist ()
+  ;; If this ever fails, either the corpus lost its graded rules or RULE-GRADING
+  ;; stopped recognising them -- and every invariant below would pass vacuously.
+  (is (plusp (length (graded-rules)))
+      "the corpus has graded rules for the invariants below to check"))
+
+(deftest property-graded-masses-are-well-formed ()
+  (dolist (rule (graded-rules))
+    (let* ((grading (neomycin:rule-grading rule))
+           (total (reduce #'+ (mapcar #'car grading))))
+      (is (every (lambda (pair) (plusp (car pair))) grading)
+          (format nil "~(~a~): every focal mass is positive"
+                  (lisa:rule-short-name rule)))
+      (is (every (lambda (pair) (and (consp (cdr pair)) (every #'keywordp (cdr pair))))
+                 grading)
+          (format nil "~(~a~): every focal set is a non-empty set of keywords"
+                  (lisa:rule-short-name rule)))
+      (is (<= total 1.0)
+          (format nil "~(~a~): masses sum to ~,4F, which must not exceed 1"
+                  (lisa:rule-short-name rule) total))
+      ;; The residue is Theta, and it must be a real residue. A graded rule committing
+      ;; everything claims the answer is settled, which is exactly the overclaim the
+      ;; graded shape exists to avoid for epidemiological evidence.
+      (is (< total 1.0)
+          (format nil "~(~a~): leaves ~,4F on Theta -- epidemiology never settles it"
+                  (lisa:rule-short-name rule) (- 1.0 total))))))
+
+(deftest property-graded-total-equals-declared-belief ()
+  ;; THE DRIFT GUARD. The header says how much the rule commits; the RHS says where it
+  ;; goes. They must agree, or /rules and /conclusions quote different numbers for the
+  ;; same rule and neither is wrong on its own terms.
+  (dolist (rule (graded-rules))
+    (let ((declared (abs (lisa:rule-belief rule)))
+          (asserted (reduce #'+ (mapcar #'car (neomycin:rule-grading rule)))))
+      (is (approx= declared asserted)
+          (format nil "~(~a~): declares :belief ~,4F but asserts ~,4F"
+                  (lisa:rule-short-name rule) declared asserted)))))
+
+(deftest property-graded-focal-sets-are-distinct ()
+  ;; Two focal sets that are EQUAL would be one focal set whose mass was written twice.
+  ;; GRADED-ANSWER sums them silently -- correct arithmetic, but it hides an authoring
+  ;; slip, and the declared-total guard above would then fail somewhere confusing.
+  (dolist (rule (graded-rules))
+    (let ((sets (mapcar #'cdr (neomycin:rule-grading rule))))
+      (is (= (length sets) (length (remove-duplicates sets :test #'equal)))
+          (format nil "~(~a~): no focal set is written twice"
+                  (lisa:rule-short-name rule))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 15 -- a CONTEXT rule gates on the findings its answer presupposes.
+;;;
+;;; A rule premising on the patient or the culture -- a burn, a compromised host, an
+;;; infection site, an age band -- is saying "given this organism, that context makes
+;;; these members likelier". It is NOT saying "this context implies this kind of
+;;; organism". So it has to establish the kind first, by premising on the stain,
+;;; morphology and aerobicity its answer takes for granted. Otherwise it fires on an
+;;; organism its answer cannot possibly be.
+;;;
+;;; THIS IS NOT HYPOTHETICAL. Category B found three of them, and one was live in a
+;;; shipped scenario: culture-2 asserts an ANAEROBIC gram-negative rod, and both
+;;; pseudomonas context rules fired on it -- neither had ever gated on aerobicity --
+;;; asserting {pseudomonas}, an obligate aerobe, against {bacteroides}. The corpus was
+;;; contradicting itself, and the golden test credited the resulting conflict to the
+;;; ambiguous Gram stain. The worst of the three never fired in any test at all:
+;;; NEONATE-BETA-HEMOLYTIC premised on beta hemolysis and NOTHING else, so it fired on
+;;; a beta-hemolytic E. COLI and answered S. agalactiae.
+;;;
+;;; The gates were missing for years and every layer stayed green, because a rule
+;;; firing where it should not is invisible unless something asks what its answer
+;;; presupposes. This asks.
+;;; ------------------------------------------------------------------
+
+(defparameter *context-parameters*
+  '(lisa-user::burn lisa-user::compromised-host lisa-user::hospital-acquired
+    lisa-user::recent-travel lisa-user::white-blood-count lisa-user::infection-site
+    lisa-user::neutropenia lisa-user::prosthetic-material lisa-user::iv-drug-use
+    lisa-user::age-group)
+  "Patient-level facts. CULTURE-SITE is deliberately absent: it scopes a rule to a
+   specimen without implying anything about the organism's morphology.")
+
+(defparameter *answer-presuppositions*
+  ;; (pool-name members required-gates), where a gate is (parameter . value).
+  `(("the aerobic gram-negative rods"
+     (:e-coli :klebsiella :salmonella :enterobacter :serratia :proteus :pseudomonas)
+     ((lisa-user::gram . lisa-user::neg)
+      (lisa-user::morphology . lisa-user::rod)
+      (lisa-user::aerobicity . lisa-user::aerobic)))
+    ("the anaerobic gram-negative rods"
+     (:bacteroides)
+     ((lisa-user::gram . lisa-user::neg)
+      (lisa-user::morphology . lisa-user::rod)
+      (lisa-user::aerobicity . lisa-user::anaerobic)))
+    ("the gram-positive cocci"
+     (:staphylococcus-aureus :staphylococcus-epidermidis :staphylococcus-saprophyticus
+      :streptococcus-pneumoniae :streptococcus-pyogenes :streptococcus-agalactiae
+      :streptococcus-viridans :enterococcus-faecalis :enterococcus-faecium)
+     ((lisa-user::gram . lisa-user::pos)
+      (lisa-user::morphology . lisa-user::coccus))))
+  "What an answer confined to a pool takes for granted about the organism.")
+
+(defun context-rules ()
+  (remove-if-not (lambda (rule)
+                   (some (lambda (p) (lisa:rule-premise-values rule p))
+                         *context-parameters*))
+                 (candidates-rules)))
+
+(defun pool-for-answer (answer)
+  "The entry of *ANSWER-PRESUPPOSITIONS* whose members contain every organism in
+   ANSWER, or NIL when the answer straddles pools and so presupposes nothing."
+  (find-if (lambda (entry)
+             (every (lambda (o) (member o (second entry))) answer))
+           *answer-presuppositions*))
+
+(deftest property-context-rules-gate-on-what-their-answer-presupposes ()
+  (dolist (rule (context-rules))
+    (let* ((answer (neomycin:rule-answer rule))
+           (pool (and answer (pool-for-answer answer))))
+      (when pool
+        (destructuring-bind (pool-name members gates) pool
+          (declare (ignore members))
+          (dolist (gate gates)
+            (is (member (cdr gate) (lisa:rule-premise-values rule (car gate)) :test #'eq)
+                (format nil "~(~a~) answers within ~A, so it must premise on ~
+                             ~(~a~)=~(~a~) -- without it the rule fires on an organism ~
+                             its answer cannot be"
+                        (lisa:rule-short-name rule) pool-name
+                        (car gate) (cdr gate)))))))))
+
+(deftest property-context-gate-invariant-is-live ()
+  ;; The table only guards what it can reach. If no context rule's answer falls inside
+  ;; a pool, the invariant above passes without checking anything.
+  (let ((covered (remove-if-not (lambda (r)
+                                  (let ((a (neomycin:rule-answer r)))
+                                    (and a (pool-for-answer a))))
+                                (context-rules))))
+    (is (plusp (length covered))
+        "some context rule's answer sits inside a pool, so invariant 15 has work to do")))

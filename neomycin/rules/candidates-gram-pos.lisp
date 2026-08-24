@@ -394,7 +394,9 @@
                   :evidence ("CDC Emerging Infectious Diseases 2007 (Klein et al.), MRSA hospitalizations & deaths, US 1999-2005 -- wwwnc.cdc.gov/eid/article/13/12/07-0629_article"
                              "NCBI Bookshelf / StatPearls, Staphylococcus aureus Infection, NBK441868")
                   :belief-basis :illustrative
-                  :note "S. aureus is a leading nosocomial pathogen, notably in bacteraemia and surgical-site infection."))
+                  :note "S. aureus is a leading nosocomial pathogen, notably in bacteraemia and surgical-site infection -- but it is NOT the only staphylococcus a hospital-acquired culture grows, and this rule used to say it was, at 0.8, the joint-highest belief in the Category B set. Coagulase-negative staphylococci were the COMMONEST pathogen in ICU bloodstream infections at 37.3% against 12.6% for S. aureus; more recent blood-culture data put S. aureus at 33.9% with CoNS distributed across S. capitis, S. hominis and others. Whichever series is taken, CoNS is comparable to or larger than S. aureus here.
+
+GRADED rather than widened flat, because the honest reading is not `either of these two, unsaid which' -- S. aureus really does lead, and a flat pair would throw that away. Much CoNS in blood culture is skin CONTAMINANT rather than infection, which is a fair argument for weighting S. aureus higher; it is not an argument for EXCLUDING S. epidermidis, and hospital-acquired line infection is exactly the setting where CoNS is most often real. Total commitment unchanged at 0.8; only its distribution is new."))
   (organism (id ?o))
   (patient (id ?p))
   (gram (value pos) (of ?o))
@@ -402,7 +404,9 @@
   (growth-conformation (value clumps) (of ?o))
   (hospital-acquired (value t) (of ?p))
   =>
-  (assert (candidates (value '(:staphylococcus-aureus)) (of ?o))))
+  (assert (candidates (value '((0.48 :staphylococcus-aureus)
+                               (0.32 :staphylococcus-epidermidis)))
+                      (of ?o))))
 
 (defrule iv-drug-use-clumps-narrows-to-aureus
     (:belief 0.55
@@ -428,7 +432,9 @@
                   :evidence ("NCBI Bookshelf / StatPearls, Streptococcus pneumoniae, NBK470537"
                              "NCBI Bookshelf / StatPearls, Community-Acquired Pneumonia, NBK430749")
                   :belief-basis :illustrative
-                  :note "S. pneumoniae is the commonest bacterial cause of community-acquired pneumonia. Pure context, so it gates on the stain and morphology that would have derived the streptococcus class."))
+                  :note "S. pneumoniae is the commonest bacterial cause of community-acquired pneumonia -- the leading identified CAP pathogen, pooled at 19% in one meta-analysis. It is not the only chain-former a respiratory specimen grows, and naming it alone EXCLUDED the viridans streptococci, which are a genuine CAP pathogen in their own right: isolated from blood or pleural fluid in 5.9% of 455 consecutive CAP patients, implicated in around 20% of cases in a more recent source, and typically presenting as complicated parapneumonic effusion or empyema. They also dominate oropharyngeal flora, so a respiratory specimen growing gram-positive cocci in chains is very often viridans. That was the most clinically misleading exclusion in the gram-positive half of the corpus.
+
+GRADED: pneumococcus still leads by a distance, which a flat set could not have said. S. pyogenes is admitted at a low mass because it causes pneumonia and empyema; the enterococci are left out because enterococcal pneumonia is genuinely rare, which is evidence rather than a hunch. Total commitment unchanged at 0.75. Pure context, so it gates on the stain and morphology that would have derived the streptococcus class."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (infection-site (value respiratory) (of ?p))
@@ -436,7 +442,10 @@
   (morphology (value coccus) (of ?o))
   (growth-conformation (value chains) (of ?o))
   =>
-  (assert (candidates (value '(:streptococcus-pneumoniae)) (of ?o))))
+  (assert (candidates (value '((0.45 :streptococcus-pneumoniae)
+                               (0.20 :streptococcus-viridans)
+                               (0.10 :streptococcus-pyogenes)))
+                      (of ?o))))
 
 (defrule neonate-beta-hemolytic-narrows-to-agalactiae
     (:belief 0.7
@@ -445,10 +454,12 @@
                              "NCBI Bookshelf / StatPearls, Group B Streptococcus and Pregnancy, NBK482443"
                              "CDC Active Bacterial Core surveillance, Early-Onset Neonatal Sepsis Surveillance and Trends")
                   :belief-basis :illustrative
-                  :note "S. agalactiae (group B) is the leading cause of early-onset neonatal sepsis and meningitis."))
+                  :note "S. agalactiae (group B) is the leading cause of early-onset neonatal sepsis and meningitis. GATED ON THE STAIN AND MORPHOLOGY (Category B): the rule previously premised on beta hemolysis and NOTHING ELSE, so it fired on a beta-hemolytic E. COLI and answered S. agalactiae -- and E. coli is precisely the organism the literature names as GBS's rival here, the two together causing about two thirds of early-onset infections. Pure-context rules must gate on the findings that would have derived the class, as RESPIRATORY-CHAINS-NARROWS-TO-PNEUMONIAE already did. The ANSWER was right; the premises were not."))
   (organism (id ?o))
   (patient (id ?p))
   (age-group (value neonate) (of ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
   (hemolysis (value beta) (of ?o))
   =>
   (assert (candidates (value '(:streptococcus-agalactiae)) (of ?o))))
@@ -458,9 +469,13 @@
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240")
                   :belief-basis :illustrative
-                  :note "S. epidermidis is the classic biofilm-forming pathogen of prosthetic joints, valves and indwelling devices."))
+                  :note "S. epidermidis is the classic biofilm-forming pathogen of prosthetic joints, valves and indwelling devices. GATED ON THE STAIN AND MORPHOLOGY (Category B): a coagulase reading presupposes a staphylococcus, but the corpus was inconsistent about saying so -- the bench rule COAGULASE-NEGATIVE-NARROWS-TO-COAGULASE-NEGATIVE-STAPH gates on gram, morphology AND clumps, while this one gated on nothing. Clumps is deliberately NOT required: a growth conformation the clinician has not reported should not silence the rule.
+
+SURVIVES CATEGORY B AS A SINGLETON, with a disclosure. CoNS cause 46.2% of prosthetic joint infections and 20-25% of prosthetic valve endocarditis, and S. epidermidis is the most prevalent CoNS in device infection -- S. saprophyticus essentially never is. But the narrowness is partly an artifact of CORPUS COVERAGE, not of evidence: S. lugdunensis, S. capitis and S. haemolyticus are real device pathogens this corpus cannot name. The open frame keeps them plausible as residual ignorance, which is what makes the narrow answer safe."))
   (organism (id ?o))
   (patient (id ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
   (coagulase (value negative) (of ?o))
   (prosthetic-material (value t) (of ?p))
   =>
@@ -471,10 +486,18 @@
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus saprophyticus Infection, NBK482367")
                   :belief-basis :illustrative
-                  :note "S. saprophyticus is a leading cause of uncomplicated cystitis in young women, second only to E. coli."))
+                  :note "S. saprophyticus is a leading cause of uncomplicated cystitis in young women, second only to E. coli -- but the rule fires on `urinary' and `coagulase-negative' and NOTHING about the patient, so it fires just as readily for a catheterised elderly inpatient, where S. epidermidis is the likelier coagulase-negative staphylococcus. S. saprophyticus is isolated from young female patients with uncomplicated acute cystitis; S. epidermidis mainly from patients with indwelling catheters and complicated cases. The rule's evidence was about a population its premises do not select.
+
+GRADED, and this is the case that shows why grading was the right answer rather than widening. The corpus models exactly TWO coagulase-negative staphylococci, so widening this rule to a flat {saprophyticus, epidermidis} would have made it say precisely what COAGULASE-NEGATIVE-NARROWS-TO-COAGULASE-NEGATIVE-STAPH already says -- a rule adding nothing, which the survey had marked for retirement on those grounds. A graded answer keeps the content: the urinary site does not narrow the GROUP, it says which MEMBER is likelier, and that is a claim a set cannot carry and a mass function can. Total commitment unchanged at 0.65.
+
+The sharper fix is still unavailable: gating on young/female/uncatheterised would select the population the evidence describes, but the corpus has age-group and neither sex nor catheterisation. Adding one is corpus expansion, not this survey."))
   (organism (id ?o))
   (patient (id ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
   (coagulase (value negative) (of ?o))
   (infection-site (value urinary) (of ?p))
   =>
-  (assert (candidates (value '(:staphylococcus-saprophyticus)) (of ?o))))
+  (assert (candidates (value '((0.40 :staphylococcus-saprophyticus)
+                               (0.25 :staphylococcus-epidermidis)))
+                      (of ?o))))

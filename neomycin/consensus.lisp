@@ -56,28 +56,129 @@
                (some (lambda (other) (lisa:rule-subsumes-p other r)) rules))
              rules))
 
+(defun answer-value (fact)
+  "The raw VALUE slot of a CANDIDATES fact -- a flat set, or a graded answer."
+  (lisa:get-slot-value fact 'lisa-user::value))
+
+(defun answer-set (fact)
+  "The set FACT admits: itself if flat, the union of its focal sets if graded.
+
+   This is what `narrows to' means, and it is the only thing callers asking `does this
+   answer admit klebsiella?' should consult. A graded answer's grading says how mass
+   is distributed INSIDE this set; it never admits anything the set does not."
+  (candidates:answer-support (answer-value fact)))
+
+(defun surviving-rules-for (organism)
+  "Every rule behind ORGANISM's answers, minus any that a SAME-ANSWER rule subsumes.
+
+   Subsumption is scoped to rules whose answers have the same SUPPORT, which is what
+   `same-conclusion rules reinforce, unless one subsumes the other' has always meant.
+   The scoping is not a detail -- dropping it is wrong, and measurably so. Applied
+   across ALL of an organism's answers instead, this drops
+   CHAINS-NARROWS-TO-CHAIN-FORMERS whenever BACITRACIN-SENSITIVE-NARROWS-TO-PYOGENES
+   fires, and GRAM-NEGATIVE-NARROWS-TO-GRAM-NEGATIVES whenever the bacteroides rule
+   does. A specific finding does not make the stain that framed it redundant: those
+   rules bring distinct evidence to nested answers, and they must reinforce.
+
+   What DID have to change is the granularity. This check used to be applied per FACT,
+   which was sound only by coincidence -- subsumption in the pre-graded corpus always
+   occurred between rules asserting the same FLAT set, and the engine collapsed those
+   into one fact. Graded answers broke the coincidence: two rules on nested premises
+   now assert different DISTRIBUTIONS over the same support, so they land on separate
+   facts and a per-fact check never sees the pair. Measured on culture-1a, where the
+   compromised-host evidence was counted twice -- once through the compromised-host
+   rule and again through the hospital-acquired rule that subsumes it -- driving K to
+   0.533. Grouping by support restores the intended semantics for both shapes."
+  (let ((by-support (make-hash-table :test #'equal))
+        (survivors '()))
+    (dolist (fact (candidates-facts organism))
+      (let ((support (answer-set fact)))
+        (setf (gethash support by-support)
+              (append (contributing-rules fact) (gethash support by-support)))))
+    (maphash (lambda (support rules)
+               (declare (ignore support))
+               (setf survivors
+                     (append (surviving-rules (remove-duplicates rules)) survivors)))
+             by-support)
+    survivors))
+
+(defun answer-mass-of (fact &optional survivors-in-scope)
+  "The mass function one CANDIDATES fact contributes.
+
+   Each SURVIVING rule behind the fact is one independent assertion of the answer, and
+   they are combined by Dempster's rule. Recomputing from the surviving rules rather
+   than reading the fact's own belief is what implements SPECIFICITY: the engine
+   combined every contributor when it collapsed the duplicate assertions, and had no
+   way to know one of them was subsumed.
+
+   For a FLAT answer this is exactly the old arithmetic. Combining two simple support
+   functions on the same set with beliefs a and b puts a + b - ab on it, which is the
+   probabilistic sum this function used to compute directly. Nothing moves.
+
+   For a GRADED answer the distribution is stated on the FACT rather than carried as a
+   rule's single :belief, so each surviving rule asserts the same mass function and
+   they combine the same way."
+  (let* ((value (answer-value fact))
+         (contributors (contributing-rules fact))
+         (survivors (if survivors-in-scope
+                        (remove-if-not (lambda (r) (member r survivors-in-scope))
+                                       contributors)
+                        (surviving-rules contributors))))
+    (cond
+      ((candidates:graded-answer-p value)
+       (let ((m (candidates:graded-answer value)))
+         (if (rest survivors)
+             (reduce #'candidates:combine-two
+                     (make-list (length survivors) :initial-element m))
+             m)))
+      (survivors
+       (reduce #'candidates:combine-two
+               (mapcar (lambda (r)
+                         (candidates:answer value (abs (lisa:rule-belief r))))
+                       survivors)))
+      (t
+       ;; No derivation (a fact asserted as evidence rather than concluded):
+       ;; take what it carries.
+       (let ((b (belief:belief-factor fact)))
+         (candidates:answer value (if (realp b) b 1.0)))))))
+
 (defun answer-of (fact)
   "(SET . BELIEF) for one CANDIDATES fact.
 
-   Belief is recomputed from the SURVIVING rules rather than read off the fact,
-   because the engine combined every contributor when it asserted duplicates and had
-   no way to know one of them was subsumed. Where nothing is subsumed the two agree."
-  (let* ((set (candidates:canonical
-               (lisa:get-slot-value fact 'lisa-user::value)))
-         (rules (contributing-rules fact))
-         (survivors (surviving-rules rules)))
-    (cons set
-          (if survivors
-              (reduce (lambda (a b) (- (+ a b) (* a b)))
-                      (mapcar (lambda (r) (abs (lisa:rule-belief r))) survivors))
-              ;; No derivation (a fact asserted as evidence rather than concluded):
-              ;; take what it carries.
-              (let ((b (belief:belief-factor fact)))
-                (if (realp b) b 1.0))))))
+   BELIEF is the mass the answer COMMITS -- everything it does not leave on Theta. For
+   a flat answer that is the reinforced rule belief, unchanged. For a graded answer it
+   is the total of its focal masses, which is the closest single number to `how much
+   this evidence claims at all' and is what a summary line should quote."
+  (let* ((organism (lisa:get-slot-value fact 'lisa-user::of))
+         (mass (answer-mass-of fact (surviving-rules-for organism))))
+    (cons (answer-set fact)
+          (- 1.0 (candidates:ignorance mass)))))
+
+(defun answer-grading (fact)
+  "((MASS . SET) ...) for a graded answer, strongest first -- NIL when FACT is flat.
+
+   The extra information a graded answer carries: not which organisms survive, but how
+   the evidence distributes its confidence among them."
+  (let ((value (answer-value fact)))
+    (when (candidates:graded-answer-p value)
+      (sort (mapcar (lambda (pair)
+                      (cons (float (car pair) 1.0) (candidates:canonical (cdr pair))))
+                    value)
+            #'> :key #'car))))
 
 (defun answers-for (organism)
   "((SET . BELIEF) ...) -- every answer any rule gave about ORGANISM."
   (mapcar #'answer-of (candidates-facts organism)))
+
+(defun answer-masses-for (organism)
+  "The mass function each answer about ORGANISM contributes.
+
+   A fact whose every contributing rule is subsumed contributes NOTHING and is
+   dropped, rather than falling back to the fact's own belief -- it is not independent
+   evidence, it is the same evidence stated less specifically."
+  (let ((survivors (surviving-rules-for organism)))
+    (mapcar (lambda (fact) (answer-mass-of fact survivors))
+            (contributing-facts organism))))
 
 (defun consensus (organism)
   "Combine every answer about ORGANISM.
@@ -85,9 +186,9 @@
    Returns (values MASS CONFLICT ANSWERS): the combined mass function, the conflict
    read BEFORE normalization -- both normalizations resolve it away, so it cannot be
    recovered afterwards -- and the answers it was built from, for explanation."
-  (let ((answers (answers-for organism)))
-    (multiple-value-bind (mass conflict) (candidates:combine-answers answers)
-      (values mass conflict answers))))
+  (multiple-value-bind (mass conflict)
+      (candidates:combine-masses (answer-masses-for organism))
+    (values mass conflict (answers-for organism))))
 
 (defun differential (organism &key (threshold 0.0))
   "((organism-keyword bel pl) ...) for ORGANISM's differential, strongest first.
@@ -105,16 +206,40 @@
           #'> :key #'second)))
 
 (defun answer-detail (fact)
-  "(SET BELIEF RULES) for one CANDIDATES fact -- an answer WITH its attribution.
+  "(SET BELIEF RULES GRADING) for one CANDIDATES fact -- an answer WITH its attribution.
+
+   GRADING is NIL for a flat answer, so callers that only ever read the first three
+   elements are unaffected.
 
    ANSWER-OF gives the numbers; this gives the numbers and who said them, which is
    what an explanation needs and what /why is built from."
-  (let ((a (answer-of fact)))
-    (list (car a) (cdr a) (surviving-rules (contributing-rules fact)))))
+  (let* ((a (answer-of fact))
+         (organism (lisa:get-slot-value fact 'lisa-user::of))
+         (scope (surviving-rules-for organism)))
+    (list (car a) (cdr a)
+          (remove-if-not (lambda (r) (member r scope)) (contributing-rules fact))
+          (answer-grading fact))))
+
+(defun contributing-facts (organism)
+  "ORGANISM's CANDIDATES facts, minus any whose every contributing rule was SUBSUMED.
+
+   A subsumed rule is not independent evidence -- it is the same evidence stated less
+   specifically -- so the fact it produced contributes no mass. It must not appear in an
+   explanation either. Before this filter, /why on culture-1a listed two answers at
+   belief 0.60 and 0.70 with EMPTY `rules' arrays: attribution-free claims carrying
+   numbers that no surviving rule stood behind, which is exactly what the WHY facility
+   exists to make impossible. Found by re-measuring docs/clinician-scenarios.md, not by
+   the suite -- the /why tests run on culture-1 and culture-4, where nothing is subsumed."
+  (let ((survivors (surviving-rules-for organism)))
+    (remove-if (lambda (fact)
+                 (let ((contributors (contributing-rules fact)))
+                   (and contributors
+                        (notany (lambda (r) (member r survivors)) contributors))))
+               (candidates-facts organism))))
 
 (defun answer-details (organism)
-  "((SET BELIEF RULES) ...) -- every answer about ORGANISM, attributed."
-  (mapcar #'answer-detail (candidates-facts organism)))
+  "((SET BELIEF RULES GRADING) ...) -- every answer about ORGANISM, attributed."
+  (mapcar #'answer-detail (contributing-facts organism)))
 
 (defun entity-naming (hypothesis)
   "The first entity in working memory some rule's answer admits HYPOTHESIS for.
@@ -123,8 +248,7 @@
    polymicrobial culture the entity it belongs to is a fact about working memory
    rather than something the caller should have to know."
   (find-if (lambda (organism)
-             (some (lambda (fact)
-                     (member hypothesis (lisa:get-slot-value fact 'lisa-user::value)))
+             (some (lambda (fact) (member hypothesis (answer-set fact)))
                    (candidates-facts organism)))
            (organisms-with-answers)))
 
@@ -139,11 +263,25 @@
    The RHS asserts a quoted list, so what the introspection API hands back is
    (QUOTE (...)); the quote is reader syntax on the way in and has no business
    reaching a caller."
+  (let ((value (rule-asserted-answer rule)))
+    (when value (candidates:answer-support value))))
+
+(defun rule-asserted-answer (rule)
+  "The raw value RULE asserts -- a flat set, or a graded ((MASS . SET) ...)."
   (loop for (class . value) in (lisa:rule-asserted-facts rule)
         when (eq class 'lisa-user::candidates)
           return (if (and (consp value) (eq (car value) 'quote))
                      (second value)
                      value)))
+
+(defun rule-grading (rule)
+  "((MASS . SET) ...) if RULE asserts a graded answer, strongest first; else NIL."
+  (let ((value (rule-asserted-answer rule)))
+    (when (candidates:graded-answer-p value)
+      (sort (mapcar (lambda (pair)
+                      (cons (float (car pair) 1.0) (candidates:canonical (cdr pair))))
+                    value)
+            #'> :key #'car))))
 
 (defun rules-behind (organism hypothesis)
   "The rules whose answers admit HYPOTHESIS -- what an explanation quotes.
@@ -152,7 +290,7 @@
    shape nothing argues against anything, so the honest account of why a hypothesis
    survives is which evidence kept admitting it."
   (loop for fact in (candidates-facts organism)
-        when (member hypothesis (lisa:get-slot-value fact 'lisa-user::value))
+        when (member hypothesis (answer-set fact))
           append (mapcar #'lisa:rule-short-name (surviving-rules (contributing-rules fact)))
             into names
         finally (return (remove-duplicates names))))

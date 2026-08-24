@@ -1,17 +1,5 @@
 # Lisa/LLM Runbook — Diagnostic Reasoning with Claude and the MYCIN Rulebase
 
-A hands-on tour of what this system can do. Follow it start to finish and you'll
-have seen: forward-chaining inference under two belief algebras, natural-language
-fact extraction by Claude, goal-directed dialogue driven by partial matches,
-belief combination across independent rules, and Dempster-Shafer's ability to
-make uncertainty visible in the output — all while getting a full markdown
-transcript you can share.
-
-If something in this runbook doesn't behave the way it says it should, that's a
-bug or a rule change — file an issue.
-
----
-
 ## Table of Contents
 
 1. [What you'll see](#what-youll-see)
@@ -19,10 +7,10 @@ bug or a rule change — file an issue.
 3. [Start the bridge](#start-the-bridge)
 4. [Start the driver](#start-the-driver)
 5. [Tour: six demonstrations](#tour-six-demonstrations)
-   - [1. Multi-rule belief combination](#1-multi-rule-belief-combination)
+   - [1. Two rules that lean opposite ways](#1-two-rules-that-lean-opposite-ways)
    - [2. Partial-matches drive the next question](#2-partial-matches-drive-the-next-question)
-   - [3. Switching belief systems mid-conversation](#3-switching-belief-systems-mid-conversation)
-   - [4. Conflicting evidence — where DS shines](#4-conflicting-evidence--where-ds-shines)
+   - [3. Asking the corpus what it knows — and what it cannot hear](#3-asking-the-corpus-what-it-knows--and-what-it-cannot-hear)
+   - [4. Conflicting evidence — reading K with the margin](#4-conflicting-evidence--reading-k-with-the-margin)
    - [5. The abdominal anaerobe — narrowing ignorance](#5-the-abdominal-anaerobe--narrowing-ignorance)
    - [6. Turning the stewardship dial (therapy)](#6-turning-the-stewardship-dial-therapy)
 6. [Reviewing your session](#reviewing-your-session)
@@ -38,39 +26,42 @@ The system has two halves that talk over HTTP:
 
 - **Lisa** — a forward-chaining, Rete-based expert system in Common Lisp. Its
   working memory holds *facts*; when facts satisfy a rule's premises, the rule
-  fires and adds new facts (typically hypotheses) with a belief factor. The
-  belief factor is computed by a pluggable **belief system** — either the
-  classic MYCIN certainty factors (CF, a single number in [-1, 1]) or a
-  simplified Dempster-Shafer (DS, an interval `[bel, pl]` with an explicit
-  ignorance width).
+  fires and adds new facts with a belief. Every rule states an **answer** — the
+  set of organisms its evidence narrows the question to — and belief is carried
+  by a pluggable **belief system**. neomycin's is **Dempster-Shafer over an open
+  frame**: answers combine by intersection and each hypothesis gets an interval
+  `{bel, pl, ignorance}`, so what the corpus does *not* know stays visible.
 - **Claude** — a large language model driving the conversation with the
   clinician. It doesn't guess diagnoses. It translates natural-language
   observations into structured facts, calls Lisa's endpoints as tool-use
   invocations, and narrates the results with full rule-level traceability.
 
-The MYCIN rulebase currently has **50 rules** covering gram-stain morphology,
-site-of-culture context, host status (burn / immunocompromised /
-hospital-acquired), travel history, WBC, and biochemical discriminators
-(lactose / indole / motility / urease / pigment / coagulase / hemolysis) —
-including **five tier-1 organism-class chain rules** (deriving the
-enterobacteriaceae *family* and the staphylococcus / streptococcus / enterococcus
-genera, from which the leaf species are refined — a class is never itself a leaf
-identity) and **16 disconfirming rules** that argue *against* a hypothesis (a
-contradictory stain, oxygen requirement, or biochemical marker), which is what lets
-Dempster-Shafer's conflict handling produce plausibility below 1.0. Thirteen of
-those are **biochemical cross-disconfirmation among siblings**, across all three
-chained clusters — e.g. red pigment argues against a non-Serratia call, a positive
-indole against the indole-negative species, coagulase-negative against S. aureus —
-so a contradictory pair of readings pulls *both* implicated siblings below
-plausibility 1.0 rather than leaving mutually-exclusive siblings co-plausible.
+The rulebase currently has **46 rules**, covering gram-stain morphology,
+site-of-culture context, host status (burn / immunocompromised / hospital-acquired /
+neutropenic), travel history, and the biochemical discriminators (lactose / indole /
+motility / urease / pigment / catalase / coagulase / hemolysis / optochin / bacitracin
+/ novobiocin / bile-esculin / salt tolerance / sorbitol / arabinose). Three properties
+govern how every demonstration below reads:
+
+- **Every rule is CONFIRMING.** Nothing carries a negative belief and no rule argues
+  *against* an organism. Exclusion is what remains after answers are intersected:
+  `{pyogenes, agalactiae}` and `{pneumoniae}` cannot both hold, and that emptiness
+  *is* the ruling-out. When you see a plausibility below 1.0, no rule objected —
+  mass went somewhere else.
+- **A genus is a set.** There is no organism-class and nothing chains, so no belief is
+  ever the product of two others and there is no derivation tree to unfold.
+- **Nine rules state a GRADED answer.** Epidemiological evidence ranks organisms
+  without excluding any, so those rules distribute their belief *across* their answer
+  rather than evenly — see Demo 1, which is built entirely around reading one.
 
 Don't take those counts on trust, here or anywhere else: `GET /rules` reads them off
 the compiled rulebase, and the driver reaches it as `describe_rules`. See
 [`docs/clinician-scenarios.md`](clinician-scenarios.md) for the full annotated
-scenario catalog.
+scenario catalog, re-captured against this engine.
 
-**Dempster-Shafer is the default belief system.** CF is a one-line env-var
-switch away.
+**Dempster-Shafer over candidate sets is the belief system.** `cf` and `ds` remain in
+the Lisa substrate for Lisa's own examples, but neomycin's corpus has no rules they can
+reason over — a candidate-set answer is a SET, and neither has a set algebra.
 
 ---
 
@@ -105,14 +96,14 @@ From the project root, in an SBCL REPL:
 (load "lisa.asd")
 (load "lisa-bridge.asd")
 (load "neomycin.asd")
-(asdf:load-system :neomycin)     ; loads neomycin/rules/ (50 rules,
+(asdf:load-system :neomycin)     ; loads neomycin/rules/ (46 rules,
                                  ; culture-* drivers) + the therapy system
 (lisa-bridge:start)              ; port 8090
 ```
 
 (Or just `(load "neomycin.lisp")`, the convenience loader that does exactly the
-above. Do **not** load Lisa's `examples/mycin.lisp` — that is Lisa-proper and lacks
-neomycin's chained enterobacteriaceae cluster.)
+above. Do **not** load Lisa's `examples/mycin.lisp` — that is Lisa-proper, and its
+rules assert a different fact shape entirely.)
 
 You should see:
 
@@ -197,13 +188,12 @@ Each demo below has a **paste-ready clinician script** — copy the italicized
 lines one at a time into the driver. Some demos have branch points; take them
 if you want to explore.
 
-### 1. Multi-rule belief combination
+### 1. Two rules that lean opposite ways
 
-**Goal**: See the same organism concluded by more than one rule, and watch the
-belief combine (upward, but with diminishing returns — that's the algebra
-working correctly).
+**Goal**: See a **graded answer** — the shape epidemiological evidence takes in this
+corpus — and watch two of them disagree without either excluding anything.
 
-**Setup**: default DS, fresh session.
+**Setup**: fresh session.
 
 Paste:
 
@@ -215,191 +205,221 @@ Claude will assert `burn=serious`, `compromised-host=t`, `culture-site=blood`,
 `culture-age=3`, `gram=neg`, `morphology=rod`, `aerobicity=aerobic`, then run
 inference.
 
-**Expected**: four rules fire — two on the pseudomonas branch (burn rule +
-compromised-host rule, whose beliefs combine), plus one enterobacteriaceae
-rule and one klebsiella rule that also match the aerobic-gram-neg-rod +
-compromised-host pattern. The `/conclusions` payload includes:
+**Expected**: four answers. Two are flat — the stain and the aerobicity reading, which
+genuinely have no view on which rod it is. Two are **graded**:
 
 ```json
-{
-  "conclusions": [
-    {"value": "pseudomonas", "belief": {"bel": 0.429, "pl": 0.714, "ignorance": 0.286}},
-    {"value": "klebsiella",  "belief": {"bel": 0.286, "pl": 0.571, "ignorance": 0.286}}
-  ],
-  "belief_system": "Dempster-Shafer (shared frame)",
-  "frame": {
-    "entities": [{
-      "entity": "o1", "operator": "cautious", "conflict": 0.3, "ignorance": 0.057,
-      "set_valued": [{"members": ["e-coli", "klebsiella", "salmonella", "enterobacter",
-                                  "serratia", "proteus", "pseudomonas", "other-organism"],
-                      "mass": 0.229}]
-    }]
-  }
-}
+"answers": [
+  {"narrows_to": ["bacteroides", "e-coli", "enterobacter", "klebsiella",
+                  "proteus", "pseudomonas", "salmonella", "serratia"],
+   "belief": 0.7},
+  {"narrows_to": ["e-coli", "enterobacter", "klebsiella",
+                  "proteus", "pseudomonas", "salmonella", "serratia"],
+   "belief": 0.8},
+  {"narrows_to": ["e-coli", "enterobacter", "klebsiella", "proteus",
+                  "pseudomonas", "serratia"],
+   "belief": 0.4,
+   "grading": [{"mass": 0.20, "organisms": ["pseudomonas"]},
+               {"mass": 0.08, "organisms": ["e-coli", "proteus", "serratia"]},
+               {"mass": 0.07, "organisms": ["klebsiella"]},
+               {"mass": 0.05, "organisms": ["enterobacter"]}]},
+  {"narrows_to": ["e-coli", "enterobacter", "klebsiella", "proteus",
+                  "pseudomonas", "serratia"],
+   "belief": 0.6,
+   "grading": [{"mass": 0.28, "organisms": ["e-coli"]},
+               {"mass": 0.16, "organisms": ["klebsiella"]},
+               {"mass": 0.08, "organisms": ["pseudomonas"]},
+               {"mass": 0.08, "organisms": ["enterobacter", "proteus", "serratia"]}]}
+]
 ```
 
-(Conclusion ordering isn't significant — the payload isn't sorted by belief.
-Enterobacteriaceae is an organism-*class*, so it isn't in `conclusions`, which
-reports leaf identities only; it projects as a subset of the frame instead.)
+and the differential they combine to:
 
-**Read this carefully — there are four things worth noticing.**
+```json
+"conflict": 0.180, "margin": 0.234, "ignorance": 0.018,
+"hypotheses": [
+  {"value": "e-coli",       "bel": 0.232, "pl": 0.564, "ignorance": 0.332},
+  {"value": "pseudomonas",  "bel": 0.176, "pl": 0.468, "ignorance": 0.293},
+  {"value": "klebsiella",   "bel": 0.165, "pl": 0.458, "ignorance": 0.293},
+  {"value": "enterobacter", "bel": 0.029, "pl": 0.380, "ignorance": 0.351},
+  {"value": "proteus",      "bel": 0.0,   "pl": 0.398, "ignorance": 0.398},
+  {"value": "serratia",     "bel": 0.0,   "pl": 0.398, "ignorance": 0.398},
+  {"value": "salmonella",   "bel": 0.0,   "pl": 0.293, "ignorance": 0.293},
+  {"value": "bacteroides",  "bel": 0.0,   "pl": 0.059, "ignorance": 0.059}
+],
+"set_valued": [{"members": [...the seven aerobic rods...], "mass": 0.234}, ...]
+```
 
-*Neither number reaches plausibility 1.0.* Pseudomonas is capped at 0.714 and
-klebsiella at 0.571, and no rule argued against either. The belief supporting one
-is belief the other cannot also have. Under the older per-hypothesis system both
-sat at `pl 1.0`, and the two beliefs summed past certainty without the system
-noticing.
+**Four things worth noticing.**
 
-*Two pseudomonas rules fired (0.4 for burn, 0.6 for compromised host) and the
-result is 0.6, not 0.76.* Both rules read the *same* gram-negative rod, so they
-are one observation seen twice rather than two independent lines of evidence.
-The cautious combination rule counts it once. (That 0.6 then becomes 0.429 after
-conflict is renormalized away — see below.)
+*The last two answers cover the same six organisms and are not the same claim.* Read
+`narrows_to` alone and they look identical. Read `grading` and one puts 0.20 of its
+0.40 on Pseudomonas while the other puts 0.28 of its 0.60 on E. coli. **A graded answer
+reported without its grading reads as a shrug when it is in fact an opinion** — this is
+the single easiest way to misread a neomycin payload.
 
-*30% of the belief was contradictory.* `conflict: 0.3` means nearly a third of
-the combined belief landed on combinations that cannot all be true — mostly
-pseudomonas against klebsiella. That number is worth quoting to a clinician: it
-says the findings genuinely point in different directions.
+*Nothing is excluded.* Every rod keeps a plausibility. A burn makes Pseudomonas
+likelier; it does not make Klebsiella impossible, and before v0.13 these rules claimed
+exactly that by answering with one organism.
 
-*A quarter of the belief names no species at all.* The `set_valued` entry holds
-0.229 on the eight aerobic gram-negative rods collectively — "it is one of these,
-the evidence does not say which." Often the most honest headline available.
+*`conflict: 0.180` is the two rules disagreeing.* The burn evidence and the
+compromised-host evidence point at different organisms — both defensibly. That is what
+K is measuring here, and it is a normal, healthy reading rather than a fault.
 
-Ask Claude a follow-up: *"Why is pseudomonas at 0.43?"* — it calls
-`explain_conclusion` and narrates the engine's **authoritative** record: each
-firing's `composition` (e.g. `"committed 0.500 to {klebsiella}; pool conflict
-after this firing 0.300"`), what set it `supports`, and the running conflict —
-straight from the record, not recomputed. Ask *"and what's that based on?"* and it
-quotes each rule's verified `evidence` (NCBI Bookshelf / CDC citations) while
-flagging that the rule beliefs are schematic teaching figures
-(`belief_basis: illustrative`), never measured probabilities. Try *"could it be
-something else entirely?"* — the frame's `other-organism` plausibility is a real
-answer to that, which no earlier version of this system could give. This
-is the WHY/HOW facility: Claude answers from queried ground truth, not memory.
+*The biggest single figure is not an organism.* `set_valued` holds **0.234** on the
+seven aerobic gram-negative rods — "one of these, the evidence does not say which."
+Often the honest headline, and here it is larger than the leading species.
 
-The same holds for rules that have *not* fired. Ask *"what would tell the two
-staphylococci apart?"* and Claude calls `describe_rules` with
-`cluster=staphylococcus`, getting back the class rule, each species rule with its
-belief and required premises, and the coagulase/catalase rules that argue
-*against* a species — read from the compiled rulebase, not recited. The system
-prompt deliberately does not contain the corpus: it carries the shape (chaining,
-composition, what a negative belief means) and queries the rest, which is why a
-rule that is retired or re-weighted cannot leave a stale copy behind. You can hit
-the same endpoint directly with `./bin/test-rules.sh`, which needs no inference —
-the catalogue describes the corpus, not working memory.
+Ask Claude a follow-up: *"Why E. coli, and how confident?"* — it calls
+`explain_conclusion` and narrates the engine's authoritative record: each answer, which
+rules gave it, whether it `admits` the organism, and for a graded answer the
+`mass_for_organism` it contributed. Ask *"and what's that based on?"* and it quotes each
+rule's verified `evidence` (NCBI Bookshelf / CDC citations) while flagging that the
+beliefs are schematic teaching figures (`belief_basis: illustrative`), never measured
+probabilities. **There is no arithmetic to quote** — nothing composes one belief through
+another, so `/why` has no multiplication to report.
+
+The honest closing question to ask it: *"has this actually identified anything?"* It
+should say no. Every answer here is stain or epidemiology; a lactose or indole result is
+what would discriminate.
 
 ### 2. Partial-matches drive the next question
 
-**Goal**: See Claude look at *what facts are missing* to decide what to ask
-next, rather than freewheeling.
+**Goal**: Watch the engine name the fact it is waiting for, and see Claude ask for that
+rather than guessing.
 
-Type `reset`, then paste:
+`reset`, then paste:
 
-> *Elderly patient, septic, WBC is 2.1 — quite low. Blood culture:
-> gram-negative rods.*
+> *Blood culture from a post-op patient — gram-negative rods on the slide.
+> That's all I have so far.*
 
-Claude will assert `white-blood-count=low`, `culture-site=blood`, `gram=neg`,
-`morphology=rod`. That's enough to fire the low-WBC salmonella rule (0.55).
-But before it stops, Claude should call `get_partial_matches` — you'll see
-several rules with `matched=3, missing=[aerobicity=aerobic|anaerobic]` or
-similar.
+Claude will assert `culture-site=blood`, `gram=neg`, `morphology=rod`. Before running
+inference to a conclusion, it should call `get_partial_matches`. The top of that list:
 
-Claude should then ask: *"Do you have aerobicity results yet?"* rather than
-running inference immediately. This is the goal-directed dialogue loop in
-action.
-
-Reply *aerobic* and let it complete. You'll get salmonella (0.55, wide
-ignorance) alongside enterobacteriaceae (0.8) — a nice split differential.
-
-### 3. Switching belief systems mid-conversation
-
-**Goal**: Compare the same case under both algebras. This is where DS's
-information richness becomes obvious.
-
-Still in the same driver session, type `reset` and then say:
-
-> *Please switch to certainty factors and start over.*
-
-Claude will call `reset_session` with `{"belief_system": "cf"}`. The driver
-will echo `[Session reset — starting new case (belief system: Certainty
-Factors (Shortliffe-Buchanan))]`.
-
-Now paste the burn-patient case from Demo 1 again:
-
-> *27-year-old burn patient, immunocompromised. Blood culture: gram-negative
-> rods, aerobic, three days.*
-
-Expected CF conclusions:
-
-```json
-{
-  "conclusions": [
-    {"value": "enterobacteriaceae", "belief": 0.8},
-    {"value": "pseudomonas",        "belief": 0.76},   // LISA_BELIEF_SYSTEM=cf
-    {"value": "klebsiella",         "belief": 0.5}
-  ],
-  "belief_system": "Certainty Factors (Shortliffe-Buchanan)"
-}
+```
+anaerobic-gram-neg-rod-in-blood-narrows-to-bacteroides    5/6   missing: aerobicity (value=anaerobic)
+aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods     3/4   missing: aerobicity (value=aerobic)
+indole-positive-narrows-to-indole-producers               3/4   missing: indole (value=positive)
+urease-positive-narrows-to-urease-producers               3/4   missing: urease (value=positive)
+red-pigment-narrows-to-serratia                           3/4   missing: pigment (value=red)
 ```
 
-Notice what's *missing* compared to Demo 1: no ignorance interval. CF gives
-you a point estimate; DS shows you how wide the confidence interval is.
+**One rule is five conditions of six satisfied, waiting on a single fact.** Claude
+should ask: *"Do you have the aerobicity yet?"* — not because a heuristic suggested it,
+but because the engine said so. This is the goal-directed dialogue loop, and it is why
+the driver calls `get_partial_matches` before settling.
 
-**Bonus**: you can also switch from the shell (useful for scripting):
+Reply *aerobic* and let it complete. You get the two coarse answers only — 0.70 on the
+eight gram-negatives, 0.80 on the seven aerobic rods — with **no organism holding any
+belief of its own** and 0.80 of set-valued mass on the seven. That is a real conclusion
+and Claude should report it as one: the culture is an aerobic gram-negative rod and
+nothing so far separates the seven.
 
-```bash
-curl -sX POST http://localhost:8090/reset \
-     -H 'content-type: application/json' \
-     -d '{"belief_system":"ds"}'
-```
+> **Try the reverse.** Answer *anaerobic* instead and the top rule fires:
+> bacteroides at `bel 0.90`. One fact, and the case is essentially settled — because
+> the corpus models exactly one anaerobic gram-negative rod. Ask Claude why it is so
+> confident and a good answer will say that out loud: the narrowness is a fact about
+> the corpus's coverage, not about the strength of the evidence.
 
-Or set the default for the whole bridge lifetime with `LISA_BELIEF_SYSTEM` at
-startup.
+### 3. Asking the corpus what it knows — and what it cannot hear
 
-### 4. Conflicting evidence — where DS shines
+**Goal**: Query the rulebase itself, and meet the failure mode that has no error
+message.
 
-**Goal**: Show how DS makes *evidential conflict* visible in the output as a
-plausibility ceiling below 1.0, where CF collapses it to a bare point.
+`reset` is not needed — this demo touches no working memory.
 
-Switch back to DS: *"Reset and use Dempster-Shafer."*
+> *"Which single test best discriminates within the streptococci, and how heavily
+> does the system weight it?"*
 
-Then:
+Claude calls `describe_rules`, which reads the **compiled** rulebase. The system prompt
+deliberately does not contain the corpus, so a rule that is retired or re-weighted
+cannot leave a stale copy behind in the narration. Look at the `resolution` column in
+what comes back — it is the answer to the question, because it says how far each test
+narrows the field. Hemolysis takes it from six organisms to two; the disc tests take it
+from two to one.
+
+**Now the part worth the demo.** Ask:
+
+> *"The white count is low — 2.1. Does that change anything?"*
+
+It does not, and Claude must say so. `white-blood-count` is **inert**: assertable,
+accepted by the bridge, returned as success — and read by no rule in the corpus. The
+rule that used to read it was retired as a wrong conditional (it fired *on* a low count
+while citing a figure that answers the opposite question). **Nothing anywhere reports
+that an assertion was inert**; the consultation looks exactly as it would if the test
+had come back uninformative.
+
+That is why `describe_rules` returns `summary.parameters` — the corpus's input
+vocabulary, computed from rule premises — and why the fact tables in the system prompt
+mark inert values with a dagger (†). A good answer here records the count for the chart
+and then declines to narrate it as having moved anything. **Asking for one as a
+discriminating test would be worse.**
+
+> **Belief systems can still be switched** — `reset_session` takes a
+> `{"belief_system": ...}`, and `LISA_BELIEF_SYSTEM` sets the bridge default — but
+> there is nothing useful to switch *to*. `cf` and `ds` are Lisa substrate: neomycin's
+> rules assert sets, and neither algebra has a set algebra. The three-way comparison
+> this demo used to run is reproducible on the **v0.10.0 tag** and not after it.
+
+### 4. Conflicting evidence — reading K with the margin
+
+**Goal**: See evidential conflict surface as a number, and learn why that number is
+uninterpretable on its own.
+
+`reset`, then:
 
 > *Same burn patient as before. Microbiologist is hedging — probably
 > gram-negative rods, but possibly gram-positive. The stain wasn't great.
 > Blood culture, anaerobic organism.*
 
-Claude will assert two competing gram facts with confidence values:
-`gram=neg` at 0.8, `gram=pos` at 0.6. Under DS these normalize to
-`[bel=0.8, pl=1.0]` and `[bel=0.6, pl=1.0]` — both live in working memory with
-different belief strengths.
+Claude asserts two competing gram facts with confidence values: `gram=neg` at 0.8 and
+`gram=pos` at 0.6. Both live in working memory at different strengths.
 
-When you run inference, the `anaerobic-gram-neg-rod-in-blood-suggests-bacteroides`
-rule fires for bacteroides (a gram-negative anaerobe). But the gram-*positive*
-reading now triggers a **disconfirming** rule —
-`gram-pos-stain-argues-against-gram-neg-organism` (belief −0.7) — which argues
-*against* bacteroides (and against pseudomonas). Dempster's rule of combination
-folds the conflicting evidence in and renormalizes, pulling plausibility below
-1.0:
+Three answers fire — the gram-negative reading (0.70 on eight organisms), the
+gram-positive reading (0.70 on nine), and the anaerobe rule (0.90 on bacteroides). The
+first two share **no member**, so intersecting them puts mass on the empty set:
 
 ```json
-{"value": "bacteroides", "belief": {"bel": 0.60, "pl": 0.83, "ignorance": 0.23}}
-{"value": "pseudomonas", "belief": {"bel": 0.51, "pl": 0.80, "ignorance": 0.29}}
+"conflict": 0.679, "margin": 0.776, "ignorance": 0.028,
+"leading_answer": ["bacteroides"],
+"margin_against": ["enterococcus-faecalis", "enterococcus-faecium",
+                   "staphylococcus-aureus", ... the nine gram-positives ...],
+"hypotheses": [
+  {"value": "bacteroides", "bel": 0.841, "pl": 0.935},
+  {"value": "e-coli",      "bel": 0.0,   "pl": 0.094},
+  ... every other organism at bel 0.0, pl 0.094 ...
+]
 ```
 
-The **plausibility ceiling** (0.83, not 1.0) is the tell: something argued
-against this organism. That's the story CF can't tell — run the identical case
-under CF and you get bare points (`bacteroides ≈ 0.52`, `pseudomonas ≈ 0.39`)
-with no signal that the gram-positive reading created any conflict. Note too
-that DS's belief (0.60) sits *above* CF's (0.52): Dempster redistributes the
-conflict mass across the frame rather than simply subtracting it, so `bel` and
-`pl` each carry a different part of the story.
+**No rule argued against anything.** The gram-positive reading simply names nine
+organisms, none of which is Bacteroides, and the arithmetic does the rest. There are no
+disconfirming rules in this corpus and no negative beliefs.
 
-> **See it for real:** [`docs/sample-session-ds-conflict.md`](sample-session-ds-conflict.md)
-> is a captured transcript of exactly this case driven end-to-end through Claude
-> and the bridge — the DS conclusions (`bacteroides {bel 0.60, pl 0.83}`), the
-> disconfirming rule firing, and the CF side-by-side, all with Claude's
-> narration.
+**Read K and the margin as a pair — neither is interpretable alone.** `conflict: 0.679`
+says two thirds of the belief went to combinations that cannot hold. That sounds
+alarming, and on its own it is unreadable: **K rises as a winner strengthens against a
+rival**, so a high K can mean *decisive* just as easily as *unstable*. The companion is
+`margin`, the gap between the leading answer and the nearest answer that genuinely
+contradicts it. Here it is **0.776** — Bacteroides is a long way clear, and this case is
+conflicted but not close. Compare Scenario 3 in the scenario catalogue, where K is
+comparable at 0.525 but the margin is **0.084**: a near-tie. Same K, opposite clinical
+situation.
+
+`margin_against` names what the leader is being measured against — the nine
+gram-positives — which matters because that rival is a **set** whose members each have
+`bel 0.0`. Reading the `hypotheses` list alone, you would never find it.
+
+**What to narrate**: *"Bacteroides is the only answer consistent with an anaerobic
+gram-negative rod and it is well clear — but your stain is contradicting itself, and
+two thirds of the belief in this run went to combinations that cannot both hold. Repeat
+the Gram before relying on any of these numbers."*
+
+> **A note on where this number came from.** Before v0.13 this case read `K = 0.900`
+> with pseudomonas at `bel 0.228` — on an organism the corpus knows is an **anaerobe**.
+> Two Pseudomonas context rules had never gated on aerobicity, so they fired here and
+> asserted an obligate aerobe against the bacteroides answer. Part of the conflict this
+> demonstration attributed to the hedged stain was the corpus contradicting itself. The
+> gates were added and an invariant now enforces them; `K = 0.679` is the stain alone.
 
 ### 5. The abdominal anaerobe — narrowing ignorance
 
@@ -414,21 +434,35 @@ independent evidence accumulates. This is the mirror image of Demo 4.
 Claude should assert: `culture-site=blood`, `infection-site=abdominal` (on
 the patient), `gram=neg`, `morphology=rod`, `aerobicity=anaerobic`.
 
-Two bacteroides rules fire — the classic PAIP one (0.9) and the new abdominal
-one (0.8). Watch what combination does:
+Two bacteroides rules fire — the blood one (0.9) and the abdominal one (0.8). Both
+answer `{bacteroides}`, and because they bring **distinct evidence** (a blood culture,
+an abdominal site) they reinforce rather than being counted once:
 
 ```json
-{"value": "bacteroides",
- "belief": {"bel": 0.98, "pl": 1.0, "ignorance": 0.02}}
+"conflict": 0.0, "margin": 0.980, "ignorance": 0.006,
+"hypotheses": [
+  {"value": "bacteroides", "bel": 0.98, "pl": 1.0,  "ignorance": 0.02},
+  {"value": "e-coli",      "bel": 0.0,  "pl": 0.02, "ignorance": 0.02}
+]
 ```
 
-`bel = 0.98`, `ignorance = 0.02`. This is a near-certain conclusion, and the
-interval reflects it. Compare with any single-rule conclusion from Demo 2 or
-3, where ignorance is 0.2 or wider.
+`bel = 0.98`, `ignorance = 0.02`, `K = 0`. Compare Demo 1, where the leading organism
+sits at 0.232 with an ignorance of 0.332 — a differential rather than an
+identification.
 
-**Teaching moment**: DS combination *reduces* ignorance when evidence
-reinforces. Divergent evidence *widens* it (Demo 4). CF just moves a single
-number around and you can't tell the two situations apart from the output.
+**Teaching moment**: combination *reduces* ignorance when independent evidence agrees,
+and conflict stays at zero because the two answers are identical rather than rival.
+Divergent evidence widens the interval instead (Demo 4). The two situations are
+distinguishable from the output, which is the whole reason for reporting an interval
+rather than a point.
+
+> **Reinforcement is not automatic, and the exception is worth knowing.** Two rules
+> reaching the same answer combine *unless one SUBSUMES the other* — that is, unless
+> one's premises are a strict subset of the other's, so it fires whenever that one does
+> and conditions on nothing extra. Such a rule is dropped rather than counted twice, and
+> it is dropped from the **explanation** too, not merely from the arithmetic. Neither of
+> these two subsumes the other: one reads the culture site, the other the infection
+> site. Scenario 2 in the scenario catalogue is the case where subsumption does fire.
 
 ---
 
@@ -444,14 +478,17 @@ Paste these one at a time:
 
 > *"What would you treat with?"*
 
-That gives **E. coli, bel 0.64**, and a regimen of **meropenem** (susceptibility
-`bel 0.90`, ignorance `0.09`). Now ask the question the dial exists for:
+That gives **E. coli at `bel 0.884, pl 1.000`** — a genuine identification, and worth
+contrasting with Demo 1, where nothing but stain and epidemiology was available and no
+organism passed 0.24. Two bench findings did what four epidemiological answers could
+not. The regimen is **meropenem** (susceptibility `bel 0.90`, `pl 0.99`, ignorance
+`0.09`). Now ask the question the dial exists for:
 
 > *"Is there a narrower agent? What would a narrow-spectrum policy pick instead?"*
 
 Claude should read `alternative_agents` — already in the payload — and then call
 `recommend_therapy` again with `objective: "spectrum-sparing"`, which returns
-**gentamicin** (`bel 0.64`, ignorance `0.26`).
+**gentamicin** (`bel 0.64`, `pl 0.90`, ignorance `0.26`).
 
 **Teaching moment, and the reason this demo exists.** This is the case from
 `exact-solver-design.md` §1.1, where an earlier build told a real clinician that no
@@ -563,6 +600,11 @@ that's what makes them portable to any viewer.
 
 ## Reference: fact vocabulary and rule catalog
 
+**† marks an INERT value** — assertable, accepted by the bridge, and read by no rule
+in the current corpus. Assert one when the clinician reports it, so the record stays
+faithful; never solicit one as a discriminating test, and never narrate its result as
+having moved the differential, because it did not.
+
 **Organism facts** (attach to `organism-1`, `organism-2`, ...):
 
 | Fact | Values |
@@ -571,6 +613,21 @@ that's what makes them portable to any viewer.
 | `morphology` | rod, coccus |
 | `aerobicity` | aerobic, anaerobic |
 | `growth-conformation` | clumps, chains |
+| `lactose` | fermenter, non-fermenter |
+| `indole` | positive, negative |
+| `motility` | motile, non-motile, swarming |
+| `urease` | positive, negative |
+| `pigment` | red, none† |
+| `catalase` | positive, negative |
+| `coagulase` | positive, negative |
+| `hemolysis` | alpha, beta, gamma† |
+| `optochin` | sensitive, resistant |
+| `bacitracin` | sensitive, resistant |
+| `novobiocin` | sensitive, resistant |
+| `bile-esculin` | positive, negative |
+| `salt-tolerance` | tolerant, intolerant† |
+| `arabinose` | fermenter, non-fermenter |
+| `sorbitol` | fermenter, non-fermenter |
 
 **Patient facts** (attach to `patient-1`):
 
@@ -580,32 +637,48 @@ that's what makes them portable to any viewer.
 | `compromised-host` | t |
 | `hospital-acquired` | t |
 | `recent-travel` | tropical |
-| `white-blood-count` | low |
-| `infection-site` | respiratory, abdominal |
+| `white-blood-count` | low† |
+| `infection-site` | respiratory, abdominal, urinary |
+| `neutropenia` | t |
+| `prosthetic-material` | t |
+| `iv-drug-use` | t |
+| `age-group` | neonate, infant†, adult†, elderly† |
 
 **Culture facts** (no entity):
 
 | Fact | Values |
 |---|---|
 | `culture-site` | blood |
-| `culture-age` | integer (days) |
+| `culture-age` | integer (days)† |
 
-**Rule catalog** is enumerated in `src/llm/claude/system-prompt.md` (and
-Claude has it in context — you can always ask *"which rules do you have?"*
-and it will read them back).
+**The rule catalogue is NOT in this document or in the system prompt.** It is read from
+the compiled rulebase through `GET /rules`, which the driver reaches as
+`describe_rules`. That is deliberate: a transcribed copy is a second source of truth
+and it drifted on every rulebase change. Ask Claude *"which rules read a positive
+urease?"* or *"what can this corpus name at all?"* and it queries rather than recalls.
+The table above is a convenience copy of what `summary.parameters` computes, and
+`summary.parameters` is the authoritative version.
 
-For the full annotated seven scenarios with expected differentials under
-both belief systems, see [`docs/clinician-scenarios.md`](clinician-scenarios.md).
+For the full annotated fifteen scenarios with expected differentials, see
+[`docs/clinician-scenarios.md`](clinician-scenarios.md).
 
 ---
 
 ## Common pitfalls
 
-- **"Pseudomonas only came out at 0.6, not the higher combined belief I
-  expected."** You probably only had one pseudomonas rule fire. To see
-  combination, the case needs to hit at least two of: burn=serious,
-  compromised-host=t, hospital-acquired=t (plus the standard gram-neg-rod
-  facts). See [`docs/clinician-scenarios.md`](clinician-scenarios.md#scenario-1--paip-culture-1-baseline).
+- **"Nothing got above 0.24 — is it broken?"** Almost certainly not. If your case is
+  built from a stain plus host context and no bench findings, that *is* the answer:
+  epidemiology ranks organisms, it does not identify one. Look at `set_valued` — the
+  honest headline is usually there — and add a biochemical result to discriminate. See
+  Demo 1 versus Demo 6 for the contrast.
+- **"Two rules fired on the same organism but the belief didn't move."** One of them
+  was probably **subsumed** — its premises a strict subset of the other's, so it
+  conditions on nothing extra and is dropped rather than counted twice. It will be
+  absent from `/why` as well. Scenario 2 in the scenario catalogue is the worked case.
+- **"I asserted a fact and nothing happened."** Check it against
+  `summary.parameters` from `describe_rules`. A value no rule premises on is **inert**:
+  the assert succeeds, returns success, and fires nothing, with no error anywhere. See
+  Demo 3.
 - **"Claude ran inference too early."** Ask it to check partial matches
   first, or say something like *"before you run inference, what's still
   missing?"* — it will call `get_partial_matches` and describe what would
@@ -613,9 +686,10 @@ both belief systems, see [`docs/clinician-scenarios.md`](clinician-scenarios.md)
 - **"Wide ignorance intervals under DS."** Wide intervals are correct when
   evidence is weak or contradictory. If you want them to narrow, add more
   facts that trigger additional rules concluding the same organism.
-- **"The bridge won't start with `LISA_BELIEF_SYSTEM=bayes`."** Only `cf`,
-  `certainty-factors`, `ds`, and `dempster-shafer` are valid. Unknown values
-  fail loudly on purpose — no guessing.
+- **"The bridge won't start with `LISA_BELIEF_SYSTEM=bayes`."** Valid values are
+  `candidates` (**the default, and the only one neomycin's corpus has rules for**),
+  plus `cf` / `certainty-factors` and `ds` / `dempster-shafer`, which are Lisa
+  substrate. Unknown values fail loudly on purpose — no guessing.
 - **Session files piling up in `sessions/`?** They're gitignored. Delete at
   will, or set `LISA_TRANSCRIPT_DIR` somewhere ephemeral.
 - **`ModuleNotFoundError: anthropic`.** Install driver deps in a venv:
@@ -629,8 +703,8 @@ both belief systems, see [`docs/clinician-scenarios.md`](clinician-scenarios.md)
 
 ## What next?
 
-- Read `docs/clinician-scenarios.md` for two more scenarios (respiratory
-  strep in a compromised host; tropical traveler with gram-neg rod).
+- Read `docs/clinician-scenarios.md` for the other twelve scenarios, including the
+  gram-positive cocci, the therapy antibiogram overlay, and the rule catalogue.
 - Read `docs/lisa-llm-architecture.md` for the design rationale.
 - Modify `examples/mycin.lisp` to add your own rules — the driver picks them
   up automatically after a bridge reset, no schema changes needed for rules

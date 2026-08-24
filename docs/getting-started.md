@@ -40,10 +40,12 @@ Clancey's NEOMYCIN:
 - **Diagnostic strategy** — an LLM decides what to ask next and narrates results,
   the role MYCIN's backward chaining once played.
 
-Two belief algebras run over the same rulebase: **Dempster-Shafer** (the default —
-it exposes ignorance as a `{bel, pl, ignorance}` interval) and **certainty
-factors** (Shortliffe-Buchanan). Their divergence on disconfirming evidence is a
-headline research artifact.
+The belief system is **Dempster-Shafer over an open frame** — an answer is the SET a
+rule's evidence narrows to, answers combine by intersection, and Θ is never enumerated.
+Beliefs are reported as `{bel, pl, ignorance}` intervals, so what the corpus does *not*
+know is visible rather than implied. Certainty factors and per-hypothesis DS remain in
+the Lisa substrate for its own examples, but neomycin's corpus has no rules they can
+reason over.
 
 ---
 
@@ -147,12 +149,16 @@ external framework), run through the `LISA-TEST` harness. From an SBCL REPL:
 (lisa-test:run-all)      ; => T iff all pass; prints the pass/fail tally
 ```
 
-As of this writing the suite is **195 assertions / 60 tests, all green.** It covers:
+As of this writing the suite is **1368 assertions / 186 tests, all green.** It covers:
 
-- **Both belief algebras** (CF and DS) directly, and all `culture-*` scenarios
-  under each, with hand-verified golden values.
-- **Each MYCIN rule fired in isolation** (confirming rules contribute their belief;
-  disconfirming rules drop plausibility below 1.0).
+- **The belief algebras** directly, and all `culture-*` scenarios with hand-verified
+  golden values.
+- **Each rule fired in isolation** — every rule is CONFIRMING and contributes exactly
+  its declared belief; a graded rule's focal masses must sum to that same figure
+  (invariant 14).
+- **Corpus-wide property tests** that introspect the compiled rulebase, so a new rule
+  is covered the moment it is authored — including that a context rule gates on the
+  stain, morphology and aerobicity its answer presupposes (invariant 15).
 - **The therapy solver** in isolation — coverage, minimality, belief gating,
   contraindications, uncoverable organisms, deterministic tie-breaks, and the
   belief-valued (DS-interval) susceptibility path.
@@ -185,25 +191,41 @@ any mismatch.
 
 ### Identification (`/conclusions`)
 
-Each organism-identity hypothesis carries a **belief factor** from the active
-belief system:
+Every rule states an **answer** — the set of organisms its evidence narrows the
+question to — and `/conclusions` reports what those answers combine to. Each
+hypothesis carries an interval `{bel, pl, ignorance}`:
 
-- **Certainty factors:** a single number in `[-1, 1]`. Positive is confirming,
-  negative disconfirming; independent rules combine by the Shortliffe-Buchanan
-  formula.
-- **Dempster-Shafer:** an interval `{bel, pl, ignorance}` where `bel` is committed
-  support, `pl` (plausibility) is `1 − mass-against`, and `ignorance = pl − bel` is
-  the unassigned mass. Confirming evidence alone keeps `pl = 1.0`; **conflicting
-  evidence drops `pl` below 1.0** — the interval widens and lowers, making
-  uncertainty visible in a way CF cannot.
+- **`bel`** is mass committed to that organism specifically.
+- **`pl`** (plausibility) is its ceiling: everything not committed *elsewhere*.
+- **`ignorance`** is `pl − bel`, the room the evidence has not settled.
+
+**Nothing is ever excluded by being named.** No rule carries a negative belief and no
+rule argues against an organism. A hypothesis loses plausibility because other answers
+named something else and the sets could not both hold — that emptiness *is* the
+ruling-out. So `pl < 1.0` does not mean something objected; it means mass went
+elsewhere.
+
+**Some answers are graded.** Epidemiological rules — a burn, a compromised host, an
+infection site — distribute their belief *across* their answer rather than evenly,
+because that evidence ranks organisms without excluding any. Nine rules in the corpus
+do this; every bench rule is flat. A graded answer reports a `grading`, and reading a
+graded rule as though it named one organism is the commonest way to over-read a
+neomycin differential.
+
+> **`cf` and `ds` are Lisa substrate, not neomycin options.** They remain because
+> Lisa's own examples and suite use them, but neomycin's corpus has no rules they can
+> reason over — a candidate-set answer is a SET, and neither has a set algebra. The
+> three-algebra comparison the fork maintained through v0.10.0 is reproducible on the
+> **v0.10.0 tag** and not after it.
 
 ### Therapy (`/recommend-therapy`)
 
 A recommendation is an auditable object — nothing here is inferred by a model:
 
 - **`items_to_treat`** — organisms significant enough to cover: those whose belief
-  clears `*coverage-threshold*` (default 0.2). Each carries its identification
-  belief.
+  clears `*coverage-threshold*` (default **0.1** since v0.11). Each carries its
+  identification belief. Set-valued answers clearing the same gate become coverage
+  obligations in their own right, discharged **member by member**.
 - **`regimen`** — the drugs chosen by the minimum set cover: the fewest
   drugs that cover every item, ties broken deterministically by summed
   susceptibility × belief. Each entry lists what it `covers`, its `dose`, and
