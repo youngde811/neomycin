@@ -16,6 +16,8 @@
            #:contributing-rules
            #:surviving-rules
            #:surviving-rules-for
+           #:rule-evidence-group
+           #:drop-redundant-evidence
            #:answer-of
            #:answer-set
            #:answer-value

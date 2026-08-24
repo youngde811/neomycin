@@ -1,7 +1,7 @@
 # neomycin (research fork of Lisa)
 
 > **This repo is `neomycin`** — forked from Lisa 4.2.0 (full history preserved; the
-> engine here is now 4.5.1). See `README.md`. **Research only; NOT FOR CLINICAL USE.**
+> engine here is now 4.5.2). See `README.md`. **Research only; NOT FOR CLINICAL USE.**
 >
 > **neomycin BEGAN as a reconstruction of MYCIN/EMYCIN and is no longer one.** The
 > divergence accumulated one representational problem at a time and is now large enough
@@ -116,6 +116,18 @@ really does admit or exclude. A rule's `:belief` must equal the total of its foc
 masses (invariant 13), and each graded rule's total was held at the value it had
 before, so the literature decided the SHAPE and nothing was recalibrated.
 Survey and rationale: `docs/category-b-resolution-survey.md`.
+
+**Redundant evidence: a rule may speak for a GROUP.** Rules that rest on the same
+underlying evidence are not independent observations, and Dempster's rule assumes they
+are. Such rules declare `:evidence-group` in their provenance, and **only the most
+committed member contributes** — the rest are dropped before combination and are absent
+from `/why` as well as from the arithmetic. This is the second axis of specificity:
+subsumption drops a rule whose PREMISES another contains, this drops one whose EVIDENCE
+another already carries, and subsumption cannot see the second case because it reads
+premises rather than sources. The four gram-negative opportunist context rules are the
+current group; burn and travel carry genuinely different distributions and are in none.
+Invariants 19a/19b check the declaration from both directions. Measured:
+`docs/base-rate-investigation.md`.
 
 **Same-conclusion rules reinforce, unless one subsumes the other.** Two rules bringing
 distinct evidence to one answer combine; a rule whose premises are a strict subset of
@@ -273,6 +285,8 @@ bin/
                             #   NB: bin/*.sh are NOT part of asdf:test-system and drift silently
 ./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (the argument + citations)
 ./bin/test-rules.sh         # catalogue: /rules corpus shape + ?names= and ?name= (no inference needed)
+./bin/release-check.py      # THE RELEASE GATE: model in the loop, asserting over the
+                            #   transcript. Costs API calls -- see "Release check" below
 ```
 
 Expected (identification): culture-1 gives a three-way differential — e-coli
@@ -286,24 +300,53 @@ corpus does not model at all.
 
 ## Release check — the layers must agree
 
-The suite, `bin/*.sh` and `prompt-tests.lisp` each test ONE layer. None of them puts
-the model in the loop, and that gap is how three `tools.json` descriptions once went
-stale while the suite stayed green. **Before tagging a release, run the whole stack
-once** — prompt + tool schemas + bridge + engine — and check the narrated numbers
-against a pinned golden:
+The suite, `bin/*.sh` and `prompt-tests.lisp` each test ONE layer, and none of them
+puts the model in the loop. That gap is how three `tools.json` descriptions went stale
+while the suite stayed green, how a worked example quoted `K = 0.38` for a year after
+the real figure moved, and how a stale coverage threshold was narrated to a clinician.
+Every one was a number or a name the model produced from **memory** rather than from a
+payload.
+
+**`bin/release-check.py` asserts over the transcript instead of eyeballing it.** Run it
+before tagging, with the bridge up and an LLM backend configured:
 
 ```bash
-# bridge up (see Build & Load), then:
-python src/llm/claude/driver.py --plain --no-transcript
-# work a scenario from docs/clinician-scenarios.md and confirm the figures the model
-# quotes match the corresponding golden in neomycin/test/candidates-tests.lisp
-# (frame-tests.lisp was deleted with the declared-frame system in v0.11)
+./bin/release-check.py                    # all scenarios
+./bin/release-check.py --scenario therapy # just one
+./bin/release-check.py --keep             # keep transcripts under ./sessions/
+./bin/release-check.py --transcript FILE  # re-check a transcript without spending calls
 ```
 
-A worked example, with the goldens it reproduces, is
-`neomycin/clinician-samples/v011-burn-icu-release-check.md`, which carries the
-golden table it was checked against. (The older `frame-end-to-end-burn-icu.md`
-reproduces goldens from the declared-frame system deleted in v0.11.)
+It drives scripted consultations at `--transcript-verbosity full`, so every tool result
+is captured alongside the prose, and then makes four assertions — all string processing,
+no LLM judge:
+
+1. **Rule names** — every rule the assistant quotes exists in the compiled corpus.
+2. **Test names** — every microbiology test it names is in `summary.parameters`, so it
+   never sends a clinician to the bench for a result the corpus cannot hear.
+3. **Numbers** — **every number it quotes appears in a payload received EARLIER in the
+   same transcript**, or in what the clinician said. Matching is by rounding, so quoting
+   `0.23219512` as `0.23` is fine. *This is the check that matters*: it catches
+   recall-from-memory structurally, and nothing else in the stack can.
+4. **Phrasing** — no claim that something "argued against" or "ruled out" an organism.
+   Negations are exempt, because *"nothing argued against it"* is the correct phrasing.
+
+**It is a release gate, not a commit hook** — it costs API calls and is
+non-deterministic. Same cadence as the manual check it replaces.
+
+**Read `docs/release-check-design.md` before trusting it**, in particular §5: it
+verifies that names and numbers are *referenced* rather than invented, NOT that they are
+used correctly. Misattribution, a right number in a wrong claim, an invented *mechanism*
+(the v0.14 subsumption fabrication would not have been flagged), and omissions all pass.
+It replaces the mechanical half of the manual check, not the judgement half.
+
+When it fails, it names the scenario, the check and the offending text, and points at
+the transcript. `--transcript` re-runs the assertions over a saved file for free, which
+is how to iterate on a failure.
+
+A worked manual example, with the golden table it was checked against, is
+`neomycin/clinician-samples/v013-graded-answers-release-check.md`. The older samples
+reproduce mechanisms that no longer exist — see that directory's README.
 
 ## Running the Test Suite
 
@@ -325,7 +368,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1430 assertions / 192 tests):
+Coverage (~1589 assertions / 197 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,

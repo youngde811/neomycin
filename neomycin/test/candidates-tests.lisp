@@ -414,3 +414,64 @@
       (is (< margin-2 margin-1)
           (format nil "and the differential BLURS rather than sharpening, margin ~,3F -> ~,3F"
                   margin-1 margin-2)))))
+
+
+;;; ------------------------------------------------------------------
+;;; Redundant evidence: only one member of an evidence group contributes.
+;;; ------------------------------------------------------------------
+
+(defun run-facts (&rest asserts)
+  "Reset, build the standard lineage, apply ASSERTS (thunks), run, return o1's mass."
+  (belief:use-system :candidates)
+  (let ((*standard-output* (make-broadcast-stream)))
+    (lisa:reset)
+    (lisa-user::assert-lineage-for-test)
+    (dolist (a asserts) (funcall a))
+    (lisa:run))
+  (neomycin:consensus 'lisa-user::o1))
+
+(deftest redundant-evidence-does-not-double-count ()
+  ;; THE PROPERTY THE EVIDENCE-GROUP MACHINERY EXISTS FOR.
+  ;;
+  ;; `compromised-host' and `neutropenia' are different premises and neither subsumes
+  ;; the other, so a patient who is both fires both. They rest on the same epidemiology
+  ;; of gram-negative bacteraemia and assert near-identical distributions, so Dempster's
+  ;; rule -- which assumes independence -- read their agreement as corroboration.
+  ;; Measured before the fix:
+  ;;
+  ;;   compromised alone   e-coli 0.2800  klebsiella 0.1600  K 0.0000
+  ;;   neutropenic alone   e-coli 0.2000  klebsiella 0.1300  K 0.0000
+  ;;   BOTH                e-coli 0.3492  klebsiella 0.1933  K 0.2096
+  ;;
+  ;; Both inflations at once, pointing opposite ways: more confident in the leader AND
+  ;; more conflicted, between two rules that agree. Now the pair must give exactly what
+  ;; the stronger one gives alone.
+  (let ((alone (run-facts (lambda () (lisa-user::assert-compromised))))
+        (both  (run-facts (lambda () (lisa-user::assert-compromised))
+                          (lambda () (lisa-user::assert-neutropenic)))))
+    (dolist (organism '(:e-coli :klebsiella :pseudomonas))
+      (is (approx= (candidates:bel alone organism) (candidates:bel both organism))
+          (format nil "~(~a~): adding a redundant host factor must not move belief ~
+                       (~,4F alone vs ~,4F with both)"
+                  organism (candidates:bel alone organism)
+                  (candidates:bel both organism))))
+    (is (approx= (candidates:bel both :e-coli) 0.280000)
+        "and the surviving figure is the stronger rule's own"))
+  (let ((k (nth-value 1 (neomycin:consensus 'lisa-user::o1))))
+    (is (approx= k 0.0) "two rules that agree must not manufacture conflict")))
+
+(deftest redundant-evidence-drops-the-weaker-rule-from-the-argument ()
+  ;; A dropped rule must be absent from the explanation too, not merely from the
+  ;; arithmetic -- an answer carrying a belief no contributing rule stands behind is
+  ;; what /why exists to make impossible.
+  (run-facts (lambda () (lisa-user::assert-compromised))
+             (lambda () (lisa-user::assert-neutropenic)))
+  (let ((cited (mapcar #'lisa:rule-short-name
+                       (neomycin:surviving-rules-for 'lisa-user::o1))))
+    (is (member 'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods
+                cited)
+        "the stronger group member speaks for the group")
+    (is (not (member 'lisa-user::neutropenia-aerobic-gram-neg-rod-narrows-to-opportunist-rods
+                     cited))
+        "and the weaker one is dropped, from the argument as well as the arithmetic")))
+

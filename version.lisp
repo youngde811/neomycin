@@ -24,6 +24,20 @@
 
 ;; Update the version symbol in this file whenever you do a new release.
 ;;
+;; 4.5.2 (2026-08-24) -- a PATCH: one payload field that was declared but never
+;; rendered.
+;;
+;;   FIXED   PROVENANCE->JSON now emits `evidence_group'. A rule may declare
+;;           :evidence-group in its provenance to say THESE RULES REST ON THE SAME
+;;           UNDERLYING EVIDENCE -- and only one member of such a group contributes to a
+;;           differential, the rest being dropped before combination. Without the field
+;;           in the payload, a client could see that an expected rule was absent from
+;;           the argument but had no way to learn WHY, which is the difference between a
+;;           deliberate omission and an apparent malfunction.
+;;
+;; Certainty factors and the Barnett per-hypothesis Dempster-Shafer system are
+;; UNCHANGED.
+;;
 ;; 4.5.1 (2026-08-24) -- a PATCH: one bug, no API movement, and it was total for the
 ;; rules it touched.
 ;;
@@ -109,4 +123,4 @@
 ;; UNCHANGED and still the systems Lisa's own examples and suite exercise.
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :lisa4.5.1 *features*))
+  (pushnew :lisa4.5.2 *features*))

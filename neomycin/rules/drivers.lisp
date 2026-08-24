@@ -222,3 +222,26 @@
   (assert (bacitracin (value resistant) (of o1)))
   (when runp
     (run)))
+
+
+;;; ------------------------------------------------------------------
+;;; Fact helpers for the evidence-group tests. Not scenarios: the redundant-evidence
+;;; property is about which RULES contribute, so the test composes host factors onto a
+;;; fixed gram-negative baseline rather than pinning a whole case.
+;;; ------------------------------------------------------------------
+
+(defun assert-lineage-for-test ()
+  (assert (patient (id p1)))
+  (assert (culture (id c1) (patient p1)))
+  (assert (organism (id o1) (culture c1)))
+  (assert (culture-site (value blood) (of c1)))
+  (assert (gram (value neg) (of o1)))
+  (assert (morphology (value rod) (of o1)))
+  (assert (aerobicity (value aerobic) (of o1))))
+
+(defun assert-compromised ()
+  (assert (compromised-host (value t) (of p1))))
+
+(defun assert-neutropenic ()
+  (assert (neutropenia (value t) (of p1))))
+
