@@ -285,6 +285,8 @@ bin/
                             #   NB: bin/*.sh are NOT part of asdf:test-system and drift silently
 ./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (the argument + citations)
 ./bin/test-rules.sh         # catalogue: /rules corpus shape + ?names= and ?name= (no inference needed)
+./bin/release-check.py      # THE RELEASE GATE: model in the loop, asserting over the
+                            #   transcript. Costs API calls -- see "Release check" below
 ```
 
 Expected (identification): culture-1 gives a three-way differential — e-coli
@@ -298,24 +300,47 @@ corpus does not model at all.
 
 ## Release check — the layers must agree
 
-The suite, `bin/*.sh` and `prompt-tests.lisp` each test ONE layer. None of them puts
-the model in the loop, and that gap is how three `tools.json` descriptions once went
-stale while the suite stayed green. **Before tagging a release, run the whole stack
-once** — prompt + tool schemas + bridge + engine — and check the narrated numbers
-against a pinned golden:
+The suite, `bin/*.sh` and `prompt-tests.lisp` each test ONE layer, and none of them
+puts the model in the loop. That gap is how three `tools.json` descriptions went stale
+while the suite stayed green, how a worked example quoted `K = 0.38` for a year after
+the real figure moved, and how a stale coverage threshold was narrated to a clinician.
+Every one was a number or a name the model produced from **memory** rather than from a
+payload.
+
+**`bin/release-check.py` asserts over the transcript instead of eyeballing it.** Run it
+before tagging, with the bridge up and an LLM backend configured:
 
 ```bash
-# bridge up (see Build & Load), then:
-python src/llm/claude/driver.py --plain --no-transcript
-# work a scenario from docs/clinician-scenarios.md and confirm the figures the model
-# quotes match the corresponding golden in neomycin/test/candidates-tests.lisp
-# (frame-tests.lisp was deleted with the declared-frame system in v0.11)
+./bin/release-check.py                    # all scenarios
+./bin/release-check.py --scenario therapy # just one
+./bin/release-check.py --keep             # keep transcripts under ./sessions/
+./bin/release-check.py --transcript FILE  # re-check a transcript without spending calls
 ```
 
-A worked example, with the goldens it reproduces, is
-`neomycin/clinician-samples/v011-burn-icu-release-check.md`, which carries the
-golden table it was checked against. (The older `frame-end-to-end-burn-icu.md`
-reproduces goldens from the declared-frame system deleted in v0.11.)
+It drives scripted consultations at `--transcript-verbosity full`, so every tool result
+is captured alongside the prose, and then makes four assertions — all string processing,
+no LLM judge:
+
+1. **Rule names** — every rule the assistant quotes exists in the compiled corpus.
+2. **Test names** — every microbiology test it names is in `summary.parameters`, so it
+   never sends a clinician to the bench for a result the corpus cannot hear.
+3. **Numbers** — **every number it quotes appears in a payload received EARLIER in the
+   same transcript**, or in what the clinician said. Matching is by rounding, so quoting
+   `0.23219512` as `0.23` is fine. *This is the check that matters*: it catches
+   recall-from-memory structurally, and nothing else in the stack can.
+4. **Phrasing** — no claim that something "argued against" or "ruled out" an organism.
+   Negations are exempt, because *"nothing argued against it"* is the correct phrasing.
+
+**It is a release gate, not a commit hook** — it costs API calls and is
+non-deterministic. Same cadence as the manual check it replaces.
+
+When it fails, it names the scenario, the check and the offending text, and points at
+the transcript. `--transcript` re-runs the assertions over a saved file for free, which
+is how to iterate on a failure.
+
+A worked manual example, with the golden table it was checked against, is
+`neomycin/clinician-samples/v013-graded-answers-release-check.md`. The older samples
+reproduce mechanisms that no longer exist — see that directory's README.
 
 ## Running the Test Suite
 
