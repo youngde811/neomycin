@@ -138,12 +138,14 @@
 ;;; WAS lactose-non-fermenter-argues-against-fermenters. Serratia kept in for the same
 ;;; reason -- the marker is not clean for it.
 (defrule lactose-non-fermenter-narrows-to-non-fermenters
-    (:belief 0.6
+    (:belief 0.7
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Escherichia coli Infection, NBK564298")
                   :belief-basis :illustrative
-                  :note "The reciprocal. Serratia is kept in for the same reason -- a slow or variable lactose reaction makes the marker unreliable for it in either direction. PSEUDOMONAS IS IN THIS ANSWER: it is the textbook non-lactose-fermenter, the standard contrast to the Enterobacteriaceae. Omitting it was a conversion defect -- the rule this replaced argued AGAINST the fermenters and never had to say what a non-fermenter positively is, so the complement was taken within the Enterobacteriaceae rather than within the gram-negative rods the corpus models. A lactose-negative reading then CONFLICTED with a Pseudomonas case it is in fact consistent with. Also gated on aerobic growth, for the reason given on the fermenter rule."))
+                  :note "The reciprocal. Serratia is kept in for the same reason -- a slow or variable lactose reaction makes the marker unreliable for it in either direction. PSEUDOMONAS IS IN THIS ANSWER: it is the textbook non-lactose-fermenter, the standard contrast to the Enterobacteriaceae. Omitting it was a conversion defect -- the rule this replaced argued AGAINST the fermenters and never had to say what a non-fermenter positively is, so the complement was taken within the Enterobacteriaceae rather than within the gram-negative rods the corpus models. A lactose-negative reading then CONFLICTED with a Pseudomonas case it is in fact consistent with. Also gated on aerobic growth, for the reason given on the fermenter rule.
+
+BELIEF RAISED 0.6 -> 0.7 to match the fermenter reading, which it had been discounted against for no stated reason -- the note said only "The reciprocal". There is no asymmetry to justify it: the answers are the same size, and the one organism the marker is unreliable for (Serratia) is kept in BOTH for the same reason, so the unreliability is already handled by widening rather than by discounting. This follows the corpus's own precedent in CATALASE-POSITIVE / CATALASE-NEGATIVE, which carry 0.70 in both directions across a three-member and a six-member answer because the test is no more reliable one way than the other. Where a reciprocal pair IS asymmetric here -- novobiocin, bacitracin, optochin -- the note names the asymmetry."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
@@ -280,13 +282,17 @@
 ;;; to say the panel "hasn't independently triggered any rule". Now it excludes Proteus,
 ;;; and can say so.
 (defrule urease-negative-narrows-to-non-proteus-rods
-    (:belief 0.6
+    (:belief 0.7
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035"
                              "NCBI Bookshelf / StatPearls, Proteus mirabilis Infections, NBK442017"
                              "Interference of Pseudomonas Strains in the Identification of Helicobacter pylori, J Clin Microbiol, PMC86256")
                   :belief-basis :illustrative
-                  :note "Proteus is rapidly and strongly urease-positive, so a negative urease excludes it. It excludes nothing else: the variable producers (Klebsiella, Enterobacter, Serratia, and Pseudomonas at 72% positive) stay in under the policy that an unreliable marker cannot exclude, and E. coli, Salmonella and Bacteroides are characteristically negative. 0.6 reflects a real but narrow claim -- one organism removed from eight -- not a weak one."))
+                  :note "Proteus is rapidly and strongly urease-positive, so a negative urease excludes it. It excludes nothing else: the variable producers (Klebsiella, Enterobacter, Serratia, and Pseudomonas at 72% positive) stay in under the policy that an unreliable marker cannot exclude, and E. coli, Salmonella and Bacteroides are characteristically negative.
+
+BELIEF RAISED 0.6 -> 0.7, AND THE OLD JUSTIFICATION WITHDRAWN. It read: \"0.6 reflects a real but narrow claim -- one organism removed from eight -- not a weak one.\" That reasons from INFORMATIVENESS where this value means RELIABILITY. A belief is the mass this evidence commits to this answer set -- how sure we are the true organism is in there -- so removing one organism from eight leaves a WIDE answer, which is EASIER to be right about and should carry MORE mass, not less. The old note argued for a low number from a premise that implies a high one.
+
+On the evidence, this is if anything the STRONGER of the two urease readings: Proteus is rapidly and strongly urease-positive, so a negative result excludes it crisply, whereas a positive result is muddy (Pseudomonas 72%, Klebsiella/Enterobacter/Serratia variable). The sharper reading over the wider set was carrying the lower number. Now matched to the positive reading at 0.7, per the CATALASE precedent."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
@@ -419,7 +425,7 @@
                              "Epidemiological characteristics and management of Gram-negative bacteraemia in different immunocompromised hosts, PMC12233224"
                              "Pathogenesis of Gram-Negative Bacteremia, Clin Microbiol Rev, doi:10.1128/cmr.00234-20")
                   :belief-basis :illustrative
-                  :note "Both Pseudomonas and Klebsiella are major opportunists in the compromised host, and NEITHER leads: E. coli is the most frequently reported organism in gram-negative bacteraemia in solid-tumour patients (47%), and across nosocomial gram-negative bacteraemia generally E. coli runs 40.5% to Klebsiella's 22.5% and Pseudomonas's 10%. A rule naming either alone excludes the leader. MERGED from the pseudomonas and klebsiella rules that shared this premise set exactly; see the comment above. SUBSUMED by the hospital-acquired rule below when that one also fires -- its premises are a strict superset. See neomycin/consensus.lisp."))
+                  :note "Both Pseudomonas and Klebsiella are major opportunists in the compromised host, and NEITHER leads: E. coli is the most frequently reported organism in gram-negative bacteraemia in solid-tumour patients (47%), and across nosocomial gram-negative bacteraemia generally E. coli runs 40.5% to Klebsiella's 22.5% and Pseudomonas's 10%. A rule naming either alone excludes the leader. MERGED from the pseudomonas and klebsiella rules that shared this premise set exactly; see the comment above. SUBSUMED by the hospital-acquired rule below when that one also fires -- its premises are a strict superset. See neomycin/consensus.lisp. SHARED BASE RATE: this rule's distribution is substantially the same shape as the other gram-negative opportunist context rules (compromised host, hospital-acquired, hospital-acquired-and-compromised, neutropenia) -- e-coli around 0.43 of the commitment, klebsiella 0.27, pseudomonas 0.15 -- because all four rest on the same epidemiology of gram-negative bacteraemia. They are NOT conditionally independent, and when two of them fire together the engine combines them as though they were: the leader's belief comes out higher than either finding alone supports, and the conflict figure comes out higher too. Measured in docs/base-rate-investigation.md. Narrate the ORDERING of such a differential, not its magnitudes."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -442,7 +448,7 @@
                              "Epidemiology and microbiology of nosocomial bloodstream infections: 482 cases, PMC4288947"
                              "NCBI Bookshelf / StatPearls, Central Line-Associated Blood Stream Infections, NBK430891")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a leading nosocomial pathogen, but in nosocomial gram-negative bacteraemia it ranks THIRD: E. coli 40.5%, K. pneumoniae 22.5%, P. aeruginosa 10%, with a second series giving E. coli 25.5% and Klebsiella 11.2%, and NHSN CLABSI data ranking Klebsiella 5.8%, Enterobacter 3.9%, Pseudomonas 3.1%, E. coli 2.7%. This rule carried the HIGHEST belief of the four pseudomonas context rules (0.7) on the organism the surveillance data rank third. WIDENED to the opportunist set; the belief is left where it was, because it now answers a question the evidence supports -- how reliably does a nosocomial aerobic gram-negative rod mean one of these six."))
+                  :note "Pseudomonas aeruginosa is a leading nosocomial pathogen, but in nosocomial gram-negative bacteraemia it ranks THIRD: E. coli 40.5%, K. pneumoniae 22.5%, P. aeruginosa 10%, with a second series giving E. coli 25.5% and Klebsiella 11.2%, and NHSN CLABSI data ranking Klebsiella 5.8%, Enterobacter 3.9%, Pseudomonas 3.1%, E. coli 2.7%. This rule carried the HIGHEST belief of the four pseudomonas context rules (0.7) on the organism the surveillance data rank third. WIDENED to the opportunist set; the belief is left where it was, because it now answers a question the evidence supports -- how reliably does a nosocomial aerobic gram-negative rod mean one of these six. SHARED BASE RATE: this rule's distribution is substantially the same shape as the other gram-negative opportunist context rules (compromised host, hospital-acquired, hospital-acquired-and-compromised, neutropenia) -- e-coli around 0.43 of the commitment, klebsiella 0.27, pseudomonas 0.15 -- because all four rest on the same epidemiology of gram-negative bacteraemia. They are NOT conditionally independent, and when two of them fire together the engine combines them as though they were: the leader's belief comes out higher than either finding alone supports, and the conflict figure comes out higher too. Measured in docs/base-rate-investigation.md. Narrate the ORDERING of such a differential, not its magnitudes."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -465,7 +471,7 @@
                   :belief-basis :illustrative
                   :note "THE CLEAREST SINGLE DEFECT THE CATEGORY B SURVEY FOUND, and it was hiding behind an honest note rather than a silent one. The febrile-neutropenia literature states it directly: Pseudomonas aeruginosa is the THIRD most common gram-negative cause of bacteraemia in these patients, after Klebsiella pneumoniae and Escherichia coli -- E. coli 39.5% and K. pneumoniae 23.3% of gram-negative isolates. The rule named the third-place organism as its sole answer.
 
-The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS because its sources support empiric coverage rather than a claim about which organism is likelier. That is not a weak conditional; it is NO conditional. Antipseudomonal cover in febrile neutropenia is a THERAPY policy -- neomycin has a therapy phase to express it, and this is the identification corpus. Widening removes the false identification claim; it does not remove the clinical point, which belongs in neomycin/therapy/."))
+The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS because its sources support empiric coverage rather than a claim about which organism is likelier. That is not a weak conditional; it is NO conditional. Antipseudomonal cover in febrile neutropenia is a THERAPY policy -- neomycin has a therapy phase to express it, and this is the identification corpus. Widening removes the false identification claim; it does not remove the clinical point, which belongs in neomycin/therapy/. SHARED BASE RATE: this rule's distribution is substantially the same shape as the other gram-negative opportunist context rules (compromised host, hospital-acquired, hospital-acquired-and-compromised, neutropenia) -- e-coli around 0.43 of the commitment, klebsiella 0.27, pseudomonas 0.15 -- because all four rest on the same epidemiology of gram-negative bacteraemia. They are NOT conditionally independent, and when two of them fire together the engine combines them as though they were: the leader's belief comes out higher than either finding alone supports, and the conflict figure comes out higher too. Measured in docs/base-rate-investigation.md. Narrate the ORDERING of such a differential, not its magnitudes."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -517,14 +523,18 @@ The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS bec
   (assert (candidates (value '(:bacteroides)) (of ?o))))
 
 (defrule hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods
-    (:belief 0.6
+    (:belief 0.7
      :provenance (:origin :paip-subset
                   :evidence ("ASM Clinical Microbiology Reviews 1998 (Podschun & Ullmann), Klebsiella spp. as Nosocomial Pathogens, doi:10.1128/CMR.11.4.589 (PMC88898)"
                              "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004"
                              "Risk factors for mortality in patients with nosocomial Gram-negative rod bacteremia, PubMed 23640443"
                              "Epidemiology and microbiology of nosocomial bloodstream infections: 482 cases, PMC4288947")
                   :belief-basis :illustrative
-                  :note "Klebsiella pneumoniae is a leading nosocomial pathogen in immunocompromised inpatients -- a solid SECOND at 22.5% (11.2% in a second series), behind E. coli at 40.5% (25.5%). Naming Klebsiella alone excluded the leader. WIDENED to the opportunist set. This rule SUBSUMES the compromised-host-only rule above -- its premises are a strict superset -- so when both fire the more specific one stands alone, and it now also subsumes the hospital-acquired-only rule, which it did not before: those two answered different singletons, so the specificity policy never engaged between them. See neomycin/consensus.lisp."))
+                  :note "Klebsiella pneumoniae is a leading nosocomial pathogen in immunocompromised inpatients -- a solid SECOND at 22.5% (11.2% in a second series), behind E. coli at 40.5% (25.5%). Naming Klebsiella alone excluded the leader. WIDENED to the opportunist set. This rule SUBSUMES the compromised-host-only rule above -- its premises are a strict superset -- so when both fire the more specific one stands alone, and it now also subsumes the hospital-acquired-only rule, which it did not before: those two answered different singletons, so the specificity policy never engaged between them. See neomycin/consensus.lisp.
+
+BELIEF RAISED 0.6 -> 0.7, FIXING A COHERENCE DEFECT rather than tuning a number. This rule SUBSUMES the hospital-acquired-only rule, which commits 0.7 -- so whenever both fire, the specificity policy DROPS the 0.7 rule and keeps this one. The corpus was therefore committing 0.6 where it would have committed 0.7 on strictly LESS information: learning that a hospital-acquired patient is also immunocompromised made it less sure. That is not a probability error, it is the specificity policy and the belief values disagreeing, and it was the only defect of its kind in the corpus. Invariant 16 now forbids it.
+
+The focal masses were rescaled to the new total in the SAME proportions -- e-coli held at 40% of the commitment, klebsiella 30%, pseudomonas 17%, the remainder 13% -- so the distribution's shape, which the literature decides, is untouched. Only how much the rule commits at all has changed. SHARED BASE RATE: this rule's distribution is substantially the same shape as the other gram-negative opportunist context rules (compromised host, hospital-acquired, hospital-acquired-and-compromised, neutropenia) -- e-coli around 0.43 of the commitment, klebsiella 0.27, pseudomonas 0.15 -- because all four rest on the same epidemiology of gram-negative bacteraemia. They are NOT conditionally independent, and when two of them fire together the engine combines them as though they were: the leader's belief comes out higher than either finding alone supports, and the conflict figure comes out higher too. Measured in docs/base-rate-investigation.md. Narrate the ORDERING of such a differential, not its magnitudes."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -533,10 +543,10 @@ The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS bec
   (hospital-acquired (value t) (of ?p))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (candidates (value '((0.24 :e-coli)
-                               (0.18 :klebsiella)
-                               (0.10 :pseudomonas)
-                               (0.08 :enterobacter :serratia :proteus)))
+  (assert (candidates (value '((0.28 :e-coli)
+                               (0.21 :klebsiella)
+                               (0.12 :pseudomonas)
+                               (0.09 :enterobacter :serratia :proteus)))
                       (of ?o))))
 
 ;;; The travel rule keeps real content, and it is the only context rule in this section

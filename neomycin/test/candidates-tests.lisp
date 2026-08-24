@@ -92,10 +92,25 @@
   ;; three facts; the per-fact check saw no pair and counted the compromised-host
   ;; evidence twice, giving K = 0.533. The values below are what correct scoping
   ;; produces, and they are exactly the surviving rule's own distribution.
+  ;;
+  ;; RE-CAPTURED AGAIN at v0.14 for the belief-coherence fix. The surviving rule
+  ;; committed 0.60 while the hospital-acquired rule it SUBSUMES committed 0.70 -- so
+  ;; the corpus was losing committed mass by learning a fact. Raised to 0.70 and the
+  ;; focal masses rescaled in the same proportions, which is what moved these numbers:
+  ;;
+  ;;   e-coli       0.2400 -> 0.2800
+  ;;   klebsiella   0.1800 -> 0.2100
+  ;;   pseudomonas  0.1000 -> 0.1200
+  ;;
+  ;; K stays at zero -- one graded answer nested inside two coarser ones still cannot
+  ;; contradict anything. What DID change is the leading focal element: it was the
+  ;; uninformative seven-member set, and it is now {e-coli}, so `margin' drops from
+  ;; 0.320 to 0.070 and finally measures something a clinician cares about -- how far
+  ;; the leader sits above klebsiella rather than above nothing in particular.
   (let ((c (candidates-run 'lisa-user::culture-1a)))
-    (check-candidates c "e-coli"      0.240000 0.640000)
-    (check-candidates c "klebsiella"  0.180000 0.580000)
-    (check-candidates c "pseudomonas" 0.100000 0.500000))
+    (check-candidates c "e-coli"      0.280000 0.580000)
+    (check-candidates c "klebsiella"  0.210000 0.510000)
+    (check-candidates c "pseudomonas" 0.120000 0.420000))
   (is (approx= (candidates-conflict 'lisa-user::culture-1a) 0.000000)))
 
 (deftest candidates-culture-2 ()
@@ -366,16 +381,16 @@
   ;;
   ;; The original demonstration went culture-1 -> culture-1b on klebsiella, and it no
   ;; longer reproduces: learning `hospital-acquired' now RAISES klebsiella's share
-  ;; (0.1649 -> 0.1807) instead of dropping it. That divergence was an artifact of the
+  ;; (0.1649 -> 0.2040) instead of dropping it. That divergence was an artifact of the
   ;; singleton representation, where {klebsiella} and {pseudomonas} were disjoint and
   ;; fought over one unit of mass. Graded answers overlap, so they stopped fighting.
   ;;
   ;; The phenomenon itself is ordinary Dempster-Shafer and did not go anywhere. It
   ;; moved to E. coli, culture-1a -> culture-1b, where adding the burn fact:
   ;;
-  ;;   admitting mass   3.40 -> 3.80    a NEW answer admits e-coli
-  ;;   bel              0.2400 -> 0.1985  and its share nonetheless FALLS
-  ;;   margin           0.3200 -> 0.2335
+  ;;   admitting mass   3.50 -> 3.90    a NEW answer admits e-coli
+  ;;   bel              0.2800 -> 0.2402  and its share nonetheless FALLS
+  ;;   margin           0.0700 -> 0.0362
   ;;
   ;; E. coli gained evidence and lost ground, because the same fact gave Pseudomonas
   ;; far more (0.20 on the singleton against e-coli's 0.08 share of a triple). Note the

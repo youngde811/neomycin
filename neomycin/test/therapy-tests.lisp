@@ -436,15 +436,27 @@
       "the property holds for other decimal dial settings too"))
 
 (deftest coverage-gate-edge-reaches-the-solver ()
-  ;; The end-to-end half: culture-1a's Pseudomonas must actually be treated.
+  ;; The end-to-end half. NOTE WHAT THIS TEST NO LONGER COVERS: when it was written,
+  ;; culture-1a put Pseudomonas at EXACTLY 0.1d0, which is what made the float-comparison
+  ;; bug reachable through the whole stack. The v0.14 belief-coherence fix raised the
+  ;; surviving rule from 0.60 to 0.70, so Pseudomonas now sits at 0.12 and this fixture
+  ;; is a comfortable pass rather than a boundary case.
+  ;;
+  ;; The boundary is still covered -- by COVERAGE-GATE-ADMITS-A-BELIEF-SITTING-EXACTLY-ON-IT
+  ;; above, which exercises CLEARS-GATE-P directly at 0.1d0 and 0.05d0 and does not depend
+  ;; on any scenario landing on a particular number. That is the right place for it: a
+  ;; regression test whose fixture can drift off the condition it tests is a check that
+  ;; can quietly stop checking, which this corpus has been bitten by more than once.
+  ;;
+  ;; What this test still earns its place for is the END-TO-END path -- that a gated
+  ;; belief reaches the solver and becomes an item to treat at all.
   (run-scenario 'lisa-user::culture-1a :candidates)
   (therapy:with-exact-solver
     (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                    (therapy:therapy-kb) '()))
            (treated (mapcar #'therapy:treat-item-organism
                             (therapy:recommendation-items-to-treat rec))))
-      (is (member :pseudomonas treated)
-          "pseudomonas sits exactly on the gate at 0.1 and must be treated")
+      (is (member :pseudomonas treated) "pseudomonas clears the gate and is treated")
       (is (member :e-coli treated) "e-coli, clearly above, is treated")
       (is (member :klebsiella treated) "and klebsiella"))))
 

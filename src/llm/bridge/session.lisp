@@ -51,17 +51,42 @@
   "Organism used when an organism-level fact names no entity.")
 
 (defparameter *param-level*
-  '(("gram" . :organism) ("morphology" . :organism) ("aerobicity" . :organism)
+  '(;; --- organism level: the stain, the morphology, and every bench marker ---
+    ("gram" . :organism) ("morphology" . :organism) ("aerobicity" . :organism)
     ("growth-conformation" . :organism) ("organism-identity" . :organism)
+    ("lactose" . :organism) ("indole" . :organism) ("motility" . :organism)
+    ("urease" . :organism) ("pigment" . :organism) ("catalase" . :organism)
+    ("coagulase" . :organism) ("hemolysis" . :organism) ("optochin" . :organism)
+    ("bacitracin" . :organism) ("novobiocin" . :organism)
+    ("bile-esculin" . :organism) ("salt-tolerance" . :organism)
+    ("arabinose" . :organism) ("sorbitol" . :organism)
+    ;; --- culture level ---
     ("culture-site" . :culture) ("culture-age" . :culture)
+    ;; --- patient level ---
     ("burn" . :patient) ("compromised-host" . :patient)
     ("hospital-acquired" . :patient) ("recent-travel" . :patient)
-    ("white-blood-count" . :patient) ("infection-site" . :patient))
-  "Which context level each parameter fact scopes to.")
+    ("white-blood-count" . :patient) ("infection-site" . :patient)
+    ("neutropenia" . :patient) ("prosthetic-material" . :patient)
+    ("iv-drug-use" . :patient) ("age-group" . :patient))
+  "Which context level each parameter fact scopes to.
+
+   EVERY parameter the corpus reads must appear here explicitly. It did not always,
+   and the omission was silent and total: PARAM-LEVEL used to default to :organism, so
+   `neutropenia', `prosthetic-material', `iv-drug-use' and `age-group' were filed
+   against the ORGANISM while the rules that read them join through the PATIENT. Four
+   rules were therefore unfirable through the HTTP bridge -- which is the only path a
+   clinician uses -- while firing perfectly well from the Lisp drivers, which assert
+   `(of p1)' directly. That is why nothing in the suite noticed for months.
+
+   The default is retained for robustness but is no longer relied on: a corpus-wide
+   test requires an explicit entry for every parameter in the premise vocabulary.")
 
 (defun param-level (fact-type)
   "Context level (:organism | :culture | :patient) for FACT-TYPE.
-   Defaults to :organism (identification facts are organism-level)."
+
+   Defaults to :organism, but see the note on *PARAM-LEVEL*: relying on that default is
+   how four patient-level parameters were silently misfiled. Anything the corpus reads
+   should be listed explicitly."
   (or (cdr (assoc (string-downcase (string fact-type)) *param-level* :test #'string=))
       :organism))
 

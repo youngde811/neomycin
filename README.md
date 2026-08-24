@@ -1,8 +1,12 @@
 # Welcome to Neomycin
 
-Neomycin is a hybrid symbolic/LLM engine designed to mimic and extend the capabilities of the original MYCIN expert
-system, using Claude as a natural language clinical assistant in front of [Lisa](https://github.com/youngde811/Lisa), a
-production-quality expert system shell written in Common Lisp.
+Neomycin is a hybrid symbolic/LLM engine for bacterial identification and therapy
+selection: Claude as a natural-language clinical assistant in front of
+[Lisa](https://github.com/youngde811/Lisa), a production-quality expert system shell
+written in Common Lisp.
+
+It **began** as a reconstruction of the original MYCIN, and has since diverged from it
+substantially — see [What Neomycin is now](#what-neomycin-is-now).
 
 > ## ⚠️ NOT FOR CLINICAL USE
 > Neomycin is a research artifact. It is not a medical device, a decision aid,
@@ -18,30 +22,31 @@ production-quality expert system shell written in Common Lisp.
 1. [The short version](#the-short-version)
 2. [The historical problem Neomycin re-opens](#the-historical-problem-Neomycin-re-opens)
 3. [What the project is actually for](#what-the-project-is-actually-for)
-4. [The architecture in one pass](#the-architecture-in-one-pass)
-5. [The rules engine, for software engineers](#the-rules-engine-for-software-engineers)
-6. [Reasoning when you are not sure](#reasoning-when-you-are-not-sure)
-7. [The conversation, end to end](#the-conversation-end-to-end)
-8. [Answering "why?"](#answering-why)
-9. [From identification to treatment](#from-identification-to-treatment)
-10. [Why this is interesting as computer science](#why-this-is-interesting-as-computer-science)
-11. [What is real and what is schematic](#what-is-real-and-what-is-schematic)
-12. [Where to read next](#where-to-read-next)
+4. [What Neomycin is now](#what-neomycin-is-now)
+5. [The architecture in one pass](#the-architecture-in-one-pass)
+6. [The rules engine, for software engineers](#the-rules-engine-for-software-engineers)
+7. [Reasoning when you are not sure](#reasoning-when-you-are-not-sure)
+8. [The conversation, end to end](#the-conversation-end-to-end)
+9. [Answering "why?"](#answering-why)
+10. [From identification to treatment](#from-identification-to-treatment)
+11. [Why this is interesting as computer science](#why-this-is-interesting-as-computer-science)
+12. [What is real and what is schematic](#what-is-real-and-what-is-schematic)
+13. [Where to read next](#where-to-read-next)
 
 ---
 
 ## The short version
 
-Neomycin is a working reconstruction of **MYCIN**, the Stanford medical expert
-system of the 1970s, rebuilt on a modern Common Lisp rules engine and fitted
-with a conversational front end powered by a large language model.
+Neomycin began as a reconstruction of **MYCIN**, the Stanford medical expert system of
+the 1970s, rebuilt on a modern Common Lisp rules engine and fitted with a conversational
+front end powered by a large language model. It is no longer a reconstruction of it.
 
-The system holds a body of medical knowledge as explicit **rules** — statements
-of the form *if these findings hold, then this organism is more likely*. A user
-describes a case in ordinary English. The language model turns that description
-into structured facts, hands them to the rules engine, and then explains what
-the engine concluded. The engine does all the reasoning and all the arithmetic.
-The language model does none of it.
+The system holds a body of medical knowledge as explicit **rules** — statements of the
+form *if these findings hold, the organism is one of this set, and here is how strongly
+I believe it.* A user describes a case in ordinary English. The language model turns
+that description into structured facts, hands them to the rules engine, and then
+explains what the engine concluded. The engine does all the reasoning and all the
+arithmetic. The language model does none of it.
 
 That division of labor is the point of the project. The model is good at
 language and bad at being auditable. The engine is the reverse. Keeping them
@@ -101,20 +106,61 @@ that feels natural. The open question is whether it can be given that job while
 being structurally prevented from touching the reasoning itself.
 
 **What does uncertainty look like when you model ignorance explicitly?**
-Certainty factors compress everything into one number, which means *no evidence
-either way* and *strong evidence in both directions* end up looking identical.
-Dempster-Shafer theory keeps them distinct. Neomycin runs both systems over the
-same rules so the difference can be observed rather than argued about.
+Certainty factors compress everything into one number, so *no evidence either way* and
+*strong evidence in both directions* end up looking identical. Dempster-Shafer keeps
+them distinct, and Neomycin's rules are written for it: a rule states the **set** its
+evidence narrows to, and what it declines to claim stays visible as ignorance.
 
-**What does auditability cost, and what does it buy?** Every conclusion the
-system produces can be unwound into the rules that produced it, the arithmetic
-that combined them, and the published sources behind each rule's clinical
-claim. The system is built so that a narrated explanation is a *quotation* of
-that record, not a reconstruction from memory.
+> Neomycin once ran certainty factors and Dempster-Shafer over the same rules for
+> comparison. It no longer can: a rule's answer is now a *set*, and certainty factors
+> have no set algebra to reason over one. Both remain in the Lisa substrate for Lisa's
+> own examples. The three-way comparison is reproducible on the `v0.10.0` tag and not
+> after it — an honest casualty of the representation getting better.
+
+**What does auditability cost, and what does it buy?** Every conclusion can be unwound
+into the rules that produced it, what each of them answered, and the published sources
+behind each rule's clinical claim. The system is built so that a narrated explanation is
+a *quotation* of that record, not a reconstruction from memory. There is no arithmetic
+chaining one belief through another to quote, because the representation has none.
 
 The medical domain is a vehicle. The architecture is domain-agnostic: substitute
 claims adjudication, underwriting, or equipment fault diagnosis and the shape of
 the system is unchanged.
+
+---
+
+## What Neomycin is now
+
+Neomycin began as a MYCIN reconstruction and is no longer one. The divergence was not a
+goal; it accumulated, one representational problem at a time, and it is now large enough
+that comparing results against MYCIN's would be a category error. **This is not a claim
+that Neomycin is better.** It answers different questions, and it answers them about a
+corpus a fraction of MYCIN's size.
+
+What changed, and why:
+
+- **A rule states the SET its evidence narrows to**, not "this organism is more likely".
+  Exclusion is never authored — it falls out when answers are intersected and nothing is
+  left. There are no ruling-out rules and no negative beliefs anywhere in the corpus.
+- **Epidemiological rules GRADE their answers.** A burn does not make Pseudomonas
+  certain and Klebsiella impossible; it makes Pseudomonas likelier while excluding
+  nothing. That is a mass function over several sets, and no single set can express it.
+- **Dempster-Shafer over an open frame.** The set of possible organisms is never
+  enumerated, so a pathogen the corpus cannot name keeps its plausibility instead of
+  being silently excluded by omission.
+- **No organism classes and no chaining.** A genus is a set, not a thing, and no belief
+  is the product of two others.
+- **A therapy phase MYCIN's illustration did not have**: an exact minimum-set-cover
+  solver over a schematic drug knowledge base, with explicit policy dials and an opt-in
+  site-local antibiogram overlay.
+- **An LLM strategy layer with enforced separation.** The model conducts the interview
+  and narrates; machinery — provenance records, `/why`, a queryable rule catalogue,
+  guards over the prompt — makes it structurally hard for it to reason instead.
+
+The rulebase is 46 rules against MYCIN's roughly 450, and every belief in it is a
+schematic teaching figure. `:origin :paip-subset` on a rule still means what it says —
+this association was inherited from the PAIP/EMYCIN illustration — but it does not make
+the historical treatment of that rule authoritative.
 
 ---
 
@@ -594,21 +640,36 @@ Being clear about this is part of the project's purpose.
 **Real:** the inference engine, the belief algebra and its arithmetic, the set
 intersection and the conflict behavior, the explanation and provenance records, the
 therapy solver and its guarantees, the antibiogram mathematics, and the test suite —
-roughly 974 assertions across 148 tests, including every rule fired in isolation,
+roughly 1390 assertions across 190 tests, including every rule fired in isolation,
 hand-verified golden values for each scenario, and corpus-wide invariants checked by
 introspecting the compiled rulebase so that a new rule is covered the moment it is
 written.
 
-**Schematic:** the certainty numbers. Every rule weight is a teaching value,
-chosen to make the machinery observable, and each is explicitly marked as such
-in its own provenance record. The published citations attached to a rule verify
-that the clinical association is real; they do not verify the number. Grounding
-some of those numbers in real frequency data is active work.
+**Schematic:** the certainty numbers. Every rule weight is a teaching value, chosen to
+make the machinery observable, and each is explicitly marked as such in its own
+provenance record. The published citations attached to a rule verify that the clinical
+association is real; they do not verify the number.
 
-**Also schematic:** the drug knowledge base, its doses, its susceptibilities, and
-its contraindications. The rulebase is 46 rules against MYCIN's original 450 —
-enough to exercise every mechanism in the architecture, and nowhere near enough
-to be clinically meaningful.
+> Grounding those numbers in real frequency data is **deliberately not being done.**
+> Illustrative is the honest state, and stating it loudly is better than a set of
+> numbers that look measured and are not. What *has* been done is narrower and worth
+> distinguishing: making the numbers consistent **with each other**, so that (for
+> instance) a rule cannot commit less than a more general rule it displaces. That is a
+> coherence property, not a calibration claim.
+
+**Also schematic:** the drug knowledge base, its doses, its susceptibilities, and its
+contraindications. The rulebase is 46 rules against MYCIN's original 450 — enough to
+exercise every mechanism in the architecture, and nowhere near enough to be clinically
+meaningful. It can name **17 organisms**; a real differential is not 17 organisms wide.
+
+**A known limitation, stated rather than buried.** Several of the gram-negative
+epidemiological rules rest on the same underlying statistics, so when a patient
+satisfies more than one of them the engine combines them as independent evidence when
+they are not. The leading organism's belief comes out higher than the evidence supports,
+and the reported conflict comes out higher too. The ordering of such a differential is
+trustworthy; its magnitudes are not. Measured and analysed in
+`docs/base-rate-investigation.md`; the fix is an open design question rather than an
+oversight.
 
 ---
 

@@ -1,23 +1,36 @@
 # neomycin (research fork of Lisa)
 
-> **This repo is `neomycin`** — a research reconstruction of MYCIN/EMYCIN,
-> forked from Lisa 4.2.0 (full history preserved; the engine here is now 4.4.0).
-> See `README.md`. **Research
-> only; NOT FOR CLINICAL USE.** This is a *substantive* fork: the `lisa` engine
-> is intentionally *not* renamed and is kept close to upstream where that costs
-> nothing, but **engine-level modifications to better serve neomycin are fair
-> game when they genuinely move the chains** — e.g. deepening Dempster-Shafer
-> support beneath the corpus layer, or hosting classification/recognition. Treat
-> these as engine-axis work (real reach, real cost): reach for them when they
-> meaningfully advance the project, not for cosmetic gains — and don't treat "a
-> Rete engine used as-is" as a constraint that forecloses them. Dempster-Shafer
-> is the default belief system; certainty factors are retained for CF-vs-DS
-> comparison. The Lisa engine documentation below describes the substrate as it
-> currently stands.
+> **This repo is `neomycin`** — forked from Lisa 4.2.0 (full history preserved; the
+> engine here is now 4.5.1). See `README.md`. **Research only; NOT FOR CLINICAL USE.**
+>
+> **neomycin BEGAN as a reconstruction of MYCIN/EMYCIN and is no longer one.** The
+> divergence accumulated one representational problem at a time and is now large enough
+> that MYCIN's results are not a correctness criterion for this system — a rule states
+> the SET its evidence narrows to rather than making an organism "more likely";
+> exclusion falls out of intersection and is never authored; epidemiological rules
+> GRADE their answers over several focal sets; there are no organism classes and nothing
+> chains; and there is a therapy phase — an exact set-cover solver with policy dials and
+> an antibiogram overlay — that MYCIN's illustration did not have. **This is not a claim
+> to be better.** It answers different questions, over a corpus a fraction of the size.
+> Do not evaluate a change by whether it reproduces the PAIP answer.
+>
+> This is a *substantive* fork: the `lisa` engine is intentionally *not* renamed and is
+> kept close to upstream where that costs nothing, but **engine-level modifications to
+> better serve neomycin are fair game when they genuinely move the chains** — e.g.
+> deepening Dempster-Shafer support beneath the corpus layer, or hosting
+> classification/recognition. Treat these as engine-axis work (real reach, real cost):
+> reach for them when they meaningfully advance the project, not for cosmetic gains —
+> and don't treat "a Rete engine used as-is" as a constraint that forecloses them.
+>
+> **Dempster-Shafer over an open frame is the only belief system neomycin's corpus can
+> use.** Certainty factors and per-hypothesis DS remain in the Lisa substrate for Lisa's
+> own examples and suite; they have no set algebra, and a neomycin answer is a set. The
+> CF-vs-DS comparison is reproducible on the **v0.10.0** tag and not after it. The Lisa
+> engine documentation below describes the substrate as it currently stands.
 
 # Lisa — Lisp-based Intelligent Software Agents
 
-Forward-chaining expert system shell in Common Lisp (Rete algorithm, CLOS/MOP, certainty factors). Integrated with Claude via tool-use for natural-language medical diagnosis (MYCIN rulebase).
+Forward-chaining expert system shell in Common Lisp (Rete algorithm, CLOS/MOP, pluggable belief systems). neomycin drives it through a Claude tool-use layer for natural-language bacterial identification and therapy selection.
 
 ## Build & Load
 
@@ -140,11 +153,11 @@ neomycin/
                         NO LONGER REPRODUCES: that collapse needed {klebsiella} and
                         {pseudomonas} to be disjoint singletons fighting over one unit of
                         mass, and graded answers overlap, so klebsiella now RISES on the
-                        same fact (0.1649 -> 0.1807). Support and share are still different
+                        same fact (0.1649 -> 0.2040). Support and share are still different
                         quantities; the case that still shows it is e-coli across
-                        culture-1a -> culture-1b, where admitting mass rises 3.40 -> 3.80
-                        while Bel falls 0.2400 -> 0.1985. `below_threshold' is still
-                        exercised against real rules, now by enterobacter at 0.0293
+                        culture-1a -> culture-1b, where admitting mass rises 3.50 -> 3.90
+                        while Bel falls 0.2800 -> 0.2402. `below_threshold' is still
+                        exercised against real rules, now by enterobacter at 0.0246
   package.lisp        — the :neomycin package
   consensus.lisp      — the READ that turns answers into a differential: combines them
                         by intersection and applies rule SPECIFICITY (a rule whose
@@ -312,24 +325,36 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1316 assertions / 181 tests): all three belief algebras (CF, Barnett DS, and
-the shared frame) directly; all six `culture-*` scenarios under each system (against
-neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
-malformed-input edge cases; the composition
-law (species belief = class belief × rule belief) stated once per chained cluster **for
-the per-hypothesis systems only** — it deliberately does not hold under the frame, where
-the class *corroborates* the species rather than discounting it (decision D1); the frame
-algebra itself (bitmask sets, cautious vs conjunctive accumulation, Dempster vs Yager
-readout, order-independence, idempotence); the frame's own scenario and conflict goldens,
-plus the **culture-1 ranking regression** that phase 0 found and slice D fixed; both
-therapy solvers (coverage gating,
-contraindications, belief-valued susceptibilities) plus the **greedy/exact equivalence
-property** — same regimen size, gated items and uncovered set across 12 conclusion sets ×
-3 patient states, so a KB change that breaks greedy's approximation is caught by a test
-rather than by a clinician; the `:spectrum-sparing` objective's divergence goldens; and the
-**antibiogram overlay** (IDM counts→interval, Bayesian combination under both algebras,
-JSON provenance). If a belief computation changes intentionally, re-capture and update the goldens in
-`neomycin/test/scenarios.lisp`.
+Coverage (~1430 assertions / 192 tests):
+
+- **The candidates algebra** directly — sparse masses over arbitrary subsets, the
+  unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,
+  idempotence, total-conflict and malformed-input edge cases, and `conflict`/`margin`
+  as a pair.
+- **Every `culture-*` scenario** with hand-verified golden values, including the
+  culture-1 ranking regression and the graded-answer goldens re-captured at v0.13/v0.14.
+- **Both therapy solvers** (coverage gating, contraindications, belief-valued
+  susceptibilities) plus the **greedy/exact equivalence property** — same regimen size,
+  gated items and uncovered set across 12 conclusion sets × 3 patient states, so a KB
+  change that breaks greedy's approximation is caught by a test rather than by a
+  clinician; the `:spectrum-sparing` divergence goldens; and the **antibiogram overlay**
+  (IDM counts→interval, Bayesian combination, JSON provenance).
+- **The payload builders** — `/why`, `/rules` and `/conclusions` are called by tests, not
+  merely by the bridge, after `/why` once 404'd for every organism through a green suite.
+- **Eighteen corpus-wide invariants** (`property-tests.lisp`), which introspect the
+  compiled rulebase so a new rule is covered the moment it is authored. Recent ones:
+  14 (a graded rule asserts exactly what its `:belief` declares), 15 (a context rule
+  gates on what its answer presupposes), 16 (a rule must not commit less than a
+  same-support rule it subsumes), 17 (reciprocal readings are symmetric unless declared
+  otherwise), 18 (every parameter the corpus can hear is explicitly scoped by the bridge).
+- **The prompt and tool schemas** against the corpus (`prompt-tests.lisp`).
+
+Certainty factors and the Barnett per-hypothesis DS system are exercised by **Lisa's own
+suite** (`tests/`, against `examples/mycin.lisp`), not by neomycin's — neomycin's corpus
+has no rules they can reason over.
+
+If a belief computation changes intentionally, re-capture and update the goldens in
+`neomycin/test/candidates-tests.lisp`.
 
 **Corpus-wide property tests** (`neomycin/test/property-tests.lisp`, sketch §8) complement
 — never replace — the hand goldens. They introspect the compiled rulebase, so they cover a
