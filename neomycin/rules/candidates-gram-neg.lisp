@@ -396,8 +396,10 @@
   (aerobicity (value aerobic) (of ?o))
   (burn (value serious) (of ?p))
   =>
-  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
-                               :proteus :pseudomonas))
+  (assert (candidates (value '((0.20 :pseudomonas)
+                               (0.07 :klebsiella)
+                               (0.05 :enterobacter)
+                               (0.08 :e-coli :proteus :serratia)))
                       (of ?o))))
 
 ;;; MERGED. This rule and COMPROMISED-GRAM-NEG-ROD-NARROWS-TO-PSEUDOMONAS had
@@ -425,8 +427,10 @@
   (aerobicity (value aerobic) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
-                               :proteus :pseudomonas))
+  (assert (candidates (value '((0.28 :e-coli)
+                               (0.16 :klebsiella)
+                               (0.08 :pseudomonas)
+                               (0.08 :enterobacter :serratia :proteus)))
                       (of ?o))))
 
 (defrule hospital-acquired-aerobic-gram-neg-rod-narrows-to-opportunist-rods
@@ -446,8 +450,10 @@
   (aerobicity (value aerobic) (of ?o))
   (hospital-acquired (value t) (of ?p))
   =>
-  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
-                               :proteus :pseudomonas))
+  (assert (candidates (value '((0.30 :e-coli)
+                               (0.19 :klebsiella)
+                               (0.11 :pseudomonas)
+                               (0.10 :enterobacter :serratia :proteus)))
                       (of ?o))))
 
 (defrule neutropenia-aerobic-gram-neg-rod-narrows-to-opportunist-rods
@@ -467,8 +473,10 @@ The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS bec
   (aerobicity (value aerobic) (of ?o))
   (neutropenia (value t) (of ?p))
   =>
-  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
-                               :proteus :pseudomonas))
+  (assert (candidates (value '((0.20 :e-coli)
+                               (0.13 :klebsiella)
+                               (0.09 :pseudomonas)
+                               (0.08 :enterobacter :serratia :proteus)))
                       (of ?o))))
 
 ;;; The two anaerobe rules SURVIVE Category B with their singletons, and the reason is
@@ -525,8 +533,10 @@ The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS bec
   (hospital-acquired (value t) (of ?p))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
-                               :proteus :pseudomonas))
+  (assert (candidates (value '((0.24 :e-coli)
+                               (0.18 :klebsiella)
+                               (0.10 :pseudomonas)
+                               (0.08 :enterobacter :serratia :proteus)))
                       (of ?o))))
 
 ;;; The travel rule keeps real content, and it is the only context rule in this section
@@ -546,7 +556,10 @@ The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS bec
   (aerobicity (value aerobic) (of ?o))
   (recent-travel (value tropical) (of ?p))
   =>
-  (assert (candidates (value '(:salmonella :e-coli :klebsiella)) (of ?o))))
+  (assert (candidates (value '((0.42 :salmonella)
+                               (0.15 :e-coli)
+                               (0.08 :klebsiella)))
+                      (of ?o))))
 
 ;;; ==================================================================
 ;;; 5. RETIRED: what Category B removed, and why

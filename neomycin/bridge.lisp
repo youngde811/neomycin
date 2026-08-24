@@ -143,9 +143,20 @@
       (when prov (setf (gethash "provenance" ht) prov)))
     ht))
 
+(defun grading->json (grading)
+  "A graded answer's focal masses, strongest first."
+  (coerce (mapcar (lambda (pair)
+                    (let ((ht (make-hash-table :test #'equal)))
+                      (setf (gethash "mass" ht) (car pair))
+                      (setf (gethash "organisms" ht)
+                            (coerce (mapcar #'organism-name (cdr pair)) 'vector))
+                      ht))
+                  grading)
+          'vector))
+
 (defun answer-argument->json (detail hypothesis)
   "One answer's role in the argument for HYPOTHESIS."
-  (destructuring-bind (set belief rules) detail
+  (destructuring-bind (set belief rules &optional grading) detail
     (let ((ht (make-hash-table :test #'equal)))
       (setf (gethash "narrows_to" ht)
             (coerce (mapcar #'organism-name set) 'vector))
@@ -154,6 +165,15 @@
       ;; evidence against it -- it is evidence for something else, which costs the
       ;; hypothesis plausibility as a side effect of combination.
       (setf (gethash "admits" ht) (and (member hypothesis set) t))
+      ;; A GRADED answer distributes its mass INSIDE narrows_to rather than spreading
+      ;; it evenly. Emitted only when present, so a bench answer's payload is
+      ;; unchanged. Without this an epidemiological answer reads as though it had no
+      ;; opinion about which member is likelier, which is the opposite of the truth.
+      (when grading
+        (setf (gethash "grading" ht) (grading->json grading))
+        (setf (gethash "mass_for_organism" ht)
+              (let ((hit (find-if (lambda (pair) (member hypothesis (cdr pair))) grading)))
+                (if hit (car hit) 0.0))))
       (setf (gethash "rules" ht)
             (coerce (mapcar #'rule-citation->json rules) 'vector))
       ht)))
