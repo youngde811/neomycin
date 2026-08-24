@@ -247,3 +247,89 @@ Three new invariants are worth adding whatever is approved:
 3. the coverage threshold's docstring must not assert a plateau that the corpus does not
    have — best enforced by a test that re-measures the sweep and fails if the claimed
    flat range is not flat (§7).
+
+---
+
+# 10. Outcome — what was applied
+
+**Added after implementation.** §§1–9 are the survey as reviewed. David approved **§4
+and §5**, and **declined §6** on the grounds that returning to the PAIP answer is not
+obviously correct at this point. That judgement is recorded here because it is the right
+one: §6's argument was sound but its outcome was the familiar answer, and "it restores
+what we used to say" is far too easy a thing to optimise for without noticing.
+
+**§6 remains open and unargued-against.** The context rules still commit in roughly
+reverse order of their evidence. Nothing below fixes that.
+
+## 10.1 Applied
+
+| § | change | effect |
+|---|---|---|
+| 4 | `hospital-acquired-compromised-…` 0.60 → **0.70**, focal masses rescaled in the same proportions | culture-1a and culture-1b move |
+| 5.1 | `lactose-non-fermenter-…` 0.60 → **0.70** | no golden moves — no driver reads lactose |
+| 5.2 | `urease-negative-…` 0.60 → **0.70**, and the old justification withdrawn | no golden moves |
+| 7 step 1 | the coverage-threshold docstring's plateau claim deleted and replaced with a re-measurement | none — documentation only |
+
+Every graded distribution still sums to its declared belief; invariant 14 checks it.
+
+## 10.2 What the §4 fix did to culture-1a, and why the margin is the interesting part
+
+```
+  e-coli       0.2400 → 0.2800        klebsiella   0.1800 → 0.2100
+  pseudomonas  0.1000 → 0.1200        K            0.000  → 0.000
+  margin       0.3200 → 0.0700
+```
+
+The margin **falling** is the improvement. It used to compare the leading focal mass —
+the uninformative seven-member set — against nothing in particular. Raising the rule's
+commitment made `{e-coli}` the largest focal mass instead, so the margin now reports
+what a clinician wants to know: **E. coli is 0.070 clear of Klebsiella.** A smaller
+number carrying much more information.
+
+## 10.3 An accident worth noting
+
+Pseudomonas in culture-1a moved from **exactly 0.1000** to 0.1200 — off the coverage
+gate's boundary. That knife edge is what made the v0.13 float-comparison bug reachable
+through the whole stack.
+
+**This means one regression test no longer tests what its name says**, and it has been
+annotated rather than left to rot: `coverage-gate-edge-reaches-the-solver` is now a
+comfortable pass. The boundary itself is still covered by
+`coverage-gate-admits-a-belief-sitting-exactly-on-it`, which exercises `clears-gate-p`
+directly at 0.1d0 and 0.05d0 and does not depend on any scenario landing on a particular
+figure. **That is the right place for it** — a regression test whose fixture can drift
+off the condition it tests is a check that can quietly stop checking.
+
+## 10.4 The dial, re-measured after the change
+
+38 gated figures across all eight drivers:
+
+| gate | clear | | gate | clear |
+|---|---|---|---|---|
+| 0.05 | 31 of 38 | | 0.125 | 20 |
+| 0.075 | 25 | | 0.15 | 18 |
+| **0.10** | **23** | | 0.20 | 14 |
+
+**The corpus is still not flat** — moving the dial across 0.05–0.20 changes seventeen of
+thirty-eight figures, so the withdrawn plateau claim stays withdrawn. But **0.1 now sits
+in a gap** rather than on an edge: the nearest figures are 0.0900 below and 0.1050 above.
+
+**The number was therefore left at 0.1**, and the docstring now rests its case on the
+honest ground — that the value is deliberately *inclusive*, which is the right direction
+for empiric therapy, where the cost of covering a runner-up is breadth and the cost of
+missing one is an untreated organism. That was always the better argument; the plateau
+was never the whole reason and is now none of it.
+
+## 10.5 Invariants added
+
+- **16** — a rule must not commit less than a **same-support** rule it subsumes. Scoped
+  narrowly on purpose (§2): the broad version reports 13 false alarms.
+- **17** — reciprocal readings of one marker carry equal belief unless the rule's note
+  states an asymmetry, with `*asymmetric-markers*` recording the three that legitimately
+  differ (novobiocin, bacitracin, optochin) and a companion test that fails if any of
+  them stops being asymmetric.
+
+Both were **negative-tested**: reverting each fix makes the corresponding invariant fail
+with the offending rules named.
+
+Suite: **1390 assertions / 190 tests / 0 failures**, all four `bin/*.sh` green.

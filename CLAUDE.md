@@ -140,11 +140,11 @@ neomycin/
                         NO LONGER REPRODUCES: that collapse needed {klebsiella} and
                         {pseudomonas} to be disjoint singletons fighting over one unit of
                         mass, and graded answers overlap, so klebsiella now RISES on the
-                        same fact (0.1649 -> 0.1807). Support and share are still different
+                        same fact (0.1649 -> 0.2040). Support and share are still different
                         quantities; the case that still shows it is e-coli across
-                        culture-1a -> culture-1b, where admitting mass rises 3.40 -> 3.80
-                        while Bel falls 0.2400 -> 0.1985. `below_threshold' is still
-                        exercised against real rules, now by enterobacter at 0.0293
+                        culture-1a -> culture-1b, where admitting mass rises 3.50 -> 3.90
+                        while Bel falls 0.2800 -> 0.2402. `below_threshold' is still
+                        exercised against real rules, now by enterobacter at 0.0246
   package.lisp        — the :neomycin package
   consensus.lisp      — the READ that turns answers into a differential: combines them
                         by intersection and applies rule SPECIFICITY (a rule whose

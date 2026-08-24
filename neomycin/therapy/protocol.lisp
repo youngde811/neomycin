@@ -168,23 +168,35 @@
    been, without anyone deciding it should be: in culture-1 Klebsiella fell from 0.286
    to 0.194 and dropped out of empiric cover by 0.006.
 
-   0.1 IS NOT A TASTE, it is where the corpus is flat. Measured across every scenario,
-   this gate decides exactly five figures -- the runner-up organisms, at 0.242, 0.228,
-   0.194, 0.153 and 0.101. Nothing else in the corpus is affected by any value between
-   0.05 and 0.20. So:
+   THE PLATEAU ARGUMENT THAT USED TO SIT HERE WAS WITHDRAWN AT v0.14, because it had
+   become false. It read: 0.1 IS NOT A TASTE, it is where the corpus is flat ... this
+   gate decides exactly five figures -- 0.242, 0.228, 0.194, 0.153 and 0.101. Nothing
+   else in the corpus is affected by any value between 0.05 and 0.20.
 
-     0.20  drops Klebsiella in BOTH culture-1 (0.194) and the hospital-acquired case
-           (0.153) -- the two cases the corpus is anchored on.
-     0.15  admits both, but the hospital-acquired Klebsiella clears by 0.003. That is
-           the same brittleness that produced this review, one boundary further along.
-     0.10  admits every runner-up with at least 0.05 of margin.
-     0.05  changes nothing further -- there is no organism between.
+   Not one of those five figures still exists. Category B replaced every epidemiological
+   singleton with a graded answer, which moved every runner-up in the corpus, and the
+   claim was never re-measured. Re-measured now, across all eight drivers and counting
+   both organism beliefs and set-valued masses (38 gated figures):
 
-   0.1 sits in the middle of the plateau rather than on an edge, which is the property
-   worth having: a dial that a small future change in the belief scale will not silently
-   flip. It is deliberately INCLUSIVE, which is the right direction for EMPIRIC therapy
-   -- the cost of covering a runner-up is breadth, and the cost of missing it is an
-   untreated organism.
+     gate 0.05 -> 31 of 38 clear      gate 0.125 -> 20
+     gate 0.075 -> 25                 gate 0.15  -> 18
+     gate 0.10  -> 23                 gate 0.20  -> 14
+
+   THE CORPUS IS NOT FLAT ACROSS THAT RANGE. Moving the dial from 0.05 to 0.20 changes
+   the outcome for seventeen of thirty-eight figures. This gate decides real things, and
+   any future statement about it should be measured rather than inherited.
+
+   WHAT IS STILL TRUE OF 0.1: it sits in a gap rather than on an edge. The nearest gated
+   figures are 0.0900 below and 0.1050 above, so a small movement in the belief scale
+   will not silently flip it. That property was briefly LOST -- between v0.13 and v0.14
+   culture-1a's Pseudomonas sat at exactly 0.1000, on the boundary, which is what made
+   the single/double float-comparison bug reachable at all (see CLEARS-GATE-P). The
+   belief-coherence fix moved it to 0.12 and restored the gap.
+
+   The value is also deliberately INCLUSIVE, which is the right direction for EMPIRIC
+   therapy -- the cost of covering a runner-up is breadth, and the cost of missing it is
+   an untreated organism. That is a policy argument and it is the honest basis for the
+   number; the plateau was never the whole reason and is no longer any of it.
 
    THE GATE NOW READS SETS TOO, and against the same number. Belief committed to a
    SET rather than an organism used to be invisible to it: in the respiratory strep
@@ -195,11 +207,10 @@
    in the gate's SHAPE rather than its value, which is why lowering the number would
    never have fixed it.
 
-   The plateau argument above is unaffected: it is about which ORGANISM beliefs the
-   dial decides between, and the set masses that clear it here -- 0.155, 0.368, 0.111,
-   0.101 -- are not near enough to 0.1 to make a different value on the plateau change
-   which sets qualify, except for culture-4's 0.101. That one clears by 0.001 and is
-   fully covered by the regimen either way.")
+   Set masses are counted in the re-measurement above rather than argued about
+   separately, which is the correction the old text needed: it treated them as a side
+   note on the grounds that none sat near 0.1, and that was checked against figures the
+   corpus no longer produces.")
 
 (defvar *susceptibility-threshold* 0.5
   "Minimum susceptibility for a drug to count as covering an organism.")

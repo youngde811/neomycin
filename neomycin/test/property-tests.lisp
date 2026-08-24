@@ -541,3 +541,142 @@
                                 (context-rules))))
     (is (plusp (length covered))
         "some context rule's answer sits inside a pool, so invariant 15 has work to do")))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 16 -- a rule must not commit LESS than a same-support rule it subsumes.
+;;;
+;;; Scoped deliberately to pairs whose answers have the same SUPPORT, because that is
+;;; the only place the specificity policy swaps one rule for another. Elsewhere a
+;;; narrow rule committing more than a wide one is perfectly fine: they are independent
+;;; evidence combined by Dempster's rule, not competing estimates of one probability,
+;;; and the algebra already guarantees Bel(subset) <= Bel(superset) downstream. A
+;;; broader version of this check reports 13 "violations" across the corpus and every
+;;; one of them is a false alarm.
+;;;
+;;; Where it DOES bite, the consequence is real: the general rule is DROPPED, so if it
+;;; committed more, the corpus loses mass by learning a fact. Measured before the fix:
+;;; hospital-acquired-compromised committed 0.60 while the hospital-acquired rule it
+;;; subsumes committed 0.70, so a patient who was both got LESS commitment than one who
+;;; was merely hospital-acquired.
+;;; ------------------------------------------------------------------
+
+(deftest property-subsuming-rule-commits-at-least-as-much ()
+  (let ((rules (candidates-rules))
+        (pairs 0))
+    (dolist (specific rules)
+      (dolist (general rules)
+        (when (and (not (eq specific general))
+                   (lisa:rule-subsumes-p specific general)
+                   (equal (neomycin:rule-answer specific) (neomycin:rule-answer general)))
+          (incf pairs)
+          (is (>= (abs (lisa:rule-belief specific)) (abs (lisa:rule-belief general)))
+              (format nil "~(~a~) (~,2F) subsumes ~(~a~) (~,2F) and must not commit less ~
+                           -- the general rule is DROPPED when both fire, so the corpus ~
+                           would lose mass by learning a fact"
+                      (lisa:rule-short-name specific) (abs (lisa:rule-belief specific))
+                      (lisa:rule-short-name general) (abs (lisa:rule-belief general)))))))
+    (is (plusp pairs)
+        "some same-support subsumption pair exists, so this invariant has work to do")))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 17 -- reciprocal readings of one marker carry EQUAL belief unless the
+;;; rule's note states an asymmetry.
+;;;
+;;; A belief is the mass a piece of evidence commits to its answer -- how sure we are
+;;; the true organism is in there. It is NOT a measure of how much the answer narrows.
+;;; So two readings of the same test carry the same belief when the test is equally
+;;; reliable both ways, REGARDLESS of how many organisms each reading admits. The
+;;; corpus's own precedent is catalase: 0.70 for a three-member answer and 0.70 for a
+;;; six-member one, with a note saying explicitly that the test is no more reliable in
+;;; one direction than the other.
+;;;
+;;; Two pairs had drifted off that precedent with no justification -- lactose 0.70/0.60
+;;; and urease 0.70/0.60 -- and the urease note argued for its lower number from
+;;; INFORMATIVENESS ("one organism removed from eight"), which implies the opposite of
+;;; what it concluded. Three pairs are asymmetric and stay that way, because each names
+;;; a real asymmetry in the test; they are listed here so an unexplained one cannot hide
+;;; among them.
+;;; ------------------------------------------------------------------
+
+(defparameter *asymmetric-markers*
+  '((lisa-user::novobiocin
+     "Resistance is close to S. saprophyticus-specific; sensitivity is the common case
+      among coagulase-negative staphylococci and most of the organisms it admits are
+      ones this corpus does not model.")
+    (lisa-user::bacitracin
+     "Susceptibility is the classic presumptive test for group A; RESISTANCE is shared
+      with groups C and G, so it establishes less.")
+    (lisa-user::optochin
+     "Susceptibility separates S. pneumoniae cleanly; the viridans group is defined
+      largely BY EXCLUSION from pneumococcus, which is a weaker basis."))
+  "Markers whose two readings are legitimately unequal, each with the reason. Anything
+   not listed here must be symmetric.")
+
+(defun bench-rule-p (rule)
+  "True when RULE reads only bench findings -- no patient or culture context.
+
+   Context rules are excluded deliberately. NEONATE-BETA-HEMOLYTIC reads hemolysis, but
+   it is not a second READING of the hemolysis test: it is an epidemiological rule that
+   happens to gate on one. Comparing its belief against
+   BETA-HEMOLYSIS-NARROWS-TO-BETA-HEMOLYTIC-STREP would be comparing two different kinds
+   of claim."
+  (notany (lambda (p) (lisa:rule-premise-values rule p)) *context-parameters*))
+
+(defun marker-set-of (rule)
+  (sort (copy-list (rule-bench-markers rule)) #'string< :key #'symbol-name))
+
+(defun reciprocal-pairs-on (marker)
+  "((RULE-A RULE-B) ...) -- bench rules reading MARKER that require exactly the same set
+   of bench markers and differ ONLY in the value they demand for MARKER.
+
+   Requiring the same marker SET is what makes these genuine reciprocals. Both novobiocin
+   rules read coagulase AND novobiocin, so they pair; a rule reading novobiocin alongside
+   something else entirely would not."
+  (let ((rules (remove-if-not (lambda (r)
+                                (and (bench-rule-p r)
+                                     (lisa:rule-premise-values r marker)))
+                              (candidates-rules)))
+        (acc '()))
+    (loop for (a . rest) on rules
+          do (dolist (b rest)
+               (when (and (equal (marker-set-of a) (marker-set-of b))
+                          (not (equal (lisa:rule-premise-values a marker)
+                                      (lisa:rule-premise-values b marker)))
+                          (every (lambda (m)
+                                   (or (eq m marker)
+                                       (equal (lisa:rule-premise-values a m)
+                                              (lisa:rule-premise-values b m))))
+                                 (rule-bench-markers a)))
+                 (push (list a b) acc))))
+    acc))
+
+(deftest property-reciprocal-readings-are-symmetric ()
+  (dolist (marker *bench-markers*)
+    (unless (assoc marker *asymmetric-markers*)
+      (dolist (pair (reciprocal-pairs-on marker))
+        (destructuring-bind (a b) pair
+          (is (= (abs (lisa:rule-belief a)) (abs (lisa:rule-belief b)))
+              (format nil "~(~a~) is read two ways at ~,2F and ~,2F (~(~a~) / ~(~a~)) -- a ~
+                           marker with no declared asymmetry must weight its readings ~
+                           equally, because a belief measures RELIABILITY and not how much ~
+                           the answer narrows. Fix the belief, or list it in ~
+                           *asymmetric-markers* with the reason"
+                      marker
+                      (abs (lisa:rule-belief a)) (abs (lisa:rule-belief b))
+                      (lisa:rule-short-name a) (lisa:rule-short-name b))))))))
+
+(deftest property-asymmetric-marker-table-is-live ()
+  ;; An entry naming a marker whose readings are in fact equal, or which no longer has a
+  ;; reciprocal pair at all, is dead weight that will quietly stop guarding anything.
+  (dolist (entry *asymmetric-markers*)
+    (destructuring-bind (marker rationale) entry
+      (is (and (stringp rationale) (plusp (length rationale)))
+          (format nil "~(~a~) is documented as asymmetric with a reason" marker))
+      (let ((pairs (reciprocal-pairs-on marker)))
+        (is pairs
+            (format nil "~(~a~) still has a reciprocal pair to be asymmetric ABOUT" marker))
+        (is (some (lambda (p) (/= (abs (lisa:rule-belief (first p)))
+                                  (abs (lisa:rule-belief (second p)))))
+                  pairs)
+            (format nil "~(~a~) is listed as asymmetric but its readings now carry the ~
+                         same belief -- drop it from *asymmetric-markers*" marker))))))
