@@ -643,7 +643,7 @@ therapy solver and its guarantees, the antibiogram mathematics, the release gate
 checks the model's narration against the payloads it was actually given
 (`bin/release-check.py` — every quoted number must appear in something the engine
 returned), and the test suite —
-roughly 1390 assertions across 190 tests, including every rule fired in isolation,
+roughly 1589 assertions across 197 tests, including every rule fired in isolation,
 hand-verified golden values for each scenario, and corpus-wide invariants checked by
 introspecting the compiled rulebase so that a new rule is covered the moment it is
 written.

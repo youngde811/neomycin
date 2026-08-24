@@ -1,7 +1,7 @@
 # neomycin (research fork of Lisa)
 
 > **This repo is `neomycin`** — forked from Lisa 4.2.0 (full history preserved; the
-> engine here is now 4.5.1). See `README.md`. **Research only; NOT FOR CLINICAL USE.**
+> engine here is now 4.5.2). See `README.md`. **Research only; NOT FOR CLINICAL USE.**
 >
 > **neomycin BEGAN as a reconstruction of MYCIN/EMYCIN and is no longer one.** The
 > divergence accumulated one representational problem at a time and is now large enough
@@ -368,7 +368,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1451 assertions / 196 tests):
+Coverage (~1589 assertions / 197 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,

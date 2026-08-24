@@ -213,9 +213,25 @@ def corpus():
     # A parameter absent from it is INERT: assertable, accepted, and read by no rule. So
     # membership here is the whole test -- there is no separate inert list to consult.
     names = {p.get("parameter") for p in params if isinstance(p, dict)}
+    # The catalogue is seeded into the ALLOWED set for check 3, and the reasoning is
+    # worth stating because it is the one place that check is loosened.
+    #
+    # The transcript-order rule exists for CONSULTATION-SPECIFIC numbers -- a belief
+    # computed for this patient must come from this patient's payload. It does not need
+    # to apply to static facts about the corpus: `describe_rules' is callable at any
+    # moment and its answer does not depend on the case, so a model stating "46 rules"
+    # or a rule's declared belief is quoting something authoritative whether or not it
+    # happened to fetch it this turn.
+    #
+    # This deliberately does NOT extend to the system prompt, which contains worked
+    # EXAMPLE figures (0.16, 0.56, 0.90 ...). Allowing those would defeat the check
+    # entirely -- reciting a stale example is exactly the defect that motivated it.
+    catalogue = set()
+    harvest(data, catalogue)
     return {
         "rules": {r["rule"] for r in data.get("rules", []) if isinstance(r, dict)},
         "parameters": {n for n in names if n},
+        "catalogue": catalogue,
     }
 
 
@@ -241,14 +257,16 @@ BANNED = [
     (re.compile(r"(?<!not )(?<!never )\brul\w+ out\b", re.I),
      "claims an organism was ruled out"),
 ]
+# \w+n't catches hasn't / haven't / wasn't / doesn't and the rest in one alternative.
+# Spelling them individually is how "the evidence hasn't ruled out salmonella" -- correct
+# phrasing the prompt asks for -- was flagged as a violation on the first gated release.
 NEGATION_WINDOW = re.compile(
-    r"\b(no|nothing|none|never|not|n't|isn't|doesn't|didn't|cannot|can't)\b[^.]{0,60}$",
-    re.I)
+    r"\b(no|nothing|none|never|not|cannot|\w+n't)\b[^.]{0,60}$", re.I)
 
 
 def check_transcript(path, facts):
     events = parse_transcript(path.read_text(encoding="utf-8"))
-    allowed = set()
+    allowed = set(facts["catalogue"])
     failures = []
 
     for kind, name, body in events:
