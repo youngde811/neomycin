@@ -1,7 +1,10 @@
 # Belief coherence — and the coverage-threshold dial
 
-**Status: SURVEY. No code changes. Nothing here has been applied.**
-Branch: `feature/belief-coherence`, from `develop` at v0.13.0.
+**Status: §§4, 5 and 7-step-1 APPLIED. §6 declined and still open.** §§1–9 are the
+survey exactly as reviewed, with no code changes at the time of writing; **§10 records
+what was actually applied and what was deliberately not.** Read §10 first if you want to
+know what the corpus currently does. Branch: `feature/belief-coherence`, from `develop`
+at v0.13.0.
 
 ## 1. Scope, and what this is not
 
