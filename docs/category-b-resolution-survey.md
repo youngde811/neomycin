@@ -1,7 +1,10 @@
 # Category B — do the context rules answer at the right resolution?
 
-**Status: SURVEY. No code changes. Nothing here has been applied to the corpus.**
-Branch: `feature/category-b-resolution`, from `develop` at v0.12.0.
+**Status: SHIPPED in v0.13.0.** Sections 1–6 are the survey exactly as reviewed, with
+no code changes at the time of writing; **§7 records the outcome, including the two
+places the survey's own recommendation turned out to be wrong.** Read §7 first if you
+want to know what the corpus actually does. Branch: `feature/category-b-resolution`,
+from `develop` at v0.12.0.
 
 ## 1. What this is
 
