@@ -216,6 +216,23 @@
    organism. An organism id is a symbol; a set names its members in a list."
   (and (consp entry) (consp (car entry))))
 
+(defun clears-gate-p (belief &optional (threshold *coverage-threshold*))
+  "True when BELIEF reaches THRESHOLD, compared in DOUBLE precision.
+
+   The coercion is not pedantry, it decided a real recommendation. Beliefs arrive as
+   double-floats from the candidates algebra; the dial is written as a decimal literal
+   and so reads as a SINGLE-float. Comparing them promotes the single to double, and
+   0.1f0 promotes to 0.10000000149011612d0 -- strictly GREATER than an exact
+   0.1d0 belief. So an organism sitting precisely ON the gate failed it.
+
+   That case is reachable: in the hospital-acquired + compromised scenario, Pseudomonas
+   lands at exactly 0.1d0 and was silently dropped from empiric cover -- excluded by
+   float representation rather than by policy, with no trace of why. RATIONALIZE
+   recovers the decimal the author wrote (1/10) before widening, which is the same
+   correction CANDIDATES::TO-DOUBLE makes for the same reason on the algebra side."
+  (>= (float belief 1.0d0)
+      (float (rationalize threshold) 1.0d0)))
+
 (defun solve-regimen-phase-a (conclusions kb patient)
   "Phase A, shared by every solver: the belief gate and the candidate filter.
 
@@ -244,8 +261,7 @@
   (let* ((organism-entries (remove-if #'set-entry-p conclusions))
          (set-entries (remove-if-not #'set-entry-p conclusions))
          (items (remove-if-not
-                 #'(lambda (pair)
-                     (>= (scalar-of (cdr pair)) *coverage-threshold*))
+                 #'(lambda (pair) (clears-gate-p (scalar-of (cdr pair))))
                  organism-entries))
          (obligations (loop for (members . mass) in set-entries
                             collect (make-set-obligation :members members

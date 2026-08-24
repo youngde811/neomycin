@@ -80,11 +80,37 @@ beliefs anywhere in the corpus. `{pyogenes, agalactiae}` intersected with
 staphylococcus?" is asking about `{aureus, epidermidis, saprophyticus}`, which the
 algebra answers directly. Nothing chains and no belief is a product of two others.
 
+**Graded answers — how epidemiology gets to rank without excluding.** A flat answer
+treats its members as indistinguishable, which is right for a bench finding and wrong
+for an epidemiological one: a burn makes Pseudomonas *likelier*, not Klebsiella
+*impossible*. An answer SET can only express exclusion, so the corpus was stuck between
+a singleton that lied and a wide set that said nothing — measured, and the wide set said
+literally nothing: every organism at `bel 0.0000, pl 1.0000`. So a rule may instead
+assert a **mass function over several focal sets**:
+
+```lisp
+(assert (candidates (value '((0.20 :pseudomonas)
+                             (0.07 :klebsiella)
+                             (0.05 :enterobacter)
+                             (0.08 :e-coli :proteus :serratia)))
+                    (of ?o)))
+```
+
+Nothing is excluded — the unclaimed 0.60 sits on Θ, where it also covers Acinetobacter
+and everything else the corpus does not model — and Pseudomonas still leads. **Nine
+epidemiological rules are graded; every bench rule is flat**, because a bench finding
+really does admit or exclude. A rule's `:belief` must equal the total of its focal
+masses (invariant 13), and each graded rule's total was held at the value it had
+before, so the literature decided the SHAPE and nothing was recalibrated.
+Survey and rationale: `docs/category-b-resolution-survey.md`.
+
 **Same-conclusion rules reinforce, unless one subsumes the other.** Two rules bringing
 distinct evidence to one answer combine; a rule whose premises are a strict subset of
 another's conditions on nothing extra and is dropped in favour of the specific one.
-That is production-rule specificity applied to belief. Design:
-`docs/narrows-to-promotion-sketch.md`.
+That is production-rule specificity applied to belief. **Subsumption is grouped by
+answer SUPPORT**, not per fact — graded rules on nested premises assert different
+distributions and so land on different facts, where a per-fact check would miss the
+pair and double-count. Design: `docs/narrows-to-promotion-sketch.md`.
 
 ## Project Structure
 
@@ -93,24 +119,32 @@ That is production-rule specificity applied to belief. Design:
 neomycin.asd          — :neomycin system (rulebase + therapy); depends on lisa, lisa-bridge
 neomycin.lisp         — convenience loader: loads :neomycin and starts the bridge
 neomycin/
-  rules/              — THE canonical rulebase: 48 rules, every one CONFIRMING. Each
+  rules/              — THE canonical rulebase: 46 rules, every one CONFIRMING. Each
                         states the SET its evidence narrows the answer to and asserts it
                         as a `candidates` fact. No ruling-out rules, no negative beliefs,
-                        no organism-class, no declared frame
+                        no organism-class, no declared frame. Nine EPIDEMIOLOGICAL rules
+                        assert a GRADED answer instead — a mass function over several
+                        focal sets, so they can say which member is likelier without
+                        claiming the rest are impossible (see "Graded answers" below)
     context.lisp      — context tree, 31 clinical params, the `candidates` answer class.
                         LOADS FIRST
     candidates-gram-pos.lisp — 25 rules: the staphylococci, streptococci and enterococci,
                         their bench discriminators and their host factors
-    candidates-gram-neg.lisp — 23 rules: the Enterobacteriaceae, Pseudomonas and
+    candidates-gram-neg.lisp — 21 rules: the Enterobacteriaceae, Pseudomonas and
                         Bacteroides, the biochemical discriminators, and the two Gram
                         stain answers
     conclusion.lisp / drivers.lisp — reporting rule; culture-1/1a/1b/2/3/4/5/multi
                         drivers. culture-1b is the burn-ICU case from the 2026-08-18
-                        clinician session: adding `hospital-acquired' SUPPORTS klebsiella
-                        (its rule 0.5 -> 0.6) while its Bel FALLS 0.194 -> 0.097 across
-                        the coverage gate, because the same fact strengthens pseudomonas
-                        more. Support and share are different quantities. It is also the
-                        only scenario that exercises `below_threshold' against real rules
+                        clinician session. Its v0.12 headline -- adding `hospital-acquired'
+                        SUPPORTS klebsiella while its Bel FALLS across the coverage gate --
+                        NO LONGER REPRODUCES: that collapse needed {klebsiella} and
+                        {pseudomonas} to be disjoint singletons fighting over one unit of
+                        mass, and graded answers overlap, so klebsiella now RISES on the
+                        same fact (0.1649 -> 0.1807). Support and share are still different
+                        quantities; the case that still shows it is e-coli across
+                        culture-1a -> culture-1b, where admitting mass rises 3.40 -> 3.80
+                        while Bel falls 0.2400 -> 0.1985. `below_threshold' is still
+                        exercised against real rules, now by enterobacter at 0.0293
   package.lisp        — the :neomycin package
   consensus.lisp      — the READ that turns answers into a differential: combines them
                         by intersection and applies rule SPECIFICITY (a rule whose
@@ -221,18 +255,21 @@ bin/
 
 ```bash
 # Start the bridge first (see Build & Load above), then:
-./bin/test-culture-1.sh     # identification: culture-1 → pseudomonas + klebsiella
+./bin/test-culture-1.sh     # identification: culture-1 → e-coli + pseudomonas + klebsiella
 ./bin/test-therapy.sh       # therapy: culture-1 → a covering regimen, plus the objective dial
                             #   NB: bin/*.sh are NOT part of asdf:test-system and drift silently
 ./bin/test-why.sh           # explanation: culture-1 → /why klebsiella (the argument + citations)
 ./bin/test-rules.sh         # catalogue: /rules corpus shape + ?names= and ?name= (no inference needed)
 ```
 
-Expected (identification): culture-1 gives pseudomonas `[0.613, 0.806]` and klebsiella
-`[0.194, 0.387]`, with `K = 0.38` of the belief renormalized away as conflict. A further
-slice sits on the eight-member aerobic-gram-negative-rod SET without naming a member,
-which is often the honest headline. `Pl` is answerable for an organism no rule mentioned
-— it is the residual ignorance — including organisms the corpus does not model at all.
+Expected (identification): culture-1 gives a three-way differential — e-coli
+`[0.232, 0.564]`, pseudomonas `[0.176, 0.468]`, klebsiella `[0.165, 0.458]` — with
+`K = 0.18` renormalized away as conflict, and 0.234 on the seven-member
+aerobic-gram-negative-rod SET without naming a member, which is often the honest
+headline. **Nothing has been excluded**, because the only evidence is a stain and two
+patient facts: epidemiology ranks, it does not identify. `Pl` is answerable for an
+organism no rule mentioned — it is the residual ignorance — including organisms the
+corpus does not model at all.
 
 ## Release check — the layers must agree
 
@@ -275,7 +312,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1266 assertions / 172 tests): all three belief algebras (CF, Barnett DS, and
+Coverage (~1316 assertions / 181 tests): all three belief algebras (CF, Barnett DS, and
 the shared frame) directly; all six `culture-*` scenarios under each system (against
 neomycin's rulebase) with hand-verified golden values; DS clamp / total-conflict /
 malformed-input edge cases; the composition

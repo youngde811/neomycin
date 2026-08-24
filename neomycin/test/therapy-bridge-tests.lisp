@@ -11,11 +11,15 @@
 
 (in-package "LISA-TEST")
 
-;;; culture-1 under CF yields two leaf-species gram-negative identities
-;;; (pseudomonas 0.76, klebsiella 0.40), both above *coverage-threshold* (0.1 since v0.11) and both
-;;; covered by the canonical KB's broad agents. Enterobacteriaceae is NO LONGER a
-;;; conclusion here (C2): it is a family CLASS, and its member klebsiella clears the
-;;; gate, so the family backstop is suppressed (see the backstop tests below).
+;;; culture-1 yields FOUR named gram-negative identities since Category B --
+;;; e-coli 0.2322, pseudomonas 0.1756, klebsiella 0.1649 and enterobacter 0.0293 --
+;;; of which the first three clear *coverage-threshold* (0.1 since v0.11) and all four
+;;; are covered by the canonical KB's broad agents. It was two (pseudomonas, klebsiella)
+;;; while the context rules asserted singletons; graded answers admit the organisms
+;;; those singletons had been excluding, E. coli chief among them.
+;;; Enterobacteriaceae is NOT a conclusion here (C2): it is a family CLASS, and its
+;;; member klebsiella clears the gate, so the family backstop is suppressed (see the
+;;; backstop tests below).
 
 (deftest therapy-bridge-conclusions-are-keyword-organisms ()
   ;; The glue reads keyword organism ids straight off working memory -- no
@@ -29,11 +33,11 @@
   (let* ((concl (therapy:conclusions-for-solver))
          (organisms (remove-if #'therapy:set-entry-p concl))
          (sets (remove-if-not #'therapy:set-entry-p concl)))
-    (is (= 2 (length organisms)) "two organism-identity conclusions")
+    (is (= 4 (length organisms)) "four organism-identity conclusions")
     (is (every #'keywordp (mapcar #'car organisms)) "every organism id is a keyword")
     (is (assoc :pseudomonas organisms) "pseudomonas present as :pseudomonas")
     (is (numberp (cdr (assoc :pseudomonas organisms))) "belief is a number")
-    ;; culture-1 puts 0.155 on the seven aerobic gram-negative rods.
+    ;; culture-1 puts 0.234 on the seven aerobic gram-negative rods.
     (is (= 1 (length sets)) "the seven-member aerobic gram-neg rod answer is carried too")
     (is (every #'keywordp (car (first sets))) "its members are keywords")))
 
@@ -43,14 +47,19 @@
   (therapy:with-greedy-solver
     (let ((rec (therapy:recommend (therapy:conclusions-for-solver)
                                   (therapy:therapy-kb) '())))
-      ;; TWO items again, after the v0.11 recalibration of *coverage-threshold* from
-      ;; 0.2 to 0.1. Klebsiella projects to Bel 0.194 here; it cleared the old gate at
-      ;; 0.286 under the pre-v0.11 representation, missed the unchanged 0.2 gate by
-      ;; 0.006 once organisms began competing for one unit of mass, and clears again
-      ;; now that the dial matches the scale. The gate decides only five figures in the
-      ;; whole corpus and 0.1 sits mid-plateau -- see the threshold's docstring.
-      (is (= 2 (length (therapy:recommendation-items-to-treat rec)))
-          "pseudomonas AND klebsiella are items to treat under the recalibrated gate")
+      ;; THREE items after Category B, and the third is the point. Graded answers put
+      ;; E. coli in the differential at 0.232 -- ahead of both -- where the singleton
+      ;; rules had claimed a burn or a compromised host made it impossible. It was
+      ;; never impossible; it is the commonest gram-negative bacteraemia isolate there
+      ;; is, and the corpus previously could not say so.
+      ;;
+      ;;   e-coli 0.2322, pseudomonas 0.1756, klebsiella 0.1649, all above the 0.1 gate
+      ;;
+      ;; The regimen is still a single agent (meropenem), so widening the differential
+      ;; did not widen the treatment -- worth stating, because "more organisms" reads
+      ;; like "more antibiotics" and here it is not.
+      (is (= 3 (length (therapy:recommendation-items-to-treat rec)))
+          "e-coli, pseudomonas AND klebsiella are items to treat")
       (is (plusp (length (therapy:recommendation-regimen rec))) "a regimen was produced")
       (is (null (therapy:recommendation-uncovered rec)) "culture-1 gram-negs fully covered"))))
 
@@ -64,8 +73,8 @@
            (json (therapy:recommendation->json rec)))
       (is (typep (gethash "regimen" json) 'vector) "regimen is a JSON array")
       (is (plusp (length (gethash "regimen" json))) "regimen non-empty")
-      (is (= 2 (length (gethash "items_to_treat" json)))
-          "two items_to_treat -- see therapy-bridge-recommend-end-to-end for why")
+      (is (= 3 (length (gethash "items_to_treat" json)))
+          "three items_to_treat -- see therapy-bridge-recommend-end-to-end for why")
       (is (typep (gethash "uncovered" json) 'vector) "uncovered is a JSON array")
       (is (zerop (length (gethash "uncovered" json))) "nothing uncovered")
       (let ((drug (gethash "drug" (aref (gethash "regimen" json) 0))))
@@ -193,16 +202,28 @@
           "and spectrum-sparing no longer diverges here -- the narrower agent did not
            cover the set-valued answer, which is why it looked narrower"))))
 
-(deftest supporting-evidence-can-drop-an-organism-out-of-coverage ()
-  ;; culture-1b is culture-1 plus `hospital-acquired'. That fact SUPPORTS klebsiella --
-  ;; it fires a stronger, more specific rule (0.6) that subsumes the compromised-host
-  ;; one (0.5) -- and klebsiella nonetheless falls from 0.194 to 0.097, across the 0.1
-  ;; coverage gate, because the same fact fires a third pseudomonas rule.
+(deftest below-threshold-is-exercised-against-real-rules ()
+  ;; REPLACES supporting-evidence-can-drop-an-organism-out-of-coverage, whose
+  ;; phenomenon Category B removed. That test pinned v0.12's finding: adding
+  ;; `hospital-acquired' to culture-1 SUPPORTED klebsiella and yet dropped it from
+  ;; 0.194 to 0.097, across the 0.1 gate, because the same fact fired a third
+  ;; pseudomonas rule and the two competed for one unit of mass.
   ;;
-  ;; The engine is right and the optics are terrible, so the payload has to carry
-  ;; everything needed to explain it. This is also the ONLY scenario that exercises
-  ;; BELOW-THRESHOLD against the real corpus: measured across every other scenario x
-  ;; patient x objective configuration, no organism falls below the gate at all.
+  ;; IT NO LONGER HAPPENS, and the reason is the whole Category B argument. That
+  ;; competition existed because {klebsiella} and {pseudomonas} were DISJOINT
+  ;; singletons -- mass given to one had to be taken from the other. Graded answers
+  ;; overlap, so the rules stopped fighting: klebsiella now RISES on the same fact,
+  ;; 0.1649 -> 0.1807, and nothing crosses the gate in either direction. The v0.12
+  ;; behaviour was an artifact of the representation, not a property of the evidence.
+  ;;
+  ;; (Support and share are still different quantities -- see
+  ;; SUPPORT-CAN-RISE-WHILE-SHARE-FALLS, which re-pins that lesson to E. coli, where
+  ;; it survives.)
+  ;;
+  ;; What this test keeps is the coverage that mattered: BELOW-THRESHOLD exercised
+  ;; against real rules rather than a hand-built conclusion list. Enterobacter now
+  ;; provides it, at 0.0293 -- and better than klebsiella did, because a genuinely
+  ;; marginal organism being dropped-but-covered is the case the reporting is FOR.
   (run-scenario 'lisa-user::culture-1b :candidates)
   (therapy:with-exact-solver
     (let* ((rec (therapy:recommend (therapy:conclusions-for-solver)
@@ -211,14 +232,17 @@
                             (therapy:recommendation-items-to-treat rec)))
            (dropped (therapy:recommendation-below-threshold rec)))
       (is (member :pseudomonas treated) "pseudomonas is treated")
-      (is (not (member :klebsiella treated))
-          "klebsiella is NOT -- the supporting fact pushed it below the gate")
-      (is (find :klebsiella dropped :key #'therapy:below-threshold-item-organism)
-          "and it is reported in below_threshold rather than simply vanishing")
-      ;; The half that keeps this defensible: the regimen covers it anyway, and says so.
-      (let ((k (find :klebsiella dropped :key #'therapy:below-threshold-item-organism)))
-        (is (therapy:below-threshold-item-covered-by k)
-            "the chosen regimen covers klebsiella incidentally")
+      (is (member :klebsiella treated)
+          "and so is klebsiella -- the supporting fact no longer buries it")
+      (is (not (member :enterobacter treated))
+          "enterobacter sits below the gate at 0.0293")
+      (is (find :enterobacter dropped :key #'therapy:below-threshold-item-organism)
+          "and is reported in below_threshold rather than simply vanishing")
+      ;; The half that keeps a dropped organism defensible: the regimen covers it
+      ;; anyway, and says so.
+      (let ((e (find :enterobacter dropped :key #'therapy:below-threshold-item-organism)))
+        (is (therapy:below-threshold-item-covered-by e)
+            "the chosen regimen covers enterobacter incidentally")
         (is (member :meropenem (mapcar #'therapy:incidental-cover-drug
-                                       (therapy:below-threshold-item-covered-by k)))
-            "specifically meropenem, at bel 0.88")))))
+                                       (therapy:below-threshold-item-covered-by e)))
+            "specifically meropenem")))))

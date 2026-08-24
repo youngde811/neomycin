@@ -24,6 +24,33 @@
 
 ;; Update the version symbol in this file whenever you do a new release.
 ;;
+;; 4.5.0 (2026-08-24) -- a MINOR bump: a rule can now assert a MASS FUNCTION rather
+;; than a single set, which is a change to what a rule is allowed to say.
+;;
+;;   ADDED   CANDIDATES:GRADED-ANSWER -- one answer as a mass function over SEVERAL
+;;           focal sets, remainder on Theta. ANSWER builds a simple support function,
+;;           which is right for a bench finding: it either admits a hypothesis or it
+;;           does not. Epidemiological evidence is not like that. It shifts relative
+;;           likelihood among hypotheses WITHOUT excluding any, and a single set cannot
+;;           say so -- widen it and the ranking is gone, keep it narrow and the
+;;           exclusion is a fabrication. Measured on neomycin's corpus: widening
+;;           honestly drove every hypothesis to bel 0.0000, pl 1.0000, K 0.0000.
+;;   ADDED   CANDIDATES:GRADED-ANSWER-P / ANSWER-SUPPORT -- discriminate the two shapes,
+;;           and take the union of a graded answer's focal sets (what it still admits).
+;;   ADDED   CANDIDATES:COMBINE-MASSES -- combine mass functions directly.
+;;           COMBINE-ANSWERS is now the (SET . BELIEF) convenience over it, and the two
+;;           agree exactly: Dempster-combining two simple support functions on the same
+;;           set with beliefs a and b puts a + b - ab on it, which is the reinforcement
+;;           rule the belief system already applied. No existing number moved.
+;;
+;; The mass representation was ALREADY a sparse alist over arbitrary subsets and
+;; COMBINE-TWO was already general; the only thing restricting rules to simple support
+;; functions was the ANSWER constructor, whose docstring said so outright. So this is a
+;; small addition to the algebra rather than a rewrite of it.
+;;
+;; Certainty factors and the Barnett per-hypothesis Dempster-Shafer system are again
+;; UNCHANGED.
+;;
 ;; 4.4.0 (2026-08-22) -- a MINOR bump: the engine gained exported API, and one
 ;; endpoint changed its behaviour on bad input.
 ;;
@@ -63,4 +90,4 @@
 ;; UNCHANGED and still the systems Lisa's own examples and suite exercise.
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :lisa4.4.0 *features*))
+  (pushnew :lisa4.5.0 *features*))

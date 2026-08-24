@@ -111,6 +111,70 @@
         (list (cons s 1.0d0))
         (list (cons s b) (cons +universe+ (- 1.0d0 b))))))
 
+(defun graded-answer (pairs)
+  "One answer as a mass function with SEVERAL focal sets: ((MASS . SET) ...), the
+   remainder on Theta.
+
+   ANSWER above builds a SIMPLE SUPPORT function -- all of a rule's belief on one set,
+   the rest on Theta -- and for a bench finding that is exactly right, because a bench
+   finding either admits an organism or it does not. Epidemiological evidence is not
+   like that. `Burn' does not exclude Klebsiella; it makes Pseudomonas likelier THAN
+   Klebsiella while leaving both standing, and a single set cannot say so. Widen the
+   set and the ranking is gone; keep it narrow and the exclusion is a lie. That is the
+   Category B finding (docs/category-b-resolution-survey.md), and this is the shape
+   that resolves it:
+
+     m({pseudomonas}) = 0.34, m({klebsiella}) = 0.12,
+     m({e-coli, enterobacter, serratia, proteus}) = 0.14, m(Theta) = 0.40
+
+   Nothing is excluded -- every organism keeps plausibility through m(Theta) -- and
+   Pseudomonas still leads. The focal sets need not be disjoint and need not partition
+   anything; this is a mass function, not a probability distribution.
+
+   The masses must be non-negative and sum to at most 1. What is left over is Theta,
+   which is the honest residue: the evidence is epidemiological, so most of its mass
+   SHOULD sit on `could be anything'."
+  (let ((total 0.0d0)
+        (out '()))
+    (dolist (pair pairs)
+      (let ((mass (to-double (car pair)))
+            (set (if (universe-p (cdr pair)) (cdr pair) (canonical (cdr pair)))))
+        (when (minusp mass)
+          (error "graded-answer: negative mass ~S on ~S" mass set))
+        (incf total mass)
+        (setf out (mass-incf out set mass))))
+    (when (> total 1.0d0)
+      ;; Not clamped silently: a distribution summing past 1 is an authoring error,
+      ;; and quietly rescaling it would hide which rule is wrong.
+      (error "graded-answer: masses sum to ~,4F, which exceeds 1" total))
+    (if (< total 1.0d0)
+        (mass-incf out +universe+ (- 1.0d0 total))
+        out)))
+
+(defun graded-answer-p (value)
+  "True when VALUE is a graded answer -- ((MASS . SET) ...) -- rather than a flat set.
+
+   A flat set is a list of hypothesis designators; a graded answer is a list of conses
+   whose CAR is a number. Discriminating on the first element is enough, and it keeps
+   the 40-odd bench rules that assert a flat set working unchanged."
+  (and (consp value)
+       (consp (first value))
+       (realp (car (first value)))))
+
+(defun answer-support (value)
+  "The set a VALUE admits, flat or graded -- for a graded answer, the UNION of its
+   focal sets.
+
+   This is what `narrows to' means for a graded answer: everything still standing.
+   The grading says how the mass is distributed inside it, which is extra information,
+   not a narrower claim."
+  (if (graded-answer-p value)
+      (let ((acc '()))
+        (dolist (pair value (canonical acc))
+          (unless (universe-p (cdr pair))
+            (setf acc (append (cdr pair) acc)))))
+      (canonical value)))
+
 (defun combine-two (m1 m2)
   "The unnormalized conjunctive rule -- associative and commutative, so the order in
    which rules happened to fire cannot reach the numbers."
@@ -159,15 +223,27 @@
 ;;; Combining answers
 ;;; ============================================================
 
+(defun combine-masses (masses &key (normalization *normalization*))
+  "Combine a list of MASS FUNCTIONS into one.
+
+   Returns (values MASS CONFLICT), the conflict read before normalization.
+
+   This is the general entry point. COMBINE-ANSWERS below is the (SET . BELIEF)
+   convenience over it, kept because every bench rule and every algebra test is
+   written against that shape -- and because the two agree exactly: Dempster-combining
+   two simple support functions on the SAME set S with beliefs a and b puts
+   a + b - ab on S, which is precisely the reinforcement rule the belief system
+   applies. Graded answers cannot go through COMBINE-ANSWERS, because a mass function
+   with several focal sets is not expressible as one (SET . BELIEF) pair."
+  (let ((raw (if (null masses) (vacuous) (reduce #'combine-two masses))))
+    (values (normalize raw normalization) (conflict-of raw))))
+
 (defun combine-answers (answers &key (normalization *normalization*))
   "Combine ANSWERS -- a list of (SET . BELIEF) -- into one mass function.
 
    Returns (values MASS CONFLICT), the conflict read before normalization."
-  (let ((raw (if (null answers)
-                 (vacuous)
-                 (reduce #'combine-two
-                         (mapcar (lambda (a) (answer (car a) (cdr a))) answers)))))
-    (values (normalize raw normalization) (conflict-of raw))))
+  (combine-masses (mapcar (lambda (a) (answer (car a) (cdr a))) answers)
+                  :normalization normalization))
 
 ;;; ============================================================
 ;;; Reading the result -- no enumeration required

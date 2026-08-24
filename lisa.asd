@@ -49,7 +49,7 @@
 
 (asdf:defsystem lisa
   :name "Lisa"
-  :version "4.4.0"
+  :version "4.5.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"

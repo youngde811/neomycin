@@ -58,7 +58,7 @@
    #:below-threshold-item-covered-by
    #:incidental-cover #:make-incidental-cover #:incidental-cover-p
    #:incidental-cover-drug #:incidental-cover-susceptibility
-   #:below-threshold-for
+   #:below-threshold-for #:clears-gate-p
    #:set-obligation #:make-set-obligation #:set-obligation-p
    #:set-obligation-members #:set-obligation-mass #:set-obligation-uncovered
    #:discharge-obligations #:set-entry-p

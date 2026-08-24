@@ -1,6 +1,6 @@
 # Clinician Scenarios for the MYCIN Rulebase
 
-A curated set of vignettes for driving neomycin's 44-rule rulebase
+A curated set of vignettes for driving neomycin's 46-rule rulebase
 (`neomycin/rules/` — **not** Lisa's `examples/mycin.lisp`) through the Claude driver
 (`src/llm/claude/driver.py`) and the HTTP bridge. Each scenario is written the way a
 clinician might present a case at the bedside, and each is annotated with:
@@ -13,6 +13,13 @@ clinician might present a case at the bedside, and each is annotated with:
 you re-run a scenario and get something else, the corpus has moved and this document
 is the thing that is wrong.
 
+> **Re-captured in full at v0.13**, after Category B replaced the singleton context
+> rules with graded answers. Every scenario was re-run and every number re-read; the
+> ones that moved are annotated with what they used to say and why. Scenario 5 changed
+> character entirely (its rule was retired) and Scenarios 8 and 10 gained different
+> regimens. Re-measuring rather than hand-editing found three defects that no test had
+> caught — see the commit history for `docs/clinician-scenarios.md`.
+
 ## How the corpus answers
 
 Read this once; it governs how every scenario below reads.
@@ -20,6 +27,20 @@ Read this once; it governs how every scenario below reads.
 **A rule states an ANSWER** — the set of organisms its evidence narrows the question
 to — and asserts it with a belief. `beta hemolysis` answers *"one of {S. pyogenes,
 S. agalactiae}"* at 0.75. A single-organism answer is just a set of size one.
+
+**Some answers are GRADED.** A bench finding treats its members as indistinguishable,
+which is right — beta hemolysis really has no view on group A versus group B. An
+**epidemiological** rule does have a view, and carries it as a distribution over the
+set: the burn rule answers *"one of these six at 0.40, and 0.20 of that is on
+Pseudomonas"*. Nine rules in the corpus are graded, all of them context rules. Two
+consequences run through every scenario below:
+
+  * **A graded answer excludes nothing.** A burn makes Pseudomonas likelier; it does not
+    make Klebsiella impossible. Before v0.13 these rules answered with a single organism
+    and therefore claimed exactly that, which the literature does not support.
+  * **A graded answer is not an identification.** Leaning is not naming. Where a
+    differential is built only from context rules, the honest headline is that the
+    culture has not been discriminated — see Scenarios 1, 2 and 4.
 
 **Exclusion is never authored.** No rule carries a negative belief and no rule argues
 against anything. Organisms fall out because answers are combined by intersection:
@@ -47,6 +68,11 @@ Enterobacteriaceae discriminators and the therapy family-backstop. 11 exercises 
 WHY/HOW explanation facility and 14 the rule catalogue. 12 and 13 cover the
 gram-positive cocci. 8 and 15 are therapy: the antibiogram overlay and the objective
 dial.
+
+**Scenario 5 changed character at v0.13** and is worth reading for that reason: the rule
+it used to demonstrate was retired as a wrong conditional, so it now demonstrates
+**inert vocabulary** instead — a fact the clinician can report, the bridge will accept,
+and no rule will read.
 
 **If you only run two:** Scenario 9 and Scenario 12. Scenario 9 shows five answers of
 different resolutions *agreeing* — nested sets, conflict zero, belief climbing to
@@ -104,26 +130,48 @@ Transcript flags: `--no-transcript`, `--transcript-verbosity {minimal,normal,ful
 |---|---|---|
 | 0.70 | the eight gram-negatives | `gram-negative-narrows-to-gram-negatives` |
 | 0.80 | the seven aerobic gram-negative rods | `aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods` |
-| 0.76 | {pseudomonas} | `burn-blood-gram-neg-rod-narrows-to-pseudomonas` (0.4) **and** `compromised-gram-neg-rod-narrows-to-pseudomonas` (0.6), reinforcing |
-| 0.50 | {klebsiella} | `compromised-aerobic-gram-neg-rod-narrows-to-klebsiella` |
+| 0.40 | the six opportunist rods, **graded** | `burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods` |
+| 0.60 | the six opportunist rods, **graded** | `compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods` |
 
-**The differential** — `K = 0.380`, ignorance 0.012:
+The last two are **graded answers** — they distribute their belief across the set
+rather than spreading it evenly, and they lean in *opposite directions*:
+
+| rule | grading |
+|---|---|
+| burn | 0.20 on {pseudomonas} · 0.08 on {e-coli, proteus, serratia} · 0.07 on {klebsiella} · 0.05 on {enterobacter} |
+| compromised host | 0.28 on {e-coli} · 0.16 on {klebsiella} · 0.08 on {pseudomonas} · 0.08 on {enterobacter, proteus, serratia} |
+
+**The differential** — `K = 0.180`, ignorance 0.018, margin 0.234:
 
 | organism | bel | pl |
 |---|---|---|
-| **pseudomonas** | 0.613 | 0.807 |
-| **klebsiella** | 0.194 | 0.387 |
-| e-coli, enterobacter, proteus, salmonella, serratia | 0.000 | 0.194 |
-| bacteroides | 0.000 | 0.039 |
+| **e-coli** | 0.232 | 0.564 |
+| **pseudomonas** | 0.176 | 0.468 |
+| **klebsiella** | 0.165 | 0.458 |
+| enterobacter | 0.029 | 0.381 |
+| proteus, serratia | 0.000 | 0.398 |
+| salmonella | 0.000 | 0.293 |
+| bacteroides | 0.000 | 0.059 |
 
-Set-valued: **0.155** on the seven aerobic gram-negative rods, 0.027 on all eight.
+Set-valued: **0.234** on the seven aerobic gram-negative rods, 0.059 on
+{enterobacter, proteus, serratia}, 0.041 on all eight.
 
-Three things worth narrating. **Two rules reinforced** on Pseudomonas — 0.4 and 0.6
-combine to 0.76, and that is a single answer in the payload, not two. **Klebsiella is
-held down by the Pseudomonas answer, not attacked**: its plausibility ceiling of 0.387
-is exactly the mass that did not go to {pseudomonas}. And **K is 0.380** — the burn and
-host evidence point somewhere the Klebsiella rule does not, so more than a third of the
-belief went to a combination that cannot hold.
+Four things worth narrating. **Nothing has been excluded** — every rod retains
+plausibility, because the only evidence is a stain and two facts about the patient.
+**The two context rules lean opposite ways**, which is what `K = 0.180` measures: a
+burn raises Pseudomonas, an immunocompromised host raises E. coli, and they genuinely
+disagree without either being wrong. **The biggest single figure is the set-valued
+0.234**, not any organism — the honest headline is that the culture has not been
+discriminated yet, and a lactose or indole result is what would do it. And **E. coli
+leads**, which surprises people who know the PAIP case: see the note below.
+
+> **Why not Pseudomonas?** Before v0.13 this scenario returned pseudomonas at 0.613 and
+> looked decisive. It reached that number by asserting that a burn made Klebsiella,
+> E. coli, Enterobacter, Serratia and Proteus *impossible* — which burn-unit
+> surveillance does not support. With the exclusion gone, the ranking is decided by the
+> two rules' relative commitments (0.4 for burn against 0.6 for compromised host), and
+> those are `:illustrative` figures that were never tied to evidence. The smaller,
+> flatter numbers are the honest ones. See `docs/category-b-resolution-survey.md` §5C.
 
 The anchor case in the README, and the one the smoke tests pin.
 
@@ -139,31 +187,45 @@ The anchor case in the README, and the one the smoke tests pin.
 `morphology=rod`, `aerobicity=aerobic`.
 
 **The answers given**: the same two coarse answers as Scenario 1 (0.70 on the eight,
-0.80 on the seven), plus **0.88 on {pseudomonas}** — two rules reinforcing, the
-compromised-host one (0.6) and the hospital-acquired one (0.7) — and **0.60 on
-{klebsiella}** from `hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella`.
+0.80 on the seven), plus **one graded answer at 0.60** from
+`hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods`:
 
-Note which Klebsiella rule fired. The compromised-host rule (0.5) is **subsumed** by
-the hospital-acquired one: its premises are a strict subset, so it conditions on
-nothing extra and is dropped in favour of the more specific rule. That is production-rule
-specificity applied to belief, and it is why Klebsiella's answer is 0.60 rather than
-0.5 ⊕ 0.6 = 0.80.
+| grading |
+|---|
+| 0.24 on {e-coli} · 0.18 on {klebsiella} · 0.10 on {pseudomonas} · 0.08 on {enterobacter, proteus, serratia} |
 
-**The differential** — `K = 0.528`, ignorance 0.006:
+**One graded answer, not three — this is the subsumption case.** Three context rules
+fire here: compromised-host (0.60), hospital-acquired (0.70), and the
+hospital-acquired-AND-compromised rule (0.60) whose premises are a strict superset of
+both. It conditions on everything they do and more, so both are dropped and only its
+distribution counts. That is production-rule specificity applied to belief.
+
+The dropped rules are **absent from the explanation too**, not merely from the
+arithmetic — an answer carrying a belief that no surviving rule stands behind would be
+an attribution-free number in a clinical explanation.
+
+**The differential** — `K = 0.000`, ignorance 0.024, margin 0.320:
 
 | organism | bel | pl |
 |---|---|---|
-| **pseudomonas** | 0.746 | 0.847 |
-| **klebsiella** | 0.153 | 0.254 |
-| the other five rods | 0.000 | 0.102 |
-| bacteroides | 0.000 | 0.020 |
+| **e-coli** | 0.240 | 0.640 |
+| **klebsiella** | 0.180 | 0.580 |
+| **pseudomonas** | 0.100 | 0.500 |
+| enterobacter, proteus, serratia | 0.000 | 0.480 |
+| salmonella | 0.000 | 0.400 |
+| bacteroides | 0.000 | 0.080 |
 
-Set-valued: 0.081 on the seven, 0.014 on the eight.
+Set-valued: 0.320 on the seven, 0.080 on {enterobacter, proteus, serratia}, 0.056 on
+all eight.
 
-The extra epidemiological evidence sharpened Pseudomonas (0.613 → 0.746) and *lowered*
-Klebsiella (0.194 → 0.153), because the stronger Pseudomonas answer takes more of the
-mass. Klebsiella still clears the therapy coverage gate (0.1) and is treated — see
-Scenario 8.
+**`K` is exactly zero**, and that is the instructive part. One graded answer nested
+inside two coarser ones cannot contradict anything — there is only one epidemiological
+opinion in the room, because the specific rule displaced the two general ones. Contrast
+Scenario 1, where a burn and a compromised host disagreed and K was 0.180. Zero conflict
+does not mean high confidence: E. coli leads at 0.240 with plausibility 0.640, so the
+case is *unconflicted and unresolved*, which is a different thing from settled.
+
+All three named organisms clear the therapy coverage gate (0.1) — see Scenario 8.
 
 ---
 
@@ -183,25 +245,34 @@ Scenario 8.
 | 0.70 | the nine gram-positives |
 | 0.70 | the six chain-formers — **four streptococci and both enterococci** |
 | 0.70 | {enterococcus-faecalis, enterococcus-faecium} |
-| 0.75 | {streptococcus-pneumoniae} |
+| 0.75 | {pneumoniae, viridans, pyogenes}, **graded** — 0.45 on {pneumoniae} · 0.20 on {viridans} · 0.10 on {pyogenes} |
 
-**The differential** — `K = 0.525`, ignorance 0.014:
+**The differential** — `K = 0.525`, ignorance 0.014, margin 0.084:
 
 | organism | bel | pl |
 |---|---|---|
-| **streptococcus-pneumoniae** | 0.474 | 0.632 |
+| **streptococcus-pneumoniae** | 0.284 | 0.442 |
+| **streptococcus-viridans** | 0.126 | 0.284 |
+| **streptococcus-pyogenes** | 0.063 | 0.221 |
 | enterococcus-faecalis, enterococcus-faecium | 0.000 | **0.526** |
-| streptococcus-agalactiae, pyogenes, viridans | 0.000 | 0.158 |
+| streptococcus-agalactiae | 0.000 | 0.158 |
 | the three staphylococci | 0.000 | 0.047 |
 
 Set-valued: **0.368 on {faecalis, faecium}**, 0.111 on the six chain-formers, 0.033 on
 all nine.
 
 **This is the scenario where the set-valued figure is the headline.** The leading named
-organism is pneumococcus at 0.474 — but 0.368 of the belief sits on "one of the two
-enterococci, the evidence does not say which", and each enterococcus individually has
-a *higher plausibility ceiling* (0.526) than pneumococcus's belief. Narrating this as
-"pneumococcus, 47%" and stopping would be technically true and clinically misleading.
+organism is pneumococcus at 0.284 — but 0.368 of the belief sits on "one of the two
+enterococci, the evidence does not say which", and each enterococcus individually has a
+plausibility ceiling (0.526) far above pneumococcus's belief. Narrating this as
+"pneumococcus" and stopping would be technically true and clinically misleading.
+
+Note that **viridans now carries belief** (0.126) where it used to carry none. The
+respiratory rule used to answer {pneumoniae} alone, which claimed a respiratory
+specimen growing chains could not be viridans — and viridans streptococci both dominate
+oropharyngeal flora and cause community-acquired pneumonia in their own right. That was
+the most clinically misleading exclusion in the gram-positive half of the corpus. The
+margin of 0.084 is the honest reading of how little separates the leaders.
 
 It is also the best case for goal-directed questioning. Morphology cannot separate
 streptococci from enterococci — the chain-former answer names all six — so the useful
@@ -221,26 +292,37 @@ available.
 `morphology=rod`, `aerobicity=aerobic`.
 
 **The answers given**: 0.70 on the eight gram-negatives, 0.80 on the seven aerobic
-rods, and **0.65 on {salmonella}** from
-`tropical-travel-aerobic-gram-neg-rod-narrows-to-salmonella`.
+rods, and **0.65 on the enteric rods, graded** — 0.42 on {salmonella} · 0.15 on
+{e-coli} · 0.08 on {klebsiella} — from
+`tropical-travel-aerobic-gram-neg-rod-narrows-to-enteric-rods`.
 
-**The differential** — `K = 0.000`, ignorance 0.021:
+This is the context rule that kept the most content through Category B, because it is
+the only one that points *away* from the opportunist set rather than around inside it:
+travel to an endemic region genuinely raises the enteric organisms. What it can no
+longer claim is that E. coli bacteraemia stops happening because the patient
+travelled.
+
+**The differential** — `K = 0.000`, ignorance 0.021, margin 0.270:
 
 | organism | bel | pl |
 |---|---|---|
-| **salmonella** | 0.650 | **1.000** |
-| the other six rods | 0.000 | 0.350 |
+| **salmonella** | 0.420 | 0.770 |
+| **e-coli** | 0.150 | 0.500 |
+| **klebsiella** | 0.080 | 0.430 |
+| enterobacter, proteus, pseudomonas, serratia | 0.000 | 0.350 |
 | bacteroides | 0.000 | 0.070 |
 
 Set-valued: 0.280 on the seven, 0.049 on the eight.
 
-**Conflict is zero and salmonella's plausibility is pinned at 1.0** — because every
-answer given is consistent with Salmonella. The specific answer sits *inside* both
-coarse ones, so all three agree and nothing competes. Contrast Scenario 1, where two
-specific answers named different organisms and K was 0.38.
+**Conflict is zero** — every answer given is consistent with Salmonella, and the graded
+answer sits *inside* both coarse ones, so all three agree and nothing competes.
+Contrast Scenario 1, where two graded answers leaned different ways and K was 0.180.
 
-The 0.350 shared by the other six rods is worth narrating: the evidence has not
-touched them individually at all, and that number is the honest statement of it.
+Salmonella leads clearly (0.420 against E. coli's 0.150) but its plausibility is 0.770
+rather than the 1.000 it used to show, because the rule now commits part of its 0.65 to
+the two enteric rivals instead of all of it to Salmonella. The 0.350 shared by the four
+rods the rule does not name is the honest statement that the evidence has not touched
+them individually.
 
 ---
 
@@ -270,11 +352,36 @@ representation could not say so.
 `pl 1.000` on all eight is correct and means what it says: no evidence has spoken
 against any of them.
 
-**Add `aerobicity=aerobic`** and the low-WBC rule can fire:
-`blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella` (0.55) joins the 0.80 aerobic-rod
-answer. Salmonella goes to `bel 0.550, pl 1.000`, the other six rods to `pl 0.450`,
-ignorance drops to 0.027, and K stays 0.000. This is the discriminating-question
-demonstration: one fact moved the case from "one of eight" to a named organism at 0.55.
+### The low white count changes nothing, and that is now the point
+
+**This scenario was rewritten at v0.13.** It used to continue: add
+`aerobicity=aerobic`, the rule `blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella`
+fires, and Salmonella lands at 0.55 — "one fact moved the case from *one of eight* to a
+named organism."
+
+**That rule has been retired**, so adding `aerobicity=aerobic` now gives only the 0.80
+aerobic-rod answer: still `bel 0.000` on every organism, `pl 0.200` on bacteroides and
+`1.000` on the seven, ignorance 0.060. **The white blood count is doing no work at
+all.**
+
+It was retired because it was the wrong conditional. The rule fired **on** a low white
+count, so it owed P(Salmonella | low WBC); the 15–25% figure it cited is
+P(low WBC | typhoid) — a *sensitivity*, and a weak one, since a normal or raised count
+is commoner in typhoid and does not exclude it. Correcting the conditional does not
+rescue the rule either: leukopenia in gram-negative bacteraemia marks **severity, not
+species**, occurring across E. coli, Klebsiella and Pseudomonas sepsis alike. The
+honest answer is the whole aerobic set, which adds nothing the Gram stain already said.
+
+**So this scenario now demonstrates INERT VOCABULARY**, which is the more useful lesson.
+`white-blood-count=low` is still assertable — a clinician reporting it should have it
+recorded — but no rule reads it, the assertion succeeds, and nothing moves. That silence
+is invisible unless the corpus declares it, which is why `describe_rules` reports
+`summary.parameters` and why the fact tables mark inert values with a dagger (†).
+
+**What Claude must do here**: assert the count for the record, and then *not* narrate it
+as having contributed. Asking for a low white count as a discriminating test would be
+worse still. The discriminating questions in this case are the biochemical ones —
+lactose, indole, motility, urease, pigment — exactly as in Scenario 10.
 
 ---
 
@@ -324,32 +431,42 @@ not met. Nothing had to argue the anaerobe back in.
 | 0.70 | the eight **gram-negatives** |
 | 0.70 | the nine **gram-positives** |
 | 0.90 | {bacteroides} |
-| 0.76 | {pseudomonas} |
 
-**The differential** — `K = 0.900`, ignorance 0.022:
+**The differential** — `K = 0.679`, ignorance 0.028, margin 0.776:
 
 | organism | bel | pl |
 |---|---|---|
-| **bacteroides** | 0.649 | 0.721 |
-| **pseudomonas** | 0.228 | 0.301 |
-| all fifteen others | 0.000 | 0.072 |
+| **bacteroides** | 0.841 | 0.935 |
+| all sixteen others | 0.000 | 0.094 |
 
-**This scenario now demonstrates conflict, and it demonstrates it harder than it used
-to.** A gram stain cannot be both — the two answers share no member, so intersecting
-them puts mass on the empty set. **K = 0.900.** Ninety percent of the belief in this
-run went to a combination that cannot be true.
+**This scenario demonstrates conflict from the bench, and it now demonstrates only
+that.** A gram stain cannot be both — the two answers share no member, so intersecting
+them puts mass on the empty set. **K = 0.679**, and every bit of it comes from the
+contradictory stain.
 
-The old version of this scenario used a disconfirming rule with a −0.7 belief to
-achieve the same effect. Nothing argues against anything now: the gram-positive
-reading simply names nine organisms, none of which is Bacteroides, and the arithmetic
-does the rest.
+> **The number fell, and the reason is a corpus defect this scenario was hiding.** It
+> used to read `K = 0.900` with pseudomonas at 0.228, and both pseudomonas figures were
+> wrong. This organism is an **anaerobe**, and the two Pseudomonas context rules had
+> never gated on aerobicity — so they fired here and asserted {pseudomonas}, an
+> obligate aerobe, against {bacteroides} at a combined 0.76. Part of the conflict this
+> scenario was attributing to the stain was the corpus contradicting itself. With the
+> gates added, Pseudomonas holds **no belief at all** and a plausibility of 0.094 — the
+> same pair as every other non-anaerobe, because on an anaerobe nothing separates them.
+> That residue *is* the stain ambiguity, so `K = 0.679` finally measures what this
+> scenario always claimed to measure. Guarded now by invariant 15.
 
-**What to narrate.** Not the point estimates. `bel 0.649` for Bacteroides looks
-respectable, and with K at 0.900 it is nearly meaningless — it is what survived after
-Dempster normalization redistributed a conflict that dominated the run. The honest
-report is: *"the stain is contradicting itself; the engine cannot give you a usable
-differential until the Gram result is settled — repeat it."* This is the case that
-argues most strongly for reading K before reading anything else.
+Nothing argues against anything: the gram-positive reading simply names nine organisms,
+none of which is Bacteroides, and the arithmetic does the rest.
+
+**What to narrate.** Not the point estimate alone. `bel 0.841` for Bacteroides looks
+strong, and with K at 0.679 it is what survived after Dempster normalization
+redistributed a conflict that dominated the run. Read the **margin** with it: 0.776
+says the leader is a long way clear of the nearest answer that contradicts it, so
+unlike the respiratory-strep case in Scenario 3 (margin 0.084) this is not a tie. The
+honest report is: *"Bacteroides is the only answer consistent with an anaerobic
+gram-negative rod, but the stain is contradicting itself — repeat it before relying on
+any of this."* This is the case that argues most strongly for reading K and margin
+before reading anything else.
 
 ---
 
@@ -377,31 +494,50 @@ Run the case once **without** that `load` line (reference only) and once **with*
 
 **Facts to extract**: as Scenario 2, plus patient state `allergy-carbapenem` for therapy.
 
-**Identification**: the Scenario 2 differential — pseudomonas `bel 0.746`, klebsiella
-`bel 0.153`.
+**Identification**: the Scenario 2 differential — e-coli `bel 0.240`, klebsiella
+`bel 0.180`, pseudomonas `bel 0.100`, plus **0.320 of set-valued mass on the seven
+aerobic gram-negative rods**.
 
-**What the solver is asked to treat**: **both** — pseudomonas at 0.746 and klebsiella
-at 0.153, since both clear `*coverage-threshold*` (0.1).
+**What the solver is asked to treat**: **all three named organisms**, since all clear
+`*coverage-threshold*` (0.1) — plus the seven-member set as a coverage obligation in
+its own right, discharged member by member.
+
+> **Pseudomonas sits EXACTLY on the gate here**, at 0.100, and that turned out to be a
+> live bug rather than a curiosity. Beliefs are double-floats; the dial is a decimal
+> literal and reads as a single-float, which promotes to 0.10000000149…, so
+> `(>= 0.1d0 0.1)` was NIL and Pseudomonas was silently dropped from empiric cover in
+> the one case where antipseudomonal cover is the entire clinical question. Fixed at
+> v0.13; the gate now compares in double precision. See `clears-gate-p`.
 
 > **On that threshold.** It was 0.2 through v0.10, chosen for a scale on which organism
 > beliefs did not compete. Under candidate sets they share one unit of mass, so the same
 > evidence yields systematically lower figures and 0.2 became stricter than anyone had
-> decided — Klebsiella fell out of empiric cover here by 0.006. Recalibrated to 0.1 for
-> v0.11, which is where the corpus is flat: the gate decides only five figures in the
-> entire rulebase (0.242, 0.228, 0.194, 0.153, 0.101) and 0.1 admits every one with
-> margin, while 0.05 changes nothing further. See the docstring in
-> `neomycin/therapy/protocol.lisp`.
+> decided. Recalibrated to 0.1 for v0.11 on a measured plateau. **That plateau
+> measurement predates Category B and has not been redone**: graded answers moved every
+> runner-up figure and put one of them exactly on the gate, so the dial's justification
+> is now weaker than its docstring claims. Re-measuring it is open work, and moving a
+> clinical dial as a side effect of a representation change is exactly what the
+> docstring says not to do — so it has not been moved.
 
 **Therapy — reference KB** (`recommend_therapy`, `patient=["allergy-carbapenem"]`):
 
 | | drug | dose | covers | `bel` | `pl` | source |
 |---|---|---|---|---|---|---|
-| regimen | **ceftazidime** | 2 g IV q8h | pseudomonas | 0.70 | 0.90 | reference |
-| | | | klebsiella | 0.64 | 0.88 | reference |
+| regimen | **piperacillin-tazobactam** | 4.5 g IV q6h | e-coli | 0.70 | 0.92 | reference |
+| | | | klebsiella | 0.68 | 0.92 | reference |
+| | | | pseudomonas | 0.64 | 0.90 | reference |
+| | | | + serratia, salmonella, proteus, enterobacter | 0.70 | 0.92 | reference |
 
-One drug covers both. Meropenem is **excluded by the allergy** and says so in
-`excluded`. `alternative_agents`: ceftriaxone, ciprofloxacin, gentamicin,
-piperacillin-tazobactam; `alternative_regimens`: piperacillin-tazobactam alone.
+One drug covers everything, including all seven members of the set obligation. Meropenem
+is **excluded by the allergy** and says so in `excluded`. `alternative_agents`:
+ceftazidime, ceftriaxone, ciprofloxacin, gentamicin.
+
+**Note the regimen changed at v0.13, and for a reason worth reading.** It used to be
+ceftazidime. Ceftazidime does not cover Salmonella — and Salmonella is a member of the
+seven-organism set obligation, which must be discharged *member by member*. With the
+differential widened, the obligation is now large enough to matter and ceftazidime can
+no longer discharge it, so the solver reaches for the agent that can. This is the
+set-obligation machinery from v0.12 doing visible work.
 
 **Therapy — with the local antibiogram loaded**: this ward records **41/48 (85%)
 gentamicin-susceptible Pseudomonas**, which promotes gentamicin's anti-pseudomonal
@@ -527,22 +663,40 @@ than reporting E. coli at 67%.
 the seven aerobic rods. **No organism has any belief of its own**; 0.80 of set-valued
 mass sits on the seven.
 
-**Therapy — the backstop**: with no species named, the solver treats the **families the
-coarse answer touches**:
+**Therapy — set obligations, discharged member by member**: with no species named,
+what the solver must cover is the **sets themselves**. Two of them clear the gate:
 
-| | drug | dose | covers | `bel` | `pl` | ignorance |
-|---|---|---|---|---|---|---|
-| regimen | **meropenem** | 1 g IV q8h | enterobacteriaceae | 0.90 | 0.99 | 0.09 |
-| | | | pseudomonas | 0.72 | 0.92 | 0.20 |
+| obligation | mass | members |
+|---|---|---|
+| the aerobic rods | 0.800 | e-coli, enterobacter, klebsiella, proteus, pseudomonas, salmonella, serratia |
+| all gram-negatives | 0.140 | the seven above **+ bacteroides** |
 
-Nothing uncovered. `alternative_agents`: ceftazidime, ceftriaxone, ciprofloxacin,
-gentamicin, piperacillin-tazobactam. `alternative_regimens`: ceftazidime alone, or
-piperacillin-tazobactam alone.
+| | drug | dose | covers | `bel` | `pl` |
+|---|---|---|---|---|---|
+| regimen | **meropenem** | 1 g IV q8h | e-coli, enterobacter, proteus, serratia | 0.90 | 0.99 |
+| | | | klebsiella | 0.88 | 0.99 |
+| | | | salmonella | 0.82 | 0.97 |
+| | | | bacteroides | 0.80 | 0.96 |
+| | | | pseudomonas | 0.72 | 0.92 |
 
-**Note that the seven-organism answer spans two therapy families** — six
-Enterobacteriaceae and Pseudomonas — and the backstop emits both. A regimen covering
-only the Enterobacteriaceae would leave Pseudomonas untreated while reporting nothing
-uncovered, which is the failure this arrangement exists to prevent.
+Nothing uncovered, and both obligations report `uncovered: []`. `alternative_agents`:
+ceftazidime, ceftriaxone, ciprofloxacin, gentamicin, metronidazole,
+piperacillin-tazobactam. `alternative_regimens`: piperacillin-tazobactam alone.
+
+**A set obligation is discharged MEMBER BY MEMBER, never through a therapy family.**
+This section used to describe a "family backstop" that collapsed the coarse answer onto
+`:enterobacteriaceae` and treated that as one item. Both halves of that were unsound and
+v0.12 removed them: a KB family can read *covered* at 0.66 while a member sits at 0.46
+below the susceptibility threshold, and mass committed to "one of these seven" is
+committed to no member in particular, so a member clearing the coverage gate does not
+discharge it. Measured at the time: four of sixty scenario × patient × objective
+configurations were silently under-covering.
+
+**Note the second obligation is why Bacteroides is in the regimen's coverage list.**
+The 0.140 sitting on all eight gram-negatives includes an anaerobe, so the chosen agent
+has to cover one — and meropenem does. `ceftazidime` no longer appears among the
+alternative *regimens* for the same reason it lost Scenario 8: it cannot discharge a
+set containing Salmonella.
 
 Claude should offer the discriminating tests (lactose, indole, motility, urease,
 pigment) that Scenario 9 shows resolving the species, and note that a named species
@@ -561,31 +715,51 @@ Run Scenario 1 to conclusion, then ask:
 > "Why Klebsiella, and how confident should I be? What's that based on?"
 
 `explain_conclusion` with `{"organism": "klebsiella"}` returns the **argument** —
-`bel 0.194`, `pl 0.387`, `K 0.380`, and four answers:
+`bel 0.165`, `pl 0.458`, `K 0.180`, and four answers, **every one of which admits it**:
 
-| admits? | belief | narrows to | rule(s) |
-|---|---|---|---|
-| ✔ | 0.70 | the eight gram-negatives | `gram-negative-narrows-to-gram-negatives` (`paip-subset`) |
-| ✔ | 0.80 | the seven aerobic rods | `aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods` (`neomycin-extrapolation`) |
-| ✔ | 0.50 | {klebsiella} | `compromised-aerobic-gram-neg-rod-narrows-to-klebsiella` (`paip-subset`) |
-| ✘ | 0.76 | {pseudomonas} | `burn-blood-…-pseudomonas` (0.4) + `compromised-…-pseudomonas` (0.6) |
+| admits? | belief | narrows to | grading (mass on klebsiella) | rule |
+|---|---|---|---|---|
+| ✔ | 0.70 | the eight gram-negatives | — flat | `gram-negative-narrows-to-gram-negatives` (`paip-subset`) |
+| ✔ | 0.80 | the seven aerobic rods | — flat | `aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods` (`neomycin-extrapolation`) |
+| ✔ | 0.40 | the six opportunist rods | leans pseudomonas 0.20; **0.07 on klebsiella** | `burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods` (`paip-subset`) |
+| ✔ | 0.60 | the six opportunist rods | leans e-coli 0.28; **0.16 on klebsiella** | `compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods` (`paip-subset`) |
 
-`intersection`: `["klebsiella"]`.
+`intersection`: the six opportunist rods — **not** `["klebsiella"]`.
 
-**The fourth row is the point of the whole endpoint.** It does not admit Klebsiella,
-and it is returned anyway, because it is the entire explanation of why Klebsiella sits
-at 0.194 rather than higher. No rule argued against Klebsiella — one named something
-else, and combination did the rest. An explanation showing only the three supporting
-answers would leave a clinician to assume an objection that does not exist.
+**This scenario changed shape at v0.13, and what it now teaches is more useful.** It
+used to show an answer with `admits: false` — a flat `{pseudomonas}` answer that
+excluded Klebsiella — and the lesson was that such answers are returned deliberately,
+because nothing argues against anything and a hypothesis loses ground only when other
+evidence names something else. **That lesson is unchanged and still load-bearing**, but
+it no longer has an example here: the context rules grade instead of excluding, so
+every answer in this case admits Klebsiella. For a case that still shows an
+`admits: false` row, see **Scenario 12**, where a bench finding does the excluding —
+which is where exclusion belongs.
+
+**What this case teaches instead is how to read a graded argument.** Klebsiella is held
+at 0.165 not by any objection but by *where the two context rules put their mass*: the
+burn rule gives it 0.07 of its 0.40 while giving Pseudomonas 0.20, and the
+compromised-host rule gives it 0.16 of its 0.60 while giving E. coli 0.28. Read only
+`narrows_to`, and all four answers look like unanimous support. Read `grading`, and you
+can see Klebsiella coming third in both. **`mass_for_organism` is the field that makes
+this narratable**, and an explanation that omits it will overstate the case.
+
+**The wide `intersection` is a finding, not a gap.** When every answer is
+epidemiological, the intersection stays wide, and that is the honest signal that the
+culture has not been discriminated. A narrator should say so and name the bench test
+that would settle it.
 
 **There is no arithmetic to quote.** Nothing composes one belief through another, so
 `/why` has no multiplication to report — a change from the pre-v0.11 payload, which
 narrated a composition string.
 
 **The provenance, quoted and verified.** Each rule carries `origin`, literature
-`evidence` (NCBI Bookshelf NBK8035 / NBK519004 for the Klebsiella rule) and
-`belief_basis: illustrative`. **Claude must say the 0.194 is a schematic figure, not a
-measured probability** — the citations verify the *association*, never the number.
+`evidence` (NCBI Bookshelf NBK8035 / NBK519004 among others for the compromised-host
+rule) and `belief_basis: illustrative`. **Claude must say the 0.165 is a schematic
+figure, not a measured probability** — the citations verify the *association*, never
+the number. That applies to the **grading** as well: the focal masses follow published
+proportions, but the total each rule commits is the same illustrative figure it always
+carried, so no part of a graded answer is a measured quantity.
 
 The payload also carries a `narrative` field, a plain-language rendering of the whole
 argument that can be quoted verbatim.
@@ -610,30 +784,40 @@ argument that can be quoted verbatim.
 | 0.70 | the six chain-formers |
 | 0.75 | {streptococcus-agalactiae, streptococcus-pyogenes} — beta-hemolytic |
 | 0.85 | {streptococcus-pyogenes} — bacitracin-sensitive |
-| 0.75 | {streptococcus-pneumoniae} — the respiratory site |
+| 0.75 | {pneumoniae, viridans, pyogenes}, **graded** — 0.45 · 0.20 · 0.10 — the respiratory site |
 
-**The differential** — `K = 0.722`, ignorance 0.003:
+**The differential** — `K = 0.626`, ignorance 0.002, margin 0.790:
 
 | organism | bel | pl |
 |---|---|---|
-| **streptococcus-pyogenes** | 0.764 | 0.899 |
-| **streptococcus-pneumoniae** | 0.101 | 0.135 |
-| streptococcus-agalactiae | 0.000 | 0.135 |
-| enterococci, viridans | 0.000 | 0.034 |
-| the staphylococci | 0.000 | 0.010 |
+| **streptococcus-pyogenes** | 0.835 | 0.935 |
+| streptococcus-pneumoniae | 0.045 | 0.070 |
+| streptococcus-viridans | 0.020 | 0.045 |
+| streptococcus-agalactiae | 0.000 | 0.100 |
+| the enterococci | 0.000 | 0.025 |
+| the staphylococci | 0.000 | 0.008 |
 
-Set-valued: 0.101 on {agalactiae, pyogenes}.
+Set-valued: 0.075 on {agalactiae, pyogenes}.
 
 **The clinical picture and the bench result disagree, and the corpus says so without
-any rule mentioning the disagreement.** The site answers "pneumococcus"; the hemolysis
-answers "group A or B". Those sets do not intersect. **K = 0.722** is the size of that
-contradiction, and pneumococcus's collapse from a 0.75 answer to `bel 0.101` is the
-consequence — not a rejection.
+any rule mentioning the disagreement.** The site answer leans pneumococcus; the
+hemolysis answers "group A or B". **K = 0.626** is the size of that contradiction, and
+pneumococcus falling to `bel 0.045` is the consequence — not a rejection.
 
-**Good narration**: *"the beta hemolysis points to a group A or B strep, and
-pneumococcus isn't in that answer — so it's still on the table at plausibility 0.13,
-but it's no longer the leading call, and the two findings genuinely disagree
-(K = 0.72)."*
+**The bench result won more decisively than it used to, and that is the improvement.**
+Before Category B the site rule answered {pneumoniae} flat, so it contradicted
+{pyogenes, agalactiae} outright: K was 0.722 and pyogenes reached only 0.764. The
+graded rule now *admits* pyogenes at 0.10, so part of what used to be conflict is
+agreement, and the bacitracin result is left further ahead (0.835). An epidemiological
+prior should yield to a bench finding rather than fight it to a standstill, and here it
+visibly does.
+
+**Good narration**: *"the beta hemolysis points to a group A or B strep and the
+bacitracin result names group A — that's a bench call at 0.835. The respiratory site
+did favour pneumococcus, but it's a weaker kind of evidence and it doesn't exclude
+anything; pneumococcus is still on the table at plausibility 0.07. The two findings do
+genuinely disagree (K = 0.63), and the margin of 0.79 says the bench answer is a long
+way clear."*
 
 **Bad narration**: "pneumococcus is ruled out" (it isn't — it retains belief), or
 "a rule argued against pneumococcus" (none did, and none can).
@@ -642,13 +826,20 @@ but it's no longer the leading call, and the two findings genuinely disagree
 
 | organism | bel | pl |
 |---|---|---|
-| **streptococcus-pneumoniae** | **0.963** | **1.000** |
-| streptococcus-viridans | 0.000 | 0.038 |
+| **streptococcus-pneumoniae** | **0.903** | **0.954** |
+| streptococcus-viridans | 0.041 | 0.092 |
+| streptococcus-pyogenes | 0.005 | 0.018 |
 
-**K = 0.000.** The alpha-hemolysis answer {pneumoniae, viridans}, the optochin answer
-{pneumoniae} and the site answer {pneumoniae} are nested, so they reinforce to 0.963
-with nothing competing. Same cluster, same two evidence streams, opposite outcome — and
-the only difference in the payload is K.
+**K = 0.266**, against 0.626 when the findings disagreed. Same cluster, same two
+evidence streams, opposite outcome — and the clearest signal remains K, now read
+alongside a margin of 0.862.
+
+> K is no longer *zero* here, and the residue is honest rather than a defect. The site
+> answer is graded and puts 0.10 on pyogenes, while the alpha-hemolysis answer
+> {pneumoniae, viridans} excludes pyogenes — so a small slice of the site rule's mass
+> genuinely conflicts with the bench result. Before Category B the site rule answered
+> {pneumoniae} flat, sat nested inside everything, and produced a tidy K = 0.000. The
+> tidiness came from a claim the rule could not support.
 
 ---
 
@@ -711,29 +902,51 @@ organism** — seven for pneumococcus, from the 9-member gram-positive answer do
 | `chains-narrows-to-chain-formers` | 0.70 | 6 | streptococci + enterococci |
 | `catalase-negative-narrows-to-chain-formers` | 0.70 | 6 | same, different evidence |
 | `bile-esculin-negative-narrows-to-streptococci` | 0.60 | 4 | the four streptococci |
+| `respiratory-chains-narrows-to-pneumoniae` | 0.75 | 3 | {pneumoniae, viridans, pyogenes}, **graded** |
 | `alpha-hemolysis-narrows-to-alpha-hemolytic-strep` | 0.75 | 2 | {pneumoniae, viridans} |
 | `optochin-sensitive-narrows-to-pneumoniae` | 0.85 | 1 | {pneumoniae} |
-| `respiratory-chains-narrows-to-pneumoniae` | 0.75 | 1 | {pneumoniae} |
 
 **The resolution column is the answer to the question.** Hemolysis is the branch point
 because it takes the answer from 6 organisms to 2 in one test, and the disc tests then
 take it from 2 to 1. A good reply names that progression and quotes the beliefs
 exactly, not approximately.
 
+**Note the respiratory rule sits at resolution 3, not 1, and carries a `grading`.** It
+is the only epidemiological rule in this list, and it is the one a clinician is most
+likely to over-read: it *leans* pneumococcus (0.45 of its 0.75) but admits viridans
+(0.20) and pyogenes (0.10). A reply that reported it as a 1-organism rule — as this
+table used to — would be describing a test that discriminates, when what it describes
+is a prior that ranks. **The lesson for narration: read `resolution` and `grading`
+together.** A low resolution means the evidence genuinely narrows; a grading means it
+merely leans.
+
 `?premises=beta` asks it from the other side — which rules read a beta-hemolysis
-result — and returns four, including the two bacitracin discriminators and the neonatal
-host-factor rule.
+result — and returns four: `beta-hemolysis-narrows-to-beta-hemolytic-strep`, the two
+bacitracin discriminators, and the neonatal host-factor rule.
 
 **What a good answer contains**: the rationale from each rule's provenance `note` —
 e.g. bacitracin-resistant → agalactiae is only 0.70 *"because groups C and G are also
 bacitracin-resistant"*. **What it must not contain**: any belief, premise or citation
 stated without a `describe_rules` call behind it.
 
-The corpus `summary` in every response gives the shape: **44 rules, 17 organisms**, and
-the resolution distribution — 27 rules naming a single organism, 7 narrowing to a pair,
-and 10 answering coarser, up to a 9-member set. An organism absent from
-`summary.organisms` is one the corpus cannot name at all, and Claude should say so
-plainly rather than reasoning about it.
+The corpus `summary` in every response gives the shape: **46 rules, 17 organisms**, and
+the resolution distribution — 17 rules naming a single organism, 9 narrowing to a pair,
+and 20 answering coarser, up to a 9-member set:
+
+| resolution | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|
+| rules | 17 | 9 | 5 | 3 | 1 | 7 | 2 | 1 | 1 |
+
+**That distribution shifted at v0.13 and the shift is the story of this release.**
+Single-organism rules used to be the largest block by a wide margin; Category B moved
+nine epidemiological rules off resolution 1, because a burn or a compromised host does
+not name an organism. What is left at resolution 1 is almost entirely BENCH findings,
+which is where a one-organism answer belongs.
+
+An organism absent from `summary.organisms` is one the corpus cannot name at all, and
+Claude should say so plainly rather than reasoning about it. Likewise a parameter or
+value absent from `summary.parameters` is **inert** — assertable, accepted, and read by
+no rule. `white-blood-count` is the current example (see Scenario 5).
 
 Endpoint smoke test: `./bin/test-rules.sh`.
 
@@ -810,18 +1023,18 @@ it looks sensible. Full table: `docs/exact-solver-design.md` §3.6.
 the rules behind each answer. Scenario 14 is deliberately absent: it queries the
 catalogue rather than exercising the engine.*
 
+*Re-captured at v0.13 by running every scenario and reading the derivation record.*
+
 | Rule | Scenarios |
 |---|---|
-| gram-negative-narrows-to-gram-negatives | 1, 2, 4, 5, 6, 7, 9 |
+| gram-negative-narrows-to-gram-negatives | 1, 2, 4, 5, 6, 7, 9, 10 |
 | gram-positive-narrows-to-gram-positives | 3, 7, 12, 13 |
-| aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods | 1, 2, 4, 5†, 9 |
-| burn-blood-gram-neg-rod-narrows-to-pseudomonas | 1, 7 |
-| compromised-gram-neg-rod-narrows-to-pseudomonas | 1, 2, 7 |
-| hospital-acquired-aerobic-gram-neg-rod-narrows-to-pseudomonas | 2 |
-| compromised-aerobic-gram-neg-rod-narrows-to-klebsiella | 1 |
-| hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella | 2 |
-| tropical-travel-aerobic-gram-neg-rod-narrows-to-salmonella | 4 |
-| blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella | 5† |
+| aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods | 1, 2, 4, 5†, 9, 10 |
+| burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 1 |
+| compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 1, 2§ |
+| hospital-acquired-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 2§ |
+| hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 2 |
+| tropical-travel-aerobic-gram-neg-rod-narrows-to-enteric-rods | 4 |
 | anaerobic-gram-neg-rod-in-abdomen-narrows-to-bacteroides | 6 |
 | anaerobic-gram-neg-rod-in-blood-narrows-to-bacteroides | 6‡, 7 |
 | lactose-fermenter-narrows-to-fermenters | 9, 9-motile, 9-conflict |
@@ -842,16 +1055,25 @@ catalogue rather than exercising the engine.*
 | optochin-sensitive-narrows-to-pneumoniae | 12-variation |
 
 † with `aerobicity=aerobic` added.  ‡ with `culture-site=blood` added.
+**§ fires but is SUBSUMED** by the hospital-acquired-and-compromised rule, so it
+contributes no mass and is not cited in the explanation. It is listed because it *fired*
+— this matrix records rule reachability, not influence.
 
-**Sixteen rules fire in no scenario here** — the whole staphylococcus cluster
-(`clumps-narrows-to-staphylococci`, the coagulase pair, the two host-factor aureus
-rules, `novobiocin-resistant-narrows-to-saprophyticus`,
+**Two rows disappeared at v0.13.** `blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella`
+was **retired** (Scenario 5), and the burn and compromised-host rules no longer fire in
+Scenario 7: that culture is anaerobic, and both are now gated on aerobic growth, which
+is the corpus defect Scenario 7 was hiding.
+
+**Fifteen rules fire in no scenario here** — the whole staphylococcus cluster
+(`clumps-narrows-to-staphylococci`, `catalase-positive-narrows-to-staphylococci`, the
+coagulase pair, the two host-factor aureus rules,
+`novobiocin-resistant-narrows-to-saprophyticus`,
 `prosthetic-material-coag-neg-narrows-to-epidermidis`,
 `urinary-coag-neg-narrows-to-saprophyticus`), enterococcal speciation
 (`bile-esculin-salt-tolerant-narrows-to-enterococci`, the sorbitol/arabinose pair),
 `catalase-negative-narrows-to-chain-formers`, `bile-esculin-negative-narrows-to-streptococci`,
 `optochin-resistant-narrows-to-viridans`, `lactose-non-fermenter-narrows-to-non-fermenters`,
-and `neutropenia-aerobic-gram-neg-rod-narrows-to-pseudomonas`.
+and `neutropenia-aerobic-gram-neg-rod-narrows-to-opportunist-rods`.
 
 This is a **gap in the scenario collection, not in the corpus** — the rules are tested
 by the suite and reachable through the catalogue. It is recorded here rather than
@@ -862,17 +1084,26 @@ coverage.
 
 ## Notes for Investigators
 
-- **Read K first.** A scenario with high conflict (7 at 0.900, 9-conflict at 0.736,
-  12 at 0.722) produces point estimates that survived heavy renormalization. They look
-  like ordinary numbers and are not.
-- **The best scenarios for reinforcement** are 6-with-blood (0.98), 12-variation (0.963)
-  and 13 (0.91) — independent evidence reaching the same answer, K = 0.
-- **The best scenarios for honest indecision** are 5 (nothing named, 0.70 on eight),
-  3 (0.368 on the enterococcal pair) and 9-motile (0.600 on {enterobacter, serratia}).
-  Each has its headline on a *set*, and each is a case where naming a single organism
-  would be the wrong answer.
+- **Read K WITH the margin — neither is interpretable alone.** High conflict (7 at
+  0.679, 9-conflict at 0.736, 12 at 0.626) means the point estimates survived heavy
+  renormalization. But K rises as a winner *strengthens* against rivals, so it is not a
+  reliability score: Scenario 7 has K = 0.679 with a margin of 0.776 (decisive) while
+  Scenario 3 has a margin of 0.084 (a near-tie). Quote them as a pair.
+- **The best scenarios for reinforcement** are 13 (agalactiae 0.91, K = 0) and
+  12-variation (pneumoniae 0.903) — independent evidence reaching the same answer.
+- **The best scenarios for honest indecision** are 5 (nothing named at all, 0.70 on the
+  eight), 1 (a three-way split with 0.234 sitting on the seven-member set) and 3 (0.368
+  on the enterococcal pair). Each has its headline on a *set*, and each is a case where
+  naming a single organism would be the wrong answer.
+- **Epidemiology ranks; it does not identify.** Scenarios 1, 2 and 4 are built entirely
+  from stain plus host context, and none of them names an organism. Their graded
+  answers lean — sometimes strongly — but the intersection stays wide and the right
+  narration is which bench test would close it. If a scenario built only from context
+  rules ever reports a confident single organism again, something has gone wrong.
 - **`pl` for an organism no rule mentioned** is answerable and meaningful — it is the
   residual ignorance, and it is the corpus's answer to "could this be something you
-  don't model?" In Scenario 1 that is 0.012; in Scenario 5 it is 0.300.
-- Every figure here was captured from the engine on the v0.11 corpus. When beliefs
-  change intentionally, re-capture rather than re-deriving by hand.
+  don't model?" In Scenario 1 that is 0.018; in Scenario 5 it is 0.300.
+- Every figure here was **re-captured from the engine on the v0.13 corpus** after
+  Category B. When beliefs change intentionally, re-capture rather than re-deriving by
+  hand — three defects in this pass were found precisely because re-measuring disagreed
+  with the prose.

@@ -68,16 +68,44 @@ check "provenance is carried"  "any('provenance' in r for a in d['argument'] for
 check "narrative is prose"     "len(d['narrative']) > 40"               "True"
 echo ""
 
-echo "--- /why pseudomonas (two rules reinforcing one answer) ---"
+echo "--- /why pseudomonas (two GRADED answers, each leaning its own way) ---"
 CODE=$(curl -s -o /tmp/why-ps.$$ -w '%{http_code}' -X POST "$BASE_URL/why" -d '{"organism":"pseudomonas"}')
 BODY=$(cat /tmp/why-ps.$$); rm -f /tmp/why-ps.$$
 if [ "$CODE" != "200" ]; then fail "/why pseudomonas returned HTTP $CODE"; else pass "HTTP 200"; fi
 printf '%s' "$BODY" | python3 -m json.tool
 check "organism echoed"     "d['organism']" "pseudomonas"
-check "beats klebsiella"    "d['bel'] > 0.4" "True"
-# Two rules narrow to {pseudomonas} and reinforce; the payload has to show BOTH, or
-# the explanation understates the case.
-check "both rules cited"    "max(len(a['rules']) for a in d['argument'])" "2"
+# RE-POINTED BY CATEGORY B. This used to assert bel > 0.4 and "two rules cited",
+# and both encoded the singleton corpus:
+#
+#   * bel > 0.4 was reachable only because the burn and compromised-host rules each
+#     answered {pseudomonas} FLAT, claiming every other aerobic gram-negative rod was
+#     impossible. They now grade, so nothing in culture-1 gets near 0.4 -- correct,
+#     because nothing in culture-1 has DISCRIMINATED. Epidemiology leans; it does not
+#     identify. The real question the old check was reaching for is whether pseudomonas
+#     leads klebsiella, so ask that instead of a magic number.
+#   * "two rules cited" held because both rules asserted the SAME set and so landed on
+#     one fact. Grading gives them different distributions and therefore separate
+#     answers, one rule each.
+check "bel is positive"     "d['bel'] > 0" "True"
+check "not yet identified"  "d['bel'] < 0.4" "True"
+check "grading is reported" "any('grading' in a for a in d['argument'])" "True"
+check "focal sets ordered"  "all(a['grading']==sorted(a['grading'],key=lambda g:-g['mass']) for a in d['argument'] if 'grading' in a)" "True"
+# The burn evidence must lean pseudomonas -- that is the clinical content the flat
+# widening would have thrown away, and the whole reason grading exists.
+check "burn leans pseudomonas" "any(a['grading'][0]['organisms']==['pseudomonas'] for a in d['argument'] if 'grading' in a)" "True"
+check "narrative states lean"  "'leaning' in d['narrative']" "True"
+echo ""
+
+# Pseudomonas must lead klebsiella. Fetched separately so this compares two measured
+# figures rather than either against a constant that goes stale.
+echo "--- pseudomonas vs klebsiella (a comparison, not a magic number) ---"
+PS_BEL=$(curl -s "$BASE_URL/why?organism=pseudomonas" | python3 -c 'import json,sys; print(json.load(sys.stdin)["bel"])')
+KL_BEL=$(curl -s "$BASE_URL/why?organism=klebsiella"  | python3 -c 'import json,sys; print(json.load(sys.stdin)["bel"])')
+if python3 -c "import sys; sys.exit(0 if $PS_BEL > $KL_BEL else 1)"; then
+  pass "pseudomonas ($PS_BEL) beats klebsiella ($KL_BEL)"
+else
+  fail "pseudomonas ($PS_BEL) should beat klebsiella ($KL_BEL)"
+fi
 echo ""
 
 echo "--- /why for an organism no rule named (should 404, not 500) ---"

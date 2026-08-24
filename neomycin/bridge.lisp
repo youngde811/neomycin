@@ -16,16 +16,28 @@
 (defun organism-name (x)
   (and x (string-downcase (princ-to-string x))))
 
-(defun answers->json (answers)
-  (coerce (mapcar (lambda (a)
-                    (let ((h (make-hash-table :test #'equal)))
-                      ;; What the rule SAID, before anything was combined: the set its
-                      ;; evidence narrowed to, and how strongly.
-                      (setf (gethash "narrows_to" h)
-                            (coerce (mapcar #'organism-name (car a)) 'vector))
-                      (setf (gethash "belief" h) (cdr a))
-                      h))
-                  answers)
+(defun answers->json (details)
+  "The answers behind a differential, from ANSWER-DETAILS.
+
+   Takes DETAILS rather than bare (SET . BELIEF) pairs so a GRADED answer can report
+   its distribution here too. Without it /conclusions showed culture-1's two context
+   answers as a bare 0.40 and 0.60 over the same six organisms -- identical-looking,
+   when in fact one leans Pseudomonas and the other leans E. coli, which is the entire
+   reason the differential comes out the way it does. /why and /rules both reported
+   grading; this one did not, and it is the payload a client reads FIRST."
+  (coerce (mapcar (lambda (d)
+                    (destructuring-bind (set belief rules &optional grading) d
+                      (declare (ignore rules))
+                      (let ((h (make-hash-table :test #'equal)))
+                        ;; What the rule SAID, before anything was combined: the set its
+                        ;; evidence narrowed to, and how strongly.
+                        (setf (gethash "narrows_to" h)
+                              (coerce (mapcar #'organism-name set) 'vector))
+                        (setf (gethash "belief" h) belief)
+                        (when grading
+                          (setf (gethash "grading" h) (grading->json grading)))
+                        h)))
+                  details)
           'vector))
 
 (defun hypotheses->json (organism)
@@ -56,7 +68,7 @@
    set-valued belief that names no member, the conflict, and the residual ignorance --
    which is also the plausibility of any organism the corpus does not model."
   (let ((ht (make-hash-table :test #'equal)))
-    (multiple-value-bind (mass conflict answers) (consensus organism)
+    (multiple-value-bind (mass conflict) (consensus organism)
       (setf (gethash "organism" ht) (organism-name organism))
       ;; K, read BEFORE normalization: both normalizations resolve it away, so it
       ;; cannot be recovered from the result.
@@ -78,7 +90,7 @@
         (setf (gethash "margin_against" ht)
               (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
       (setf (gethash "ignorance" ht) (candidates:ignorance mass))
-      (setf (gethash "answers" ht) (answers->json answers))
+      (setf (gethash "answers" ht) (answers->json (answer-details organism)))
       (setf (gethash "hypotheses" ht) (hypotheses->json organism))
       (setf (gethash "set_valued" ht) (set-valued->json mass)))
     ht))
@@ -143,9 +155,20 @@
       (when prov (setf (gethash "provenance" ht) prov)))
     ht))
 
+(defun grading->json (grading)
+  "A graded answer's focal masses, strongest first."
+  (coerce (mapcar (lambda (pair)
+                    (let ((ht (make-hash-table :test #'equal)))
+                      (setf (gethash "mass" ht) (car pair))
+                      (setf (gethash "organisms" ht)
+                            (coerce (mapcar #'organism-name (cdr pair)) 'vector))
+                      ht))
+                  grading)
+          'vector))
+
 (defun answer-argument->json (detail hypothesis)
   "One answer's role in the argument for HYPOTHESIS."
-  (destructuring-bind (set belief rules) detail
+  (destructuring-bind (set belief rules &optional grading) detail
     (let ((ht (make-hash-table :test #'equal)))
       (setf (gethash "narrows_to" ht)
             (coerce (mapcar #'organism-name set) 'vector))
@@ -154,16 +177,40 @@
       ;; evidence against it -- it is evidence for something else, which costs the
       ;; hypothesis plausibility as a side effect of combination.
       (setf (gethash "admits" ht) (and (member hypothesis set) t))
+      ;; A GRADED answer distributes its mass INSIDE narrows_to rather than spreading
+      ;; it evenly. Emitted only when present, so a bench answer's payload is
+      ;; unchanged. Without this an epidemiological answer reads as though it had no
+      ;; opinion about which member is likelier, which is the opposite of the truth.
+      (when grading
+        (setf (gethash "grading" ht) (grading->json grading))
+        (setf (gethash "mass_for_organism" ht)
+              (let ((hit (find-if (lambda (pair) (member hypothesis (cdr pair))) grading)))
+                (if hit (car hit) 0.0))))
       (setf (gethash "rules" ht)
             (coerce (mapcar #'rule-citation->json rules) 'vector))
       ht)))
 
+(defun grading-clause (grading)
+  "How a graded answer leans, in words -- or NIL when it is flat.
+
+   Without this the narrative reads an epidemiological answer as indifferent among its
+   members, which is the reading grading exists to prevent: a burn rule that says
+   `one of six at 0.40' sounds like it has no view, when in fact half its mass is on
+   Pseudomonas. The narrative is quotable directly by the model, so the lean has to be
+   IN it and not merely somewhere in the payload."
+  (when grading
+    (let ((leader (first grading)))
+      (format nil ", leaning ~{~A~^/~} (~,2F of it)"
+              (mapcar #'organism-name (cdr leader))
+              (car leader)))))
+
 (defun answer-clause (detail)
-  "One answer as a clause: who said it, what it narrowed to, how strongly."
-  (format nil "~{~A~^ and ~} said one of {~{~A~^, ~}} at ~,2F"
+  "One answer as a clause: who said it, what it narrowed to, how strongly, which way."
+  (format nil "~{~A~^ and ~} said one of {~{~A~^, ~}} at ~,2F~A"
           (mapcar (lambda (r) (organism-name (lisa:rule-short-name r))) (third detail))
           (mapcar #'organism-name (first detail))
-          (second detail)))
+          (second detail)
+          (or (grading-clause (fourth detail)) "")))
 
 (defun narrative (hypothesis admitting excluding intersection)
   "The argument in plain language.
@@ -289,6 +336,12 @@
     (setf (gethash "belief" ht) (abs (lisa:rule-belief rule)))
     (setf (gethash "narrows_to" ht) (coerce (mapcar #'organism-name answer) 'vector))
     (setf (gethash "resolution" ht) (length answer))
+    ;; A GRADED rule distributes its belief across focal sets INSIDE narrows_to. Without
+    ;; this the catalogue would show an epidemiological rule as though it had no view on
+    ;; which member is likelier -- the exact claim grading exists to make. Emitted only
+    ;; when present, so every bench entry is byte-identical to before.
+    (let ((grading (rule-grading rule)))
+      (when grading (setf (gethash "grading" ht) (grading->json grading))))
     (setf (gethash "premises" ht) (rule-premises->json rule))
     (let ((prov (lisa-bridge:provenance->json (lisa:rule-provenance rule))))
       (when prov (setf (gethash "provenance" ht) prov)))
