@@ -127,6 +127,38 @@
     (is (<= 0.0 (gethash "bel" payload) (gethash "pl" payload) 1.0)
         "0 <= bel <= pl <= 1")))
 
+(deftest why-answers-always-name-a-rule-even-under-subsumption ()
+  ;; THE GAP THAT LET AN ATTRIBUTION-FREE ANSWER SHIP. Every /why test above runs on
+  ;; culture-1 or culture-4, where nothing is subsumed -- so "every answer names the
+  ;; rules that gave it" was only ever checked where it could not fail.
+  ;;
+  ;; culture-1a is the case with subsumption: three context rules fire and the most
+  ;; specific one drops the other two. Their FACTS remain in working memory, and
+  ;; ANSWER-DETAILS used to report them with a belief and an EMPTY rules array -- a
+  ;; number in the explanation that no surviving rule stood behind, which is precisely
+  ;; what the WHY facility exists to make impossible. Found by re-measuring
+  ;; docs/clinician-scenarios.md against the engine, not by this suite.
+  (run-scenario 'lisa-user::culture-1a :candidates)
+  (dolist (organism '(:pseudomonas :klebsiella :e-coli))
+    (let* ((payload (why-for organism))
+           (argument (coerce (gethash "argument" payload) 'list)))
+      (is (plusp (length argument))
+          (format nil "~(~a~) has an argument at all" organism))
+      (is (every (lambda (a) (plusp (length (gethash "rules" a)))) argument)
+          (format nil "every answer in ~(~a~)'s argument names at least one rule"
+                  organism))))
+  ;; And the subsumed rules must not be cited anywhere either -- they were dropped for
+  ;; conditioning on nothing extra, so quoting them would overstate the evidence.
+  (let* ((payload (why-for :e-coli))
+         (cited (loop for a across (gethash "argument" payload)
+                      append (map 'list (lambda (r) (gethash "rule" r)) (gethash "rules" a)))))
+    (is (not (member "compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods"
+                     cited :test #'string=))
+        "the subsumed compromised-host rule is not cited")
+    (is (member "hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods"
+                cited :test #'string=)
+        "the specific rule that subsumed it is")))
+
 (deftest why-declines-an-organism-no-rule-named ()
   ;; A 404 here is correct and must stay reachable: the honest answer for an
   ;; unmodelled organism is that nothing has spoken to it, not a fabricated zero.

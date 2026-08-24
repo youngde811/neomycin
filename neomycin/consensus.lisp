@@ -177,11 +177,8 @@
    dropped, rather than falling back to the fact's own belief -- it is not independent
    evidence, it is the same evidence stated less specifically."
   (let ((survivors (surviving-rules-for organism)))
-    (loop for fact in (candidates-facts organism)
-          for contributors = (contributing-rules fact)
-          unless (and contributors
-                      (notany (lambda (r) (member r survivors)) contributors))
-            collect (answer-mass-of fact survivors))))
+    (mapcar (lambda (fact) (answer-mass-of fact survivors))
+            (contributing-facts organism))))
 
 (defun consensus (organism)
   "Combine every answer about ORGANISM.
@@ -223,9 +220,26 @@
           (remove-if-not (lambda (r) (member r scope)) (contributing-rules fact))
           (answer-grading fact))))
 
+(defun contributing-facts (organism)
+  "ORGANISM's CANDIDATES facts, minus any whose every contributing rule was SUBSUMED.
+
+   A subsumed rule is not independent evidence -- it is the same evidence stated less
+   specifically -- so the fact it produced contributes no mass. It must not appear in an
+   explanation either. Before this filter, /why on culture-1a listed two answers at
+   belief 0.60 and 0.70 with EMPTY `rules' arrays: attribution-free claims carrying
+   numbers that no surviving rule stood behind, which is exactly what the WHY facility
+   exists to make impossible. Found by re-measuring docs/clinician-scenarios.md, not by
+   the suite -- the /why tests run on culture-1 and culture-4, where nothing is subsumed."
+  (let ((survivors (surviving-rules-for organism)))
+    (remove-if (lambda (fact)
+                 (let ((contributors (contributing-rules fact)))
+                   (and contributors
+                        (notany (lambda (r) (member r survivors)) contributors))))
+               (candidates-facts organism))))
+
 (defun answer-details (organism)
   "((SET BELIEF RULES GRADING) ...) -- every answer about ORGANISM, attributed."
-  (mapcar #'answer-detail (candidates-facts organism)))
+  (mapcar #'answer-detail (contributing-facts organism)))
 
 (defun entity-naming (hypothesis)
   "The first entity in working memory some rule's answer admits HYPOTHESIS for.
