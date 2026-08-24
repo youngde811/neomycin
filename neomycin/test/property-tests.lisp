@@ -388,7 +388,7 @@
           (format nil "some single-marker rule still reads ~(~a~)=~(~a~)" marker value)))))
 
 ;;; ------------------------------------------------------------------
-;;; Invariant 13 -- a GRADED rule asserts exactly what its :belief declares.
+;;; Invariant 14 -- a GRADED rule asserts exactly what its :belief declares.
 ;;;
 ;;; A flat rule's belief is applied by the engine, so the declaration and the
 ;;; assertion cannot disagree. A graded rule states its masses on the RHS, where
@@ -451,3 +451,93 @@
       (is (= (length sets) (length (remove-duplicates sets :test #'equal)))
           (format nil "~(~a~): no focal set is written twice"
                   (lisa:rule-short-name rule))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 15 -- a CONTEXT rule gates on the findings its answer presupposes.
+;;;
+;;; A rule premising on the patient or the culture -- a burn, a compromised host, an
+;;; infection site, an age band -- is saying "given this organism, that context makes
+;;; these members likelier". It is NOT saying "this context implies this kind of
+;;; organism". So it has to establish the kind first, by premising on the stain,
+;;; morphology and aerobicity its answer takes for granted. Otherwise it fires on an
+;;; organism its answer cannot possibly be.
+;;;
+;;; THIS IS NOT HYPOTHETICAL. Category B found three of them, and one was live in a
+;;; shipped scenario: culture-2 asserts an ANAEROBIC gram-negative rod, and both
+;;; pseudomonas context rules fired on it -- neither had ever gated on aerobicity --
+;;; asserting {pseudomonas}, an obligate aerobe, against {bacteroides}. The corpus was
+;;; contradicting itself, and the golden test credited the resulting conflict to the
+;;; ambiguous Gram stain. The worst of the three never fired in any test at all:
+;;; NEONATE-BETA-HEMOLYTIC premised on beta hemolysis and NOTHING else, so it fired on
+;;; a beta-hemolytic E. COLI and answered S. agalactiae.
+;;;
+;;; The gates were missing for years and every layer stayed green, because a rule
+;;; firing where it should not is invisible unless something asks what its answer
+;;; presupposes. This asks.
+;;; ------------------------------------------------------------------
+
+(defparameter *context-parameters*
+  '(lisa-user::burn lisa-user::compromised-host lisa-user::hospital-acquired
+    lisa-user::recent-travel lisa-user::white-blood-count lisa-user::infection-site
+    lisa-user::neutropenia lisa-user::prosthetic-material lisa-user::iv-drug-use
+    lisa-user::age-group)
+  "Patient-level facts. CULTURE-SITE is deliberately absent: it scopes a rule to a
+   specimen without implying anything about the organism's morphology.")
+
+(defparameter *answer-presuppositions*
+  ;; (pool-name members required-gates), where a gate is (parameter . value).
+  `(("the aerobic gram-negative rods"
+     (:e-coli :klebsiella :salmonella :enterobacter :serratia :proteus :pseudomonas)
+     ((lisa-user::gram . lisa-user::neg)
+      (lisa-user::morphology . lisa-user::rod)
+      (lisa-user::aerobicity . lisa-user::aerobic)))
+    ("the anaerobic gram-negative rods"
+     (:bacteroides)
+     ((lisa-user::gram . lisa-user::neg)
+      (lisa-user::morphology . lisa-user::rod)
+      (lisa-user::aerobicity . lisa-user::anaerobic)))
+    ("the gram-positive cocci"
+     (:staphylococcus-aureus :staphylococcus-epidermidis :staphylococcus-saprophyticus
+      :streptococcus-pneumoniae :streptococcus-pyogenes :streptococcus-agalactiae
+      :streptococcus-viridans :enterococcus-faecalis :enterococcus-faecium)
+     ((lisa-user::gram . lisa-user::pos)
+      (lisa-user::morphology . lisa-user::coccus))))
+  "What an answer confined to a pool takes for granted about the organism.")
+
+(defun context-rules ()
+  (remove-if-not (lambda (rule)
+                   (some (lambda (p) (lisa:rule-premise-values rule p))
+                         *context-parameters*))
+                 (candidates-rules)))
+
+(defun pool-for-answer (answer)
+  "The entry of *ANSWER-PRESUPPOSITIONS* whose members contain every organism in
+   ANSWER, or NIL when the answer straddles pools and so presupposes nothing."
+  (find-if (lambda (entry)
+             (every (lambda (o) (member o (second entry))) answer))
+           *answer-presuppositions*))
+
+(deftest property-context-rules-gate-on-what-their-answer-presupposes ()
+  (dolist (rule (context-rules))
+    (let* ((answer (neomycin:rule-answer rule))
+           (pool (and answer (pool-for-answer answer))))
+      (when pool
+        (destructuring-bind (pool-name members gates) pool
+          (declare (ignore members))
+          (dolist (gate gates)
+            (is (member (cdr gate) (lisa:rule-premise-values rule (car gate)) :test #'eq)
+                (format nil "~(~a~) answers within ~A, so it must premise on ~
+                             ~(~a~)=~(~a~) -- without it the rule fires on an organism ~
+                             its answer cannot be"
+                        (lisa:rule-short-name rule) pool-name
+                        (car gate) (cdr gate)))))))))
+
+(deftest property-context-gate-invariant-is-live ()
+  ;; The table only guards what it can reach. If no context rule's answer falls inside
+  ;; a pool, the invariant above passes without checking anything.
+  (let ((covered (remove-if-not (lambda (r)
+                                  (let ((a (neomycin:rule-answer r)))
+                                    (and a (pool-for-answer a))))
+                                (context-rules))))
+    (is (plusp (length covered))
+        "some context rule's answer sits inside a pool, so invariant 15 has work to do")))
