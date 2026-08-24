@@ -191,6 +191,18 @@ staphylococcus?"* is asking about the set {S. aureus, S. epidermidis,
 S. saprophyticus}, and the payload answers it directly. Nothing chains, nothing
 composes through an intermediate, and no belief is a product of two others.
 
+**Two rules on one answer usually reinforce — but a SUBSUMED rule is dropped, not
+combined.** When two rules reach the same answer from different evidence, their support
+combines. The exception: if one rule's premises are a strict *subset* of another's, it
+fires whenever that one does and conditions on nothing extra, so it is **discarded** in
+favour of the more specific rule rather than counted again. You will see this when a
+patient has both `hospital-acquired` and `compromised-host`: three rules match, and only
+the one requiring both survives. Narrate that as *"the more specific rule replaced the
+two general ones"* — **never as "the rules combined into a stronger one"**, which is a
+different mechanism and would imply a belief nobody asserted. A dropped rule is absent
+from `explain_conclusion` entirely, so if you cannot see a rule in the argument, it did
+not contribute.
+
 **More evidence gives a smaller set.** `urease positive` answers "one of four";
 `urease positive with swarming` answers "Proteus". The second sits *inside* the
 first, so they agree and reinforce rather than conflict. That nesting is how
