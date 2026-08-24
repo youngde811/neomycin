@@ -626,6 +626,12 @@ flat, because a bench finding really does admit or exclude.
 
 ## 7.4 Two v0.12 findings turned out to be artifacts
 
+> **The figures in this subsection are v0.13's.** The v0.14 belief-coherence pass raised
+> the hospital-acquired-compromised rule from 0.60 to 0.70, which moved culture-1a and
+> culture-1b: klebsiella's rise is now 0.1649 → 0.2040, and the e-coli support/share
+> divergence is admitting mass 3.50 → 3.90 against belief 0.2800 → 0.2402. Both findings
+> below still hold; only the numbers moved. See `docs/belief-coherence-survey.md`.
+
 Both were properties of the singleton representation rather than of the evidence, and
 both are now recorded as such in the tests that used to pin them:
 

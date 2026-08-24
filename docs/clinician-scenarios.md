@@ -192,7 +192,7 @@ The anchor case in the README, and the one the smoke tests pin.
 
 | grading |
 |---|
-| 0.24 on {e-coli} · 0.18 on {klebsiella} · 0.10 on {pseudomonas} · 0.08 on {enterobacter, proteus, serratia} |
+| 0.28 on {e-coli} · 0.21 on {klebsiella} · 0.12 on {pseudomonas} · 0.09 on {enterobacter, proteus, serratia} |
 
 **One graded answer, not three — this is the subsumption case.** Three context rules
 fire here: compromised-host (0.60), hospital-acquired (0.70), and the
@@ -204,26 +204,42 @@ The dropped rules are **absent from the explanation too**, not merely from the
 arithmetic — an answer carrying a belief that no surviving rule stands behind would be
 an attribution-free number in a clinical explanation.
 
-**The differential** — `K = 0.000`, ignorance 0.024, margin 0.320:
+**The differential** — `K = 0.000`, ignorance 0.018, margin 0.070:
 
 | organism | bel | pl |
 |---|---|---|
-| **e-coli** | 0.240 | 0.640 |
-| **klebsiella** | 0.180 | 0.580 |
-| **pseudomonas** | 0.100 | 0.500 |
-| enterobacter, proteus, serratia | 0.000 | 0.480 |
-| salmonella | 0.000 | 0.400 |
-| bacteroides | 0.000 | 0.080 |
+| **e-coli** | 0.280 | 0.580 |
+| **klebsiella** | 0.210 | 0.510 |
+| **pseudomonas** | 0.120 | 0.420 |
+| enterobacter, proteus, serratia | 0.000 | 0.390 |
+| salmonella | 0.000 | 0.300 |
+| bacteroides | 0.000 | 0.060 |
 
-Set-valued: 0.320 on the seven, 0.080 on {enterobacter, proteus, serratia}, 0.056 on
+Set-valued: 0.240 on the seven, 0.090 on {enterobacter, proteus, serratia}, 0.042 on
 all eight.
 
 **`K` is exactly zero**, and that is the instructive part. One graded answer nested
 inside two coarser ones cannot contradict anything — there is only one epidemiological
 opinion in the room, because the specific rule displaced the two general ones. Contrast
 Scenario 1, where a burn and a compromised host disagreed and K was 0.180. Zero conflict
-does not mean high confidence: E. coli leads at 0.240 with plausibility 0.640, so the
+does not mean high confidence: E. coli leads at 0.280 with plausibility 0.580, so the
 case is *unconflicted and unresolved*, which is a different thing from settled.
+
+**The margin is 0.070, and it is now measuring the right thing.** It used to read 0.320,
+because the largest focal mass in the case was the uninformative seven-member set and
+the leader was being compared against nothing in particular. Raising this rule's
+commitment at v0.14 (see below) made `{e-coli}` the largest focal mass instead, so the
+margin now reports what a clinician actually wants: E. coli is 0.070 clear of
+Klebsiella. A smaller number carrying far more information.
+
+> **These figures moved at v0.14**, and the reason is a coherence fix rather than a
+> recalibration. This rule committed **0.60** while the hospital-acquired rule it
+> *subsumes* committed 0.70 — and because the specificity policy DROPS the subsumed
+> rule, the corpus was committing 0.60 where it would have committed 0.70 on strictly
+> less information. Learning that a hospital-acquired patient was *also* immunocompromised
+> made it less sure. Raised to 0.70 with the focal masses rescaled in the same
+> proportions, so the distribution's shape — which the literature decides — is
+> untouched. Invariant 16 now forbids the inversion.
 
 All three named organisms clear the therapy coverage gate (0.1) — see Scenario 8.
 
@@ -494,20 +510,23 @@ Run the case once **without** that `load` line (reference only) and once **with*
 
 **Facts to extract**: as Scenario 2, plus patient state `allergy-carbapenem` for therapy.
 
-**Identification**: the Scenario 2 differential — e-coli `bel 0.240`, klebsiella
-`bel 0.180`, pseudomonas `bel 0.100`, plus **0.320 of set-valued mass on the seven
+**Identification**: the Scenario 2 differential — e-coli `bel 0.280`, klebsiella
+`bel 0.210`, pseudomonas `bel 0.120`, plus **0.240 of set-valued mass on the seven
 aerobic gram-negative rods**.
 
 **What the solver is asked to treat**: **all three named organisms**, since all clear
 `*coverage-threshold*` (0.1) — plus the seven-member set as a coverage obligation in
 its own right, discharged member by member.
 
-> **Pseudomonas sits EXACTLY on the gate here**, at 0.100, and that turned out to be a
-> live bug rather than a curiosity. Beliefs are double-floats; the dial is a decimal
-> literal and reads as a single-float, which promotes to 0.10000000149…, so
+> **Pseudomonas sat EXACTLY on the gate here at v0.13**, at 0.100, and that turned out
+> to be a live bug rather than a curiosity. Beliefs are double-floats; the dial is a
+> decimal literal and reads as a single-float, which promotes to 0.10000000149…, so
 > `(>= 0.1d0 0.1)` was NIL and Pseudomonas was silently dropped from empiric cover in
 > the one case where antipseudomonal cover is the entire clinical question. Fixed at
-> v0.13; the gate now compares in double precision. See `clears-gate-p`.
+> v0.13 — the gate now compares in double precision, see `clears-gate-p` — and the
+> v0.14 coherence fix moved Pseudomonas to 0.120, off the boundary entirely. **Both
+> halves mattered**: the arithmetic was wrong, *and* the corpus should not have had a
+> figure sitting on the dial in the first place.
 
 > **On that threshold.** It was 0.2 through v0.10, chosen for a scale on which organism
 > beliefs did not compete. Under candidate sets they share one unit of mass, so the same

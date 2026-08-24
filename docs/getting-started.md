@@ -29,10 +29,16 @@ how to read what comes back. This is the practical companion to the design docs:
 
 ## What neomycin is
 
-**neomycin** is a public research fork of [Lisa](https://github.com/youngde811/Lisa)
-that reconstructs Stanford's MYCIN/EMYCIN as *forward-chaining* rules over Lisa's
-Rete engine, driven by an LLM. It splits reasoning into two layers, after
-Clancey's NEOMYCIN:
+**neomycin** is a public research fork of [Lisa](https://github.com/youngde811/Lisa):
+*forward-chaining* rules over Lisa's Rete engine, driven by an LLM. It **began** as a
+reconstruction of Stanford's MYCIN/EMYCIN and has diverged substantially — rules state
+the SET their evidence narrows to rather than making an organism more likely, exclusion
+is never authored, epidemiological rules grade their answers, and there is a therapy
+solver MYCIN's illustration did not have. It is not better than MYCIN and should not be
+evaluated against MYCIN's results; it answers different questions over a much smaller
+corpus. See the README's "What Neomycin is now".
+
+It splits reasoning into two layers, after Clancey's NEOMYCIN:
 
 - **Domain knowledge + belief propagation** — the Rete rulebase
   (`neomycin/rules/`) plus a pluggable belief system. This is deterministic

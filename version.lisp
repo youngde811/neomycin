@@ -24,6 +24,25 @@
 
 ;; Update the version symbol in this file whenever you do a new release.
 ;;
+;; 4.5.1 (2026-08-24) -- a PATCH: one bug, no API movement, and it was total for the
+;; rules it touched.
+;;
+;;   FIXED   LISA-BRIDGE::*PARAM-LEVEL* now scopes every parameter neomycin reads
+;;           EXPLICITLY. PARAM-LEVEL defaulted to :organism for anything absent from
+;;           the table, and four patient-level parameters were absent -- so each was
+;;           filed against the ORGANISM while the rules reading them join through the
+;;           PATIENT, and those rules could never match. Four rules were unfirable
+;;           through the HTTP bridge while firing correctly from Lisp, which is why no
+;;           test saw it: every scenario test drives the Lisp path.
+;;
+;;           The default is retained for robustness but is no longer relied upon --
+;;           silently guessing a context level is what caused this, and neomycin's
+;;           suite now requires an explicit entry for every parameter in the corpus's
+;;           premise vocabulary.
+;;
+;; Certainty factors and the Barnett per-hypothesis Dempster-Shafer system are
+;; UNCHANGED.
+;;
 ;; 4.5.0 (2026-08-24) -- a MINOR bump: a rule can now assert a MASS FUNCTION rather
 ;; than a single set, which is a change to what a rule is allowed to say.
 ;;
@@ -90,4 +109,4 @@
 ;; UNCHANGED and still the systems Lisa's own examples and suite exercise.
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :lisa4.5.0 *features*))
+  (pushnew :lisa4.5.1 *features*))
