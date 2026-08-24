@@ -1,5 +1,25 @@
 # Lisa/LLM Runbook — Diagnostic Reasoning with Claude and the MYCIN Rulebase
 
+> ## ⚠ The tour figures in this document are STALE (pre-v0.11)
+>
+> **Setup, prerequisites, driver invocation and transcript handling below are
+> current.** The six worked demonstrations under "Tour" are not: their payloads were
+> captured under the **declared-frame** belief system of v0.9–v0.10, which was deleted
+> outright in v0.11. Anything showing a `frame` block, a `cautious` operator, an
+> `other-organism` member, a `composition` string, or a rule that "argues against" a
+> species is describing machinery that no longer exists.
+>
+> One demonstration is wrong in a way that will visibly fail: **Tour §2** exercises
+> `blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella`, which was **retired** at
+> v0.13 as a wrong conditional. Asserting a low white count now fires nothing —
+> `white-blood-count` is inert. See Scenario 5 of `docs/clinician-scenarios.md`, which
+> was rewritten around exactly that.
+>
+> **For current, engine-captured figures use `docs/clinician-scenarios.md`**, which was
+> re-measured in full at v0.13. Re-capturing this runbook's tour is open work; it is
+> flagged here rather than papered over, because an unlabelled on-ramp document is the
+> worst place for a stale number.
+
 A hands-on tour of what this system can do. Follow it start to finish and you'll
 have seen: forward-chaining inference under two belief algebras, natural-language
 fact extraction by Claude, goal-directed dialogue driven by partial matches,
