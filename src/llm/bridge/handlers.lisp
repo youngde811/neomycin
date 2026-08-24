@@ -233,14 +233,22 @@ pattern.  Cross-pattern variable consistency is not checked here."
       (error-response (format nil "Partial match query failed: ~A" e) :status 500))))
 
 (defun provenance->json (prov)
-  "Render a rule's :provenance plist as a JSON object (origin, evidence, belief_basis,
-   note); NIL if the rule declares none."
+  "Render a rule's :provenance plist as a JSON object (origin, evidence_group,
+   evidence, belief_basis, note); NIL if the rule declares none.
+
+   EVIDENCE_GROUP names a set of rules resting on the same underlying evidence. They are
+   not independent observations, so only one of them contributes to a differential --
+   the others are dropped before combination and will be absent from the argument
+   entirely. Emitted so a reader can see WHY a rule they expected is missing."
   (when prov
     (let ((ht (make-hash-table :test #'equal)))
       (when (getf prov :origin)
         (setf (gethash "origin" ht) (string-downcase (symbol-name (getf prov :origin)))))
       (when (getf prov :evidence)
         (setf (gethash "evidence" ht) (coerce (getf prov :evidence) 'vector)))
+      (when (getf prov :evidence-group)
+        (setf (gethash "evidence_group" ht)
+              (string-downcase (symbol-name (getf prov :evidence-group)))))
       (when (getf prov :belief-basis)
         (setf (gethash "belief_basis" ht) (string-downcase (symbol-name (getf prov :belief-basis)))))
       (when (getf prov :note)

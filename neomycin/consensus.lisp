@@ -68,6 +68,64 @@
    is distributed INSIDE this set; it never admits anything the set does not."
   (candidates:answer-support (answer-value fact)))
 
+(defun rule-evidence-group (rule)
+  "The :evidence-group RULE declares in its provenance, or NIL.
+
+   A group name says: THESE RULES REST ON THE SAME UNDERLYING EVIDENCE. They are not
+   independent observations, so combining them by Dempster's rule -- which assumes they
+   are -- counts one fact more than once."
+  (getf (lisa:rule-provenance rule) :evidence-group))
+
+(defun strongest-in-group (rules)
+  "The single rule that should speak for an evidence group.
+
+   Most committed first; ties broken by name so the choice is deterministic and a
+   corpus edit cannot silently swap which rule is quoted. `Most committed' is the
+   defensible reading of `most specific' when premises do not nest: it is the rule whose
+   author was willing to claim the most from this evidence."
+  (first (sort (copy-list rules)
+               (lambda (a b)
+                 (let ((ba (abs (lisa:rule-belief a))) (bb (abs (lisa:rule-belief b))))
+                   (if (= ba bb)
+                       (string< (symbol-name (lisa:rule-short-name a))
+                                (symbol-name (lisa:rule-short-name b)))
+                       (> ba bb)))))))
+
+(defun drop-redundant-evidence (rules)
+  "RULES minus every member of an evidence group except the one that speaks for it.
+
+   THE SECOND HALF OF SPECIFICITY. Subsumption handles rules whose premises NEST: the
+   general one conditions on nothing extra, so it is dropped. This handles rules whose
+   premises do not nest but whose EVIDENCE is the same -- which subsumption cannot see,
+   because it reads premises rather than sources.
+
+   The case that forced it: four gram-negative opportunist rules encode substantially
+   the same distribution, because all four rest on the same epidemiology of
+   gram-negative bacteraemia. `compromised-host' and `neutropenia' do not subsume each
+   other, so a patient who was both fired both, and Dempster's rule read agreement as
+   corroboration -- inflating the leading organism's belief ABOVE what either finding
+   alone supports (e-coli 0.28/0.20 alone, 0.3492 together) while simultaneously
+   inflating conflict to 0.2096 between two rules that AGREE about the shape of the
+   answer. Measured in docs/base-rate-investigation.md.
+
+   Dropping all but the strongest leaves exactly the answer that rule gives on its own,
+   which is the correct reading when the two are one piece of evidence. Rules with no
+   :evidence-group are untouched, so a genuinely distinct context -- a burn, a tropical
+   journey -- still combines normally."
+  (let ((by-group (make-hash-table :test #'eq))
+        (ungrouped '()))
+    (dolist (rule rules)
+      (let ((group (rule-evidence-group rule)))
+        (if group
+            (push rule (gethash group by-group))
+            (push rule ungrouped))))
+    (let ((winners '()))
+      (maphash (lambda (group members)
+                 (declare (ignore group))
+                 (push (strongest-in-group members) winners))
+               by-group)
+      (append winners ungrouped))))
+
 (defun surviving-rules-for (organism)
   "Every rule behind ORGANISM's answers, minus any that a SAME-ANSWER rule subsumes.
 
@@ -100,7 +158,11 @@
                (setf survivors
                      (append (surviving-rules (remove-duplicates rules)) survivors)))
              by-support)
-    survivors))
+    ;; Redundant-evidence filtering runs LAST and across the whole organism, not within
+    ;; a support group: rules resting on one source may assert different distributions
+    ;; and therefore land on different facts, which is exactly why subsumption -- scoped
+    ;; by support -- cannot see them.
+    (drop-redundant-evidence survivors)))
 
 (defun answer-mass-of (fact &optional survivors-in-scope)
   "The mass function one CANDIDATES fact contributes.

@@ -1,9 +1,8 @@
 # Is the corpus missing a base-rate rule?
 
-**Status: INVESTIGATION, findings recorded in v0.14.0. The defect it describes is
-DISCLOSED but NOT FIXED** — see §5 for the four options, none of which has been chosen.
-The disclosure shipped: the four rules' `:note`s and the system prompt both say these
-rules are not independent evidence.
+**Status: FIXED. Option 3 chosen and implemented** — see §7. §§1–6 are the
+investigation as written, before a choice was made; §7 records what was done and why the
+option that first looked most consistent with the corpus turned out to be wrong.
 
 Raised while reviewing §6 of `docs/belief-coherence-survey.md`: if the compromised-host
 and hospital-acquired rules are essentially restating the base rate of gram-negative
@@ -129,3 +128,83 @@ Nothing in the corpus checks whether two rules' *shapes* are near-identical. Tha
 mechanical test — normalise each graded rule and compare — and it would have caught this
 when the four rules were authored in v0.13, one after another, from overlapping
 literature. Worth adding whichever option is chosen.
+
+
+---
+
+# 7. Outcome — option 3, and why not option 2
+
+**Added after implementation.** David chose **option 2** (make the redundant rules flat
+again) on the strength of §5, and I had written there that it was "the most consistent
+with how the corpus has resolved this kind of question before." Measuring it first
+changed the decision, and the measurement is worth keeping.
+
+## 7.1 What option 2 would actually have done
+
+| compromised + neutropenic | e-coli | klebsiella | pseudomonas | K | mass on the six |
+|---|---|---|---|---|---|
+| as shipped | 0.3492 | 0.1933 | 0.1053 | 0.2096 | — |
+| **option 2** (both flat) | 0.0000 | 0.0000 | 0.0000 | 0.0000 | **0.800** |
+| **option 3** (strongest only) | **0.2800** | **0.1600** | **0.0800** | **0.0000** | 0.320 |
+
+Option 2 removes the spurious conflict and the spurious per-organism confidence — both
+real wins — but **it does not remove the double-counting, it relocates it.** Two flat
+answers still combine as independent evidence, so the set-level belief inflates to 0.800
+when neither rule alone claims more than 0.60. That figure drives the therapy
+set-obligation gate.
+
+It also discards information the citations support. For a patient whose only evidence is
+host context, the corpus would say **nothing at all** about which organism — every
+belief zero, everything at plausibility 1.0.
+
+And it flips culture-1:
+
+| culture-1 | e-coli | pseudomonas |
+|---|---|---|
+| as shipped | **0.2322** | 0.1756 |
+| §6, declined | 0.1683 | **0.2675** |
+| option 2 | **0.0000** | **0.2000** |
+
+E. coli falls to *zero*, because the only rule giving it belief was the compromised-host
+grading. That is the outcome §6 was declined for, reached more starkly by a different
+route — and it would have arrived as a side effect rather than a decision.
+
+## 7.2 Why the "consistency with precedent" argument was wrong
+
+The precedent I appealed to is *when the evidence does not distinguish, say so and stop*
+— which is how Category B resolved the singleton problem. **It does not apply here.** The
+evidence *does* distinguish: E. coli genuinely does lead in these populations, and the
+citations say so. The problem was never that the rules claimed too much. It was that two
+of them claim the same thing twice.
+
+**Option 2 solves a double-counting problem by discarding the thing being counted.**
+
+## 7.3 What was implemented
+
+A rule may declare `:evidence-group` in its provenance, meaning *these rules rest on the
+same underlying evidence*. Within a group **only the most committed member contributes**
+— ties broken by name for determinism — and the rest are dropped before combination and
+are absent from the argument as well as the arithmetic.
+
+This extends the specificity policy along its natural second axis. Subsumption drops a
+rule whose *premises* are contained in another's; this drops a rule whose *evidence* is
+another's. Subsumption cannot see the second case, because it reads premises rather than
+sources.
+
+Result: the pair gives exactly what the stronger rule gives alone — 0.2800 on E. coli,
+`K = 0.0000`, no inflation at either level. **culture-1 is untouched**, because burn and
+travel carry genuinely different distributions, are in no group, and still combine.
+
+## 7.4 The check §6 asked for
+
+Two invariants, both negative-tested, checking the declaration from each side:
+
+- **19a** every member of a group must actually share a shape with the others —
+  grouping rules that disagree would silently discard real evidence;
+- **19b** any two graded rules that *do* share a shape must be in one group — the
+  mechanical test §6 called for, which would have caught the original defect when the
+  four rules were authored one after another from overlapping literature.
+
+"Shape" is each focal mass as a fraction of its rule's own commitment; the tolerance is
+loose on purpose, because it detects an omission rather than defining the semantics.
+

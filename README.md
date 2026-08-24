@@ -662,14 +662,22 @@ contraindications. The rulebase is 46 rules against MYCIN's original 450 — eno
 exercise every mechanism in the architecture, and nowhere near enough to be clinically
 meaningful. It can name **17 organisms**; a real differential is not 17 organisms wide.
 
-**A known limitation, stated rather than buried.** Several of the gram-negative
-epidemiological rules rest on the same underlying statistics, so when a patient
-satisfies more than one of them the engine combines them as independent evidence when
-they are not. The leading organism's belief comes out higher than the evidence supports,
-and the reported conflict comes out higher too. The ordering of such a differential is
-trustworthy; its magnitudes are not. Measured and analysed in
-`docs/base-rate-investigation.md`; the fix is an open design question rather than an
-oversight.
+**Redundant evidence, and why one rule can speak for several.** Four of the
+gram-negative epidemiological rules rest on the same underlying statistics — they are
+one fact reported four times, under four labels. Combining them would count that fact
+repeatedly: a patient who was both immunocompromised and neutropenic saw the leading
+organism's belief inflated *and* the reported conflict inflated, between two rules that
+agreed. They are now declared as a single **evidence group**, and only the most
+committed member contributes; the rest are dropped before combination and are absent
+from the explanation as well as the arithmetic. Contexts that genuinely differ — a burn,
+a tropical journey — carry their own distributions, are in no group, and still combine
+normally. Measured and analysed in `docs/base-rate-investigation.md`.
+
+This is worth reading as an instance of a general problem rather than a local fix:
+Dempster's rule assumes the evidence you combine is independent, and a knowledge base
+assembled from overlapping literature will quietly violate that. The corpus now declares
+the dependence rather than hoping it does not matter, and two invariants check the
+declaration from both directions.
 
 ---
 

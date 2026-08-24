@@ -117,6 +117,18 @@ masses (invariant 13), and each graded rule's total was held at the value it had
 before, so the literature decided the SHAPE and nothing was recalibrated.
 Survey and rationale: `docs/category-b-resolution-survey.md`.
 
+**Redundant evidence: a rule may speak for a GROUP.** Rules that rest on the same
+underlying evidence are not independent observations, and Dempster's rule assumes they
+are. Such rules declare `:evidence-group` in their provenance, and **only the most
+committed member contributes** — the rest are dropped before combination and are absent
+from `/why` as well as from the arithmetic. This is the second axis of specificity:
+subsumption drops a rule whose PREMISES another contains, this drops one whose EVIDENCE
+another already carries, and subsumption cannot see the second case because it reads
+premises rather than sources. The four gram-negative opportunist context rules are the
+current group; burn and travel carry genuinely different distributions and are in none.
+Invariants 19a/19b check the declaration from both directions. Measured:
+`docs/base-rate-investigation.md`.
+
 **Same-conclusion rules reinforce, unless one subsumes the other.** Two rules bringing
 distinct evidence to one answer combine; a rule whose premises are a strict subset of
 another's conditions on nothing extra and is dropped in favour of the specific one.
@@ -325,7 +337,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1430 assertions / 192 tests):
+Coverage (~1451 assertions / 196 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,
