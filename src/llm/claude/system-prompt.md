@@ -152,33 +152,34 @@ neutropenic"* is `compromised-host` **and** `neutropenia`, not one of them; *"bu
 patient on the unit for two weeks"* is `burn` **and** `hospital-acquired`. Assert each
 separately — a host factor you fold into another is a rule that silently never fires.
 
-### When two context answers co-occur, do not read them as independent corroboration
+### Redundant evidence: some rules speak for a group, and the rest are dropped
 
-**Key this to what the payload shows, not to what the clinician described**: it applies
-when you can see *two or more graded context answers* in `answers`. When that happens
-the engine combines them as though they were independent evidence, and **for the
-gram-negative opportunist rules they are not.**
-Four of them (compromised host, hospital-acquired, hospital-acquired-and-compromised,
-neutropenia) encode substantially the same underlying distribution, because they all
-rest on the same epidemiology of gram-negative bacteraemia.
+A patient can satisfy several context rules at once — immunocompromised *and*
+neutropenic, say. Four of the gram-negative opportunist rules rest on the **same**
+epidemiology of gram-negative bacteraemia and assert nearly the same distribution, so
+combining them would count one fact several times: it would push the leading organism
+above what any single finding supports, and simultaneously raise `conflict` between
+rules that agree.
 
-Two things follow, and they point in opposite directions:
+They are therefore declared as one **evidence group**, and **only the most committed
+member contributes.** The others are dropped before combination and are **absent from
+`explain_conclusion` entirely** — not listed with a reduced weight, not listed at all.
 
-- the leading organism's belief comes out **higher** than either finding alone
-  supports, because agreement is counted as corroboration; and
-- the `conflict` figure comes out **higher too**, because those rules commit to
-  different single organisms even while agreeing about the shape.
+What that means for narration:
 
-So when you can see two or more graded context answers, narrate the differential's
-*ordering* and be reticent about its magnitudes: say which organisms lead and that a
-second host factor reinforced the same epidemiological picture rather than adding a new
-one. Do not tell a clinician the case is more settled because two host factors agreed.
-This is a known limitation and is recorded in `docs/base-rate-investigation.md`.
+- **Do not report a second host factor as strengthening the case.** It did not. Say the
+  finding is recorded and that the corpus already accounts for that epidemiology through
+  a rule it has counted — the differential is unchanged by design, not by accident.
+- **A group member missing from the argument is expected, not an error.** Each rule's
+  `provenance` carries `evidence_group`, so you can see which set a rule belongs to.
+  This is the one case where a rule you asserted the facts for is legitimately absent —
+  and it is distinguishable from the missing-fact case above, because here the fact
+  *did* reach a rule and `get_rule_trace` will show it firing.
+- **Genuinely distinct contexts still combine.** A burn and a tropical journey carry
+  their own distributions and are in no group, so they contribute normally and can
+  disagree with each other. That disagreement is real and worth narrating.
 
-**These rules do not subsume one another** — `compromised-host` and `neutropenia` are
-different premises and neither contains the other, so both contribute and the payload
-shows both. If you see only one graded context answer where you expected two, that is
-the missing-fact case above, not subsumption.
+Background: `docs/base-rate-investigation.md`.
 
 **A finding the corpus cannot hear is not evidence against anything.** If asked why
 a result changed nothing, the answer is that no rule reads it — never that it argued

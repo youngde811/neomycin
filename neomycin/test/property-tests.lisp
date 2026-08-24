@@ -731,3 +731,124 @@
             (format nil "~(~a~) is a patient-level context parameter and must scope to ~
                          :patient, not ~(~a~)"
                     param (lisa-bridge::param-level name)))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 19 -- an evidence group is exactly the set of rules that share a shape.
+;;;
+;;; A rule may declare `:evidence-group' in its provenance, meaning THESE RULES REST ON
+;;; THE SAME UNDERLYING EVIDENCE. Only one member of a group contributes to a
+;;; differential; the rest are dropped before combination, because Dempster's rule
+;;; assumes independence they do not have.
+;;;
+;;; That declaration is load-bearing and unverifiable by inspection, so it is checked
+;;; from both sides:
+;;;
+;;;   * every member of a group must actually SHARE A SHAPE with the others -- grouping
+;;;     rules that genuinely disagree would silently discard real evidence; and
+;;;   * any two graded rules that DO share a shape must be in the same group -- which is
+;;;     the mechanical test docs/base-rate-investigation.md section 6 called for, and
+;;;     which would have caught the original defect when the four rules were authored one
+;;;     after another from overlapping literature.
+;;;
+;;; "Shape" is each focal mass as a fraction of the rule's own commitment. The tolerance
+;;; is deliberately loose: it exists to catch an OMISSION, not to define the semantics.
+;;; ------------------------------------------------------------------
+
+(defparameter +shape-tolerance+ 0.08
+  "How far two normalised focal masses may differ before the rules count as
+   differently-shaped. Loose on purpose: this detects a missing declaration, it does not
+   decide one.")
+
+(defun rule-shape (rule)
+  "((SET . FRACTION) ...) -- RULE's grading normalised by its own commitment, or NIL."
+  (let ((g (neomycin:rule-grading rule)))
+    (when g
+      (let ((total (reduce #'+ (mapcar #'car g))))
+        (when (plusp total)
+          (sort (mapcar (lambda (pair) (cons (cdr pair) (/ (car pair) total))) g)
+                #'string< :key (lambda (x) (format nil "~{~a~^,~}" (car x)))))))))
+
+(defun shapes-match-p (a b)
+  "True when two rules' normalised gradings agree on every focal set within tolerance."
+  (let ((sa (rule-shape a)) (sb (rule-shape b)))
+    (and sa sb
+         (equal (mapcar #'car sa) (mapcar #'car sb))
+         (every (lambda (x y) (< (abs (- (cdr x) (cdr y))) +shape-tolerance+)) sa sb))))
+
+(defun graded-rules-with-groups ()
+  (remove-if-not #'neomycin:rule-grading (candidates-rules)))
+
+(deftest property-evidence-group-members-share-a-shape ()
+  (let ((groups (make-hash-table :test #'eq)))
+    (dolist (rule (graded-rules-with-groups))
+      (let ((g (neomycin:rule-evidence-group rule)))
+        (when g (push rule (gethash g groups)))))
+    (is (plusp (hash-table-count groups))
+        "the corpus declares at least one evidence group")
+    (maphash
+     (lambda (group members)
+       (is (> (length members) 1)
+           (format nil "evidence group ~(~a~) has ~D member(s) -- a group of one ~
+                        suppresses nothing and should be dropped"
+                   group (length members)))
+       (loop for (a . rest) on members
+             do (dolist (b rest)
+                  (is (shapes-match-p a b)
+                      (format nil "~(~a~) and ~(~a~) are in evidence group ~(~a~) but ~
+                                   their shapes differ -- grouping rules that disagree ~
+                                   discards real evidence"
+                              (lisa:rule-short-name a) (lisa:rule-short-name b) group)))))
+     groups)))
+
+(deftest property-same-shaped-rules-are-grouped ()
+  ;; The omission half. This is the check that was missing when the four opportunist
+  ;; rules were authored in v0.13, one after another, from overlapping literature.
+  (let ((rules (graded-rules-with-groups)))
+    (loop for (a . rest) on rules
+          do (dolist (b rest)
+               (when (shapes-match-p a b)
+                 (is (and (neomycin:rule-evidence-group a)
+                          (eq (neomycin:rule-evidence-group a)
+                              (neomycin:rule-evidence-group b)))
+                     (format nil "~(~a~) and ~(~a~) assert the SAME SHAPE but are not in ~
+                                  one evidence group -- they will be combined as ~
+                                  independent evidence and count the same fact twice"
+                             (lisa:rule-short-name a) (lisa:rule-short-name b))))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 20 -- every rule's :provenance is a well-formed property list.
+;;;
+;;; This looks like belt-and-braces and is not. A `:note' containing an UNESCAPED
+;;; double quote silently ends the string early, turns the following words into symbols,
+;;; and leaves the plist an ODD number of elements. The rule still compiles. The corpus
+;;; still loads. The suite still passes -- because GETF only errors when it walks the
+;;; whole list without finding its key, so every LOOKUP THAT SUCCEEDS hides the damage.
+;;;
+;;; That is exactly how it shipped in v0.14.0: `lactose-non-fermenter' carried a
+;;; malformed provenance through a green suite and a green release check, and surfaced
+;;; only when a later change asked for a key that rule did not have -- at which point
+;;; GET /rules returned an error for the WHOLE CORPUS, not just that rule.
+;;;
+;;; The lesson is the shape, not the typo: a check that passes because it never asks
+;;; the failing question is not a check.
+;;; ------------------------------------------------------------------
+
+(deftest property-provenance-is-a-well-formed-plist ()
+  (dolist (rule (neomycin:catalogue-rules))
+    (let ((prov (lisa:rule-provenance rule)))
+      (when prov
+        (is (evenp (length prov))
+            (format nil "~(~a~): :provenance has ~D elements -- an odd length means a ~
+                         string ended early, almost always an unescaped double quote in ~
+                         the :note"
+                    (lisa:rule-short-name rule) (length prov)))
+        (is (loop for (k nil) on prov by #'cddr always (keywordp k))
+            (format nil "~(~a~): every :provenance key must be a keyword; got ~{~S ~}"
+                    (lisa:rule-short-name rule)
+                    (loop for (k nil) on prov by #'cddr unless (keywordp k) collect k)))
+        ;; The operative half: a lookup for an ABSENT key must not blow up. This is the
+        ;; call that failed in production while every present-key lookup succeeded.
+        (is (ignore-errors (getf prov :a-key-no-rule-declares) t)
+            (format nil "~(~a~): looking up an absent :provenance key errors -- the ~
+                         plist is malformed in a way present-key lookups hide"
+                    (lisa:rule-short-name rule)))))))

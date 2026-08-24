@@ -13,10 +13,11 @@
    - [4. Conflicting evidence — reading K with the margin](#4-conflicting-evidence--reading-k-with-the-margin)
    - [5. The abdominal anaerobe — narrowing ignorance](#5-the-abdominal-anaerobe--narrowing-ignorance)
    - [6. Turning the stewardship dial (therapy)](#6-turning-the-stewardship-dial-therapy)
-6. [Reviewing your session](#reviewing-your-session)
-7. [Tuning the transcript](#tuning-the-transcript)
-8. [Reference: fact vocabulary and rule catalog](#reference-fact-vocabulary-and-rule-catalog)
-9. [Common pitfalls](#common-pitfalls)
+6. [Checking a session mechanically](#checking-a-session-mechanically)
+7. [Reviewing your session](#reviewing-your-session)
+8. [Tuning the transcript](#tuning-the-transcript)
+9. [Reference: fact vocabulary and rule catalog](#reference-fact-vocabulary-and-rule-catalog)
+10. [Common pitfalls](#common-pitfalls)
 
 ---
 
@@ -515,6 +516,27 @@ regimen as simply *better*, that is a prompt bug worth reporting: it is required
 state the trade in both directions.
 
 Full scenario: `docs/clinician-scenarios.md` Scenario 15.
+
+---
+
+## Checking a session mechanically
+
+Everything above is a guided tour you read yourself. Before a release the same path is
+walked by an assertion harness instead:
+
+```bash
+./bin/release-check.py            # bridge up, LLM backend configured
+./bin/release-check.py --keep     # keep the transcripts under ./sessions/
+```
+
+It drives scripted consultations, captures the transcript with full tool payloads, and
+then checks that **every number the model quoted appears in a payload it was actually
+given** — plus that every rule name exists, every test named is one the corpus can hear,
+and nothing was described as having "argued against" anything.
+
+If you have a transcript already, `--transcript FILE` re-runs the checks over it for
+free. That is a good way to see what the harness sees before spending API calls.
+Design and limits: [`release-check-design.md`](release-check-design.md).
 
 ---
 
