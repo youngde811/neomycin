@@ -100,7 +100,7 @@
    Sets BELOW the gate are dropped here rather than in phase A, so that what the
    solver receives is exactly what it must act on."
   (loop for (members . mass) in set-valued
-        when (>= (scalar-of mass) *coverage-threshold*)
+        when (clears-gate-p (scalar-of mass))
           collect (cons members mass)))
 
 (defun conclusions-for-solver (&optional (kb (therapy-kb)))
