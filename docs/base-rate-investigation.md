@@ -1,6 +1,9 @@
 # Is the corpus missing a base-rate rule?
 
-**Status: INVESTIGATION. No code changes.** Branch: `feature/belief-coherence`.
+**Status: INVESTIGATION, findings recorded in v0.14.0. The defect it describes is
+DISCLOSED but NOT FIXED** — see §5 for the four options, none of which has been chosen.
+The disclosure shipped: the four rules' `:note`s and the system prompt both say these
+rules are not independent evidence.
 
 Raised while reviewing §6 of `docs/belief-coherence-survey.md`: if the compromised-host
 and hospital-acquired rules are essentially restating the base rate of gram-negative
