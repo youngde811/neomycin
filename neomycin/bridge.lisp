@@ -16,16 +16,28 @@
 (defun organism-name (x)
   (and x (string-downcase (princ-to-string x))))
 
-(defun answers->json (answers)
-  (coerce (mapcar (lambda (a)
-                    (let ((h (make-hash-table :test #'equal)))
-                      ;; What the rule SAID, before anything was combined: the set its
-                      ;; evidence narrowed to, and how strongly.
-                      (setf (gethash "narrows_to" h)
-                            (coerce (mapcar #'organism-name (car a)) 'vector))
-                      (setf (gethash "belief" h) (cdr a))
-                      h))
-                  answers)
+(defun answers->json (details)
+  "The answers behind a differential, from ANSWER-DETAILS.
+
+   Takes DETAILS rather than bare (SET . BELIEF) pairs so a GRADED answer can report
+   its distribution here too. Without it /conclusions showed culture-1's two context
+   answers as a bare 0.40 and 0.60 over the same six organisms -- identical-looking,
+   when in fact one leans Pseudomonas and the other leans E. coli, which is the entire
+   reason the differential comes out the way it does. /why and /rules both reported
+   grading; this one did not, and it is the payload a client reads FIRST."
+  (coerce (mapcar (lambda (d)
+                    (destructuring-bind (set belief rules &optional grading) d
+                      (declare (ignore rules))
+                      (let ((h (make-hash-table :test #'equal)))
+                        ;; What the rule SAID, before anything was combined: the set its
+                        ;; evidence narrowed to, and how strongly.
+                        (setf (gethash "narrows_to" h)
+                              (coerce (mapcar #'organism-name set) 'vector))
+                        (setf (gethash "belief" h) belief)
+                        (when grading
+                          (setf (gethash "grading" h) (grading->json grading)))
+                        h)))
+                  details)
           'vector))
 
 (defun hypotheses->json (organism)
@@ -56,7 +68,7 @@
    set-valued belief that names no member, the conflict, and the residual ignorance --
    which is also the plausibility of any organism the corpus does not model."
   (let ((ht (make-hash-table :test #'equal)))
-    (multiple-value-bind (mass conflict answers) (consensus organism)
+    (multiple-value-bind (mass conflict) (consensus organism)
       (setf (gethash "organism" ht) (organism-name organism))
       ;; K, read BEFORE normalization: both normalizations resolve it away, so it
       ;; cannot be recovered from the result.
@@ -78,7 +90,7 @@
         (setf (gethash "margin_against" ht)
               (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
       (setf (gethash "ignorance" ht) (candidates:ignorance mass))
-      (setf (gethash "answers" ht) (answers->json answers))
+      (setf (gethash "answers" ht) (answers->json (answer-details organism)))
       (setf (gethash "hypotheses" ht) (hypotheses->json organism))
       (setf (gethash "set_valued" ht) (set-valued->json mass)))
     ht))

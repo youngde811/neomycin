@@ -224,6 +224,29 @@
 ;;; /conclusions
 ;;; ------------------------------------------------------------------
 
+(deftest conclusions-reports-the-grading-of-a-graded-answer ()
+  ;; /conclusions is the payload a client reads FIRST, and it was the last one to learn
+  ;; about grading. Before this, culture-1's two context answers rendered as a bare 0.40
+  ;; and 0.60 over the same six organisms -- indistinguishable, when one leans
+  ;; Pseudomonas and the other leans E. coli, which is the entire reason the
+  ;; differential lands where it does. /why and /rules both reported it; this did not.
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let* ((payload (neomycin:conclusions-payload))
+         (answers (coerce (gethash "answers" (aref (gethash "organisms" payload) 0)) 'list))
+         (graded (remove-if-not (lambda (a) (gethash "grading" a)) answers)))
+    (is (= 2 (length graded)) "culture-1's two context answers report their grading")
+    (is (every (lambda (a) (plusp (length (gethash "grading" a)))) graded)
+        "and neither grading is empty")
+    ;; The two must lean OPPOSITE ways -- that is the case's whole character, and a
+    ;; payload that flattened it would hide the disagreement K is measuring.
+    (let ((leaders (mapcar (lambda (a) (aref (gethash "organisms" (aref (gethash "grading" a) 0)) 0))
+                           graded)))
+      (is (member "pseudomonas" leaders :test #'string=) "one answer leads with pseudomonas")
+      (is (member "e-coli" leaders :test #'string=) "the other leads with e-coli"))
+    ;; A flat bench answer must NOT sprout a grading field.
+    (is (notevery (lambda (a) (gethash "grading" a)) answers)
+        "the stain answers stay flat -- grading is emitted only where it exists")))
+
 (deftest conclusions-payload-is-well-formed ()
   (run-scenario 'lisa-user::culture-1 :candidates)
   (let* ((payload (neomycin:conclusions-payload))
