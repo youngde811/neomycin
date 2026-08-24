@@ -27,7 +27,7 @@
   ;; A rule declaring :provenance exposes it via LISA:RULE-PROVENANCE; the
   ;; `conclusion` reporting rule declares none and reads NIL -- proving the property
   ;; is additive and pure metadata (it never affects inference).
-  (let ((paip (rule-provenance-of 'lisa-user::burn-blood-gram-neg-rod-narrows-to-pseudomonas))
+  (let ((paip (rule-provenance-of 'lisa-user::burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods))
         (neo  (rule-provenance-of 'lisa-user::red-pigment-narrows-to-serratia))
         (none (rule-provenance-of 'lisa-user::conclusion)))
     (is (eq (getf paip :origin) :paip-subset)
@@ -105,9 +105,9 @@
   (run-scenario 'lisa-user::culture-1 :candidates)
   (let ((rules (neomycin:rules-behind 'lisa-user::o1 :pseudomonas)))
     (is (plusp (length rules)) "pseudomonas has rules behind it")
-    (is (member 'lisa-user::burn-blood-gram-neg-rod-narrows-to-pseudomonas rules)
+    (is (member 'lisa-user::burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods rules)
         "including the burn rule, which narrowed to it")
-    (is (member 'lisa-user::compromised-gram-neg-rod-narrows-to-pseudomonas rules)
+    (is (member 'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods rules)
         "and the compromised-host rule -- distinct evidence, both admitting it")))
 
 (deftest raw-evidence-has-no-derivation ()

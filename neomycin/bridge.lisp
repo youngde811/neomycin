@@ -309,6 +309,12 @@
     (setf (gethash "belief" ht) (abs (lisa:rule-belief rule)))
     (setf (gethash "narrows_to" ht) (coerce (mapcar #'organism-name answer) 'vector))
     (setf (gethash "resolution" ht) (length answer))
+    ;; A GRADED rule distributes its belief across focal sets INSIDE narrows_to. Without
+    ;; this the catalogue would show an epidemiological rule as though it had no view on
+    ;; which member is likelier -- the exact claim grading exists to make. Emitted only
+    ;; when present, so every bench entry is byte-identical to before.
+    (let ((grading (rule-grading rule)))
+      (when grading (setf (gethash "grading" ht) (grading->json grading))))
     (setf (gethash "premises" ht) (rule-premises->json rule))
     (let ((prov (lisa-bridge:provenance->json (lisa:rule-provenance rule))))
       (when prov (setf (gethash "provenance" ht) prov)))

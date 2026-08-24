@@ -45,22 +45,66 @@
   ;; explanation that showed only the admitting answers could never account for why
   ;; a hypothesis is held DOWN -- and a reader would be left to assume some rule
   ;; objected. Both kinds must be present, flagged.
-  (run-scenario 'lisa-user::culture-1 :candidates)
-  (let* ((payload (why-for :klebsiella))
+  ;;
+  ;; RE-POINTED FROM culture-1 BY CATEGORY B, and the reason is the finding. In
+  ;; culture-1 every answer now ADMITS klebsiella: the epidemiological rules grade
+  ;; their answers instead of asserting singletons, so none of them says klebsiella is
+  ;; impossible any more, and the test had nothing left to find. That is the corpus
+  ;; being more honest, not the property lapsing.
+  ;;
+  ;; Exclusion is now what BENCH findings do, which is where it belonged. In culture-4
+  ;; the beta-hemolysis answer {pyogenes, agalactiae} genuinely excludes pneumococcus.
+  (run-scenario 'lisa-user::culture-4 :candidates)
+  (let* ((payload (why-for :streptococcus-pneumoniae))
          (argument (coerce (gethash "argument" payload) 'list))
          (admitting (remove-if-not (lambda (a) (gethash "admits" a)) argument))
          (excluding (remove-if (lambda (a) (gethash "admits" a)) argument)))
-    (is (plusp (length admitting)) "some answer admits klebsiella")
+    (is (plusp (length admitting)) "some answer admits pneumococcus")
     (is (plusp (length excluding))
-        "the pseudomonal answers are reported too, flagged admits=false")
+        "the beta-hemolytic answers are reported too, flagged admits=false")
     (is (every (lambda (a) (plusp (length (gethash "rules" a)))) argument)
         "every answer names the rules that gave it")))
 
-(deftest why-intersection-is-what-the-admitting-answers-leave ()
+(deftest why-reports-the-grading-of-a-graded-answer ()
+  ;; A graded answer that reported only NARROWS_TO would read as though the evidence
+  ;; had no view on which member is likelier -- the exact opposite of what grading
+  ;; exists to say. The distribution has to reach the explanation, or a narrator will
+  ;; describe an epidemiological rule as indifferent between six organisms.
   (run-scenario 'lisa-user::culture-1 :candidates)
-  (let ((payload (why-for :klebsiella)))
-    (is (equalp (gethash "intersection" payload) #("klebsiella"))
-        "three answers admit klebsiella and intersect to it alone")))
+  (let* ((payload (why-for :pseudomonas))
+         (argument (coerce (gethash "argument" payload) 'list))
+         (graded (remove-if-not (lambda (a) (gethash "grading" a)) argument)))
+    (is (plusp (length graded)) "culture-1's context answers report their grading")
+    (is (every (lambda (a) (plusp (length (gethash "grading" a)))) graded)
+        "and each grading is non-empty")
+    (is (some (lambda (a) (plusp (gethash "mass_for_organism" a))) graded)
+        "the mass this evidence puts on pseudomonas specifically is reported")
+    (is (every (lambda (a)
+                 (let ((masses (map 'list (lambda (g) (gethash "mass" g))
+                                    (gethash "grading" a))))
+                   (equal masses (sort (copy-list masses) #'>))))
+               graded)
+        "strongest focal set first, so a narrator reading in order leads correctly")))
+
+(deftest why-intersection-is-what-the-admitting-answers-leave ()
+  ;; RE-POINTED with the test above, and for the same reason. In culture-1 the
+  ;; admitting answers now intersect to all six opportunist rods rather than to
+  ;; klebsiella alone -- correct, because nothing in that consultation is a bench
+  ;; finding and epidemiology does not narrow to one organism.
+  (run-scenario 'lisa-user::culture-4 :candidates)
+  (let ((payload (why-for :streptococcus-pyogenes)))
+    (is (equalp (gethash "intersection" payload) #("streptococcus-pyogenes"))
+        "the bench answers admitting pyogenes intersect to it alone")))
+
+(deftest why-intersection-does-not-over-narrow-on-epidemiology ()
+  ;; The companion property, and the one Category B is about: when every answer is
+  ;; epidemiological the intersection must stay WIDE. If this ever collapses to a
+  ;; single organism again, some rule has gone back to asserting a singleton it cannot
+  ;; support, and a clinician will be told the answer is settled when it is not.
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let ((payload (why-for :pseudomonas)))
+    (is (> (length (gethash "intersection" payload)) 1)
+        "burn + immunocompromised does not identify an organism, and must not say it does")))
 
 (deftest why-carries-provenance-for-every-rule-it-cites ()
   ;; The citation path. A rule appearing in an explanation without its provenance
@@ -123,14 +167,26 @@
 (deftest rules-json-renders-a-usable-entry ()
   (let* ((rule (find-if (lambda (r)
                           (string-equal (symbol-name (lisa:rule-short-name r))
-                                        "burn-blood-gram-neg-rod-narrows-to-pseudomonas"))
+                                        "burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods"))
                         (neomycin:catalogue-rules)))
          (json (and rule (neomycin::rule->json rule))))
     (is (hash-table-p json) "the rule is in the catalogue")
-    (is (equalp (gethash "narrows_to" json) #("pseudomonas")) "its answer renders as names")
-    (is (= 1 (gethash "resolution" json)) "resolution is the answer's size")
+    ;; RE-POINTED BY CATEGORY B. This rule used to answer {pseudomonas} at resolution 1
+    ;; -- a claim that a burn patient's gram-negative bacteraemia could be nothing else.
+    ;; It now GRADES the six organisms burn-unit surveillance actually reports.
+    (is (equalp (gethash "narrows_to" json)
+                #("e-coli" "enterobacter" "klebsiella" "proteus" "pseudomonas" "serratia"))
+        "its answer renders as names")
+    (is (= 6 (gethash "resolution" json)) "resolution is the answer's size")
     (is (plusp (length (gethash "premises" json))) "its premises are reported")
-    (is (gethash "provenance" json) "its provenance is carried")))
+    (is (gethash "provenance" json) "its provenance is carried")
+    ;; The grading is the point: narrows_to alone would say the six are
+    ;; indistinguishable, and burn-unit data say they are not.
+    (let ((grading (gethash "grading" json)))
+      (is (and grading (plusp (length grading))) "a graded rule reports its grading")
+      (when (and grading (plusp (length grading)))
+        (is (equalp (gethash "organisms" (aref grading 0)) #("pseudomonas"))
+            "strongest first, and in a burn that is pseudomonas")))))
 
 ;;; ------------------------------------------------------------------
 ;;; /conclusions

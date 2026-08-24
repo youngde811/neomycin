@@ -104,8 +104,8 @@ Transcript flags: `--no-transcript`, `--transcript-verbosity {minimal,normal,ful
 |---|---|---|
 | 0.70 | the eight gram-negatives | `gram-negative-narrows-to-gram-negatives` |
 | 0.80 | the seven aerobic gram-negative rods | `aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods` |
-| 0.76 | {pseudomonas} | `burn-blood-gram-neg-rod-narrows-to-pseudomonas` (0.4) **and** `compromised-gram-neg-rod-narrows-to-pseudomonas` (0.6), reinforcing |
-| 0.50 | {klebsiella} | `compromised-aerobic-gram-neg-rod-narrows-to-klebsiella` |
+| 0.76 | {pseudomonas} | `burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods` (0.4) **and** `compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods` (0.6), reinforcing |
+| 0.50 | {klebsiella} | `compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods` |
 
 **The differential** — `K = 0.380`, ignorance 0.012:
 
@@ -141,7 +141,7 @@ The anchor case in the README, and the one the smoke tests pin.
 **The answers given**: the same two coarse answers as Scenario 1 (0.70 on the eight,
 0.80 on the seven), plus **0.88 on {pseudomonas}** — two rules reinforcing, the
 compromised-host one (0.6) and the hospital-acquired one (0.7) — and **0.60 on
-{klebsiella}** from `hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella`.
+{klebsiella}** from `hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods`.
 
 Note which Klebsiella rule fired. The compromised-host rule (0.5) is **subsumed** by
 the hospital-acquired one: its premises are a strict subset, so it conditions on
@@ -222,7 +222,7 @@ available.
 
 **The answers given**: 0.70 on the eight gram-negatives, 0.80 on the seven aerobic
 rods, and **0.65 on {salmonella}** from
-`tropical-travel-aerobic-gram-neg-rod-narrows-to-salmonella`.
+`tropical-travel-aerobic-gram-neg-rod-narrows-to-enteric-rods`.
 
 **The differential** — `K = 0.000`, ignorance 0.021:
 
@@ -567,7 +567,7 @@ Run Scenario 1 to conclusion, then ask:
 |---|---|---|---|
 | ✔ | 0.70 | the eight gram-negatives | `gram-negative-narrows-to-gram-negatives` (`paip-subset`) |
 | ✔ | 0.80 | the seven aerobic rods | `aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods` (`neomycin-extrapolation`) |
-| ✔ | 0.50 | {klebsiella} | `compromised-aerobic-gram-neg-rod-narrows-to-klebsiella` (`paip-subset`) |
+| ✔ | 0.50 | {klebsiella} | `compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods` (`paip-subset`) |
 | ✘ | 0.76 | {pseudomonas} | `burn-blood-…-pseudomonas` (0.4) + `compromised-…-pseudomonas` (0.6) |
 
 `intersection`: `["klebsiella"]`.
@@ -815,12 +815,12 @@ catalogue rather than exercising the engine.*
 | gram-negative-narrows-to-gram-negatives | 1, 2, 4, 5, 6, 7, 9 |
 | gram-positive-narrows-to-gram-positives | 3, 7, 12, 13 |
 | aerobic-gram-neg-rod-narrows-to-aerobic-gram-neg-rods | 1, 2, 4, 5†, 9 |
-| burn-blood-gram-neg-rod-narrows-to-pseudomonas | 1, 7 |
-| compromised-gram-neg-rod-narrows-to-pseudomonas | 1, 2, 7 |
-| hospital-acquired-aerobic-gram-neg-rod-narrows-to-pseudomonas | 2 |
-| compromised-aerobic-gram-neg-rod-narrows-to-klebsiella | 1 |
-| hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella | 2 |
-| tropical-travel-aerobic-gram-neg-rod-narrows-to-salmonella | 4 |
+| burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 1, 7 |
+| compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 1, 2, 7 |
+| hospital-acquired-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 2 |
+| compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 1 |
+| hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods | 2 |
+| tropical-travel-aerobic-gram-neg-rod-narrows-to-enteric-rods | 4 |
 | blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella | 5† |
 | anaerobic-gram-neg-rod-in-abdomen-narrows-to-bacteroides | 6 |
 | anaerobic-gram-neg-rod-in-blood-narrows-to-bacteroides | 6‡, 7 |
@@ -851,7 +851,7 @@ rules, `novobiocin-resistant-narrows-to-saprophyticus`,
 (`bile-esculin-salt-tolerant-narrows-to-enterococci`, the sorbitol/arabinose pair),
 `catalase-negative-narrows-to-chain-formers`, `bile-esculin-negative-narrows-to-streptococci`,
 `optochin-resistant-narrows-to-viridans`, `lactose-non-fermenter-narrows-to-non-fermenters`,
-and `neutropenia-aerobic-gram-neg-rod-narrows-to-pseudomonas`.
+and `neutropenia-aerobic-gram-neg-rod-narrows-to-opportunist-rods`.
 
 This is a **gap in the scenario collection, not in the corpus** — the rules are tested
 by the suite and reachable through the catalogue. It is recorded here rather than

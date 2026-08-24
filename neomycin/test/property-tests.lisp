@@ -152,9 +152,9 @@
   ;; NAME because it is the case the specificity policy exists for -- if a corpus edit
   ;; breaks the relationship, that is worth knowing deliberately.
   (let ((general (lisa:find-rule (lisa:inference-engine)
-                                 'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-klebsiella))
+                                 'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods))
         (specific (lisa:find-rule (lisa:inference-engine)
-                                  'lisa-user::hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella)))
+                                  'lisa-user::hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods)))
     (is (and general specific) "both klebsiella context rules are present")
     (when (and general specific)
       (is (lisa:rule-subsumes-p specific general)
@@ -168,9 +168,9 @@
   ;; context rules both read a gram-negative rod, but one adds a burn and the other an
   ;; immunocompromised host -- different facts about the patient, so neither subsumes.
   (let ((burn (lisa:find-rule (lisa:inference-engine)
-                              'lisa-user::burn-blood-gram-neg-rod-narrows-to-pseudomonas))
+                              'lisa-user::burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods))
         (compromised (lisa:find-rule (lisa:inference-engine)
-                                     'lisa-user::compromised-gram-neg-rod-narrows-to-pseudomonas)))
+                                     'lisa-user::compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods)))
     (is (and burn compromised) "both pseudomonas context rules are present")
     (when (and burn compromised)
       (is (intersection (lisa:rule-premise-signature burn)
@@ -331,6 +331,17 @@
      "As INFANT: recorded for the chart, read by no rule.")
     (lisa-user::age-group lisa-user::elderly
      "As INFANT: recorded for the chart, read by no rule.")
+    (lisa-user::white-blood-count lisa-user::low
+     "INERT SINCE CATEGORY B. Its only rule --
+      blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella -- was RETIRED as the
+      wrong conditional docs/belief-conditional-audit.md 3.3 predicted: it fired ON a
+      low white count, so it owed P(Salmonella | low WBC), while the 15-25% figure it
+      cited is P(low WBC | typhoid), a sensitivity. Correcting the conditional does not
+      rescue it, because leukopenia in gram-negative bacteraemia marks SEVERITY rather
+      than species -- it occurs across E. coli, Klebsiella and Pseudomonas sepsis
+      alike, so the honest answer is the whole aerobic set and adds nothing the Gram
+      stain already said. Still assertable, because a clinician reporting a low count
+      should have it recorded; it just no longer moves anything.")
     (lisa-user::culture-age nil
      "MYCIN used culture age for contamination reasoning -- an old culture growing a
       skin organism suggests a contaminant. That inference is not reconstructed here,
@@ -375,3 +386,68 @@
       (declare (ignore organisms rationale))
       (is (rules-reading-only-marker marker value)
           (format nil "some single-marker rule still reads ~(~a~)=~(~a~)" marker value)))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 13 -- a GRADED rule asserts exactly what its :belief declares.
+;;;
+;;; A flat rule's belief is applied by the engine, so the declaration and the
+;;; assertion cannot disagree. A graded rule states its masses on the RHS, where
+;;; nothing forces them to add up to the :belief in the header -- and the two are read
+;;; by different callers. /rules and the conflict machinery quote the header; the
+;;; consensus quotes the RHS. Left unchecked they would drift, and the drift would be
+;;; invisible: every number involved is plausible on its own.
+;;;
+;;; This is the guard that keeps "a rule contributes exactly its :belief" true for the
+;;; graded shape as well, which is what CHECK-RULE already enforces for the flat one.
+;;; ------------------------------------------------------------------
+
+(defun graded-rules ()
+  (remove-if-not #'neomycin:rule-grading (candidates-rules)))
+
+(deftest property-graded-rules-exist ()
+  ;; If this ever fails, either the corpus lost its graded rules or RULE-GRADING
+  ;; stopped recognising them -- and every invariant below would pass vacuously.
+  (is (plusp (length (graded-rules)))
+      "the corpus has graded rules for the invariants below to check"))
+
+(deftest property-graded-masses-are-well-formed ()
+  (dolist (rule (graded-rules))
+    (let* ((grading (neomycin:rule-grading rule))
+           (total (reduce #'+ (mapcar #'car grading))))
+      (is (every (lambda (pair) (plusp (car pair))) grading)
+          (format nil "~(~a~): every focal mass is positive"
+                  (lisa:rule-short-name rule)))
+      (is (every (lambda (pair) (and (consp (cdr pair)) (every #'keywordp (cdr pair))))
+                 grading)
+          (format nil "~(~a~): every focal set is a non-empty set of keywords"
+                  (lisa:rule-short-name rule)))
+      (is (<= total 1.0)
+          (format nil "~(~a~): masses sum to ~,4F, which must not exceed 1"
+                  (lisa:rule-short-name rule) total))
+      ;; The residue is Theta, and it must be a real residue. A graded rule committing
+      ;; everything claims the answer is settled, which is exactly the overclaim the
+      ;; graded shape exists to avoid for epidemiological evidence.
+      (is (< total 1.0)
+          (format nil "~(~a~): leaves ~,4F on Theta -- epidemiology never settles it"
+                  (lisa:rule-short-name rule) (- 1.0 total))))))
+
+(deftest property-graded-total-equals-declared-belief ()
+  ;; THE DRIFT GUARD. The header says how much the rule commits; the RHS says where it
+  ;; goes. They must agree, or /rules and /conclusions quote different numbers for the
+  ;; same rule and neither is wrong on its own terms.
+  (dolist (rule (graded-rules))
+    (let ((declared (abs (lisa:rule-belief rule)))
+          (asserted (reduce #'+ (mapcar #'car (neomycin:rule-grading rule)))))
+      (is (approx= declared asserted)
+          (format nil "~(~a~): declares :belief ~,4F but asserts ~,4F"
+                  (lisa:rule-short-name rule) declared asserted)))))
+
+(deftest property-graded-focal-sets-are-distinct ()
+  ;; Two focal sets that are EQUAL would be one focal set whose mass was written twice.
+  ;; GRADED-ANSWER sums them silently -- correct arithmetic, but it hides an authoring
+  ;; slip, and the declared-total guard above would then fail somewhere confusing.
+  (dolist (rule (graded-rules))
+    (let ((sets (mapcar #'cdr (neomycin:rule-grading rule))))
+      (is (= (length sets) (length (remove-duplicates sets :test #'equal)))
+          (format nil "~(~a~): no focal set is written twice"
+                  (lisa:rule-short-name rule))))))

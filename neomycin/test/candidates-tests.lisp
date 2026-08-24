@@ -44,24 +44,59 @@
 ;;; ------------------------------------------------------------------
 
 (deftest candidates-culture-1 ()
-  ;; Burn + immunocompromised + aerobic gram-negative rod. Two pseudomonas rules bring
-  ;; DISTINCT evidence (a burn, an immunocompromised host) so they reinforce to 0.76;
-  ;; the aerobic-gram-neg-rod answer admits pseudomonas, so it corroborates rather than
-  ;; competing; and klebsiella's context rule is the only thing pointing elsewhere.
+  ;; Burn + immunocompromised + aerobic gram-negative rod. RE-CAPTURED FOR GRADED
+  ;; ANSWERS (Category B), and the movement is the whole point of the exercise.
+  ;;
+  ;; The old goldens -- pseudomonas 0.6129/0.8065, klebsiella 0.1935/0.3871, K = 0.38 --
+  ;; were produced by two context rules asserting {pseudomonas} and one asserting
+  ;; {klebsiella}: SINGLETONS, each of which claimed that every other aerobic
+  ;; gram-negative rod was impossible. The confidence was an artifact of those false
+  ;; exclusions, and the conflict was two defensible rules contradicting each other.
+  ;;
+  ;; The burn and compromised-host rules now GRADE their answers, so the differential
+  ;; is genuinely three-sided and nothing is excluded:
+  ;;
+  ;;   e-coli       0.2322 / 0.5639     <- leads, because outside a burn E. coli leads
+  ;;   pseudomonas  0.1756 / 0.4683
+  ;;   klebsiella   0.1649 / 0.4576
+  ;;   K            0.1800              <- was 0.38; the manufactured half is gone
+  ;;
+  ;; E. COLI LEADING IS A REAL FINDING AND NOT A BUG. Total commitment per rule was
+  ;; held at its previous :belief, so the burn rule still commits only 0.4 against the
+  ;; compromised-host rule's 0.6 -- and that ordering is the belief mis-calibration
+  ;; section 5C of the survey recorded, in which the corpus's numbers run opposite to
+  ;; the strength of their evidence. The singletons hid it. Grading makes it visible in
+  ;; the ranking, which is an argument for looking at the numbers, not for tuning them
+  ;; here.
   (let ((c (candidates-run 'lisa-user::culture-1)))
-    (check-candidates c "pseudomonas" 0.612903 0.806452)
-    (check-candidates c "klebsiella"  0.193548 0.387097))
-  (is (approx= (candidates-conflict 'lisa-user::culture-1) 0.380000)))
+    (check-candidates c "e-coli"      0.232195 0.563902)
+    (check-candidates c "pseudomonas" 0.175610 0.468293)
+    (check-candidates c "klebsiella"  0.164878 0.457561))
+  (is (approx= (candidates-conflict 'lisa-user::culture-1) 0.180000)))
 
 (deftest candidates-culture-1a ()
-  ;; THE SUBSUMPTION CASE. Two klebsiella rules fire, and one's premises are a strict
-  ;; subset of the other's -- it conditions on nothing extra, so it is dropped rather
-  ;; than counted again. Klebsiella's answer is therefore 0.60, not 0.5 combined with
-  ;; 0.6, and the conflict falls to 0.528 from the 0.704 blind reinforcement gives.
+  ;; STILL THE SUBSUMPTION CASE, and now a sharper one. Three context rules fire --
+  ;; compromised-host, hospital-acquired, and the hospital-acquired-AND-compromised
+  ;; rule whose premises are a strict superset of both. It conditions on everything
+  ;; they do and more, so both are dropped and only its distribution counts.
+  ;;
+  ;; That is why K is exactly ZERO here: one graded answer, nested inside the two flat
+  ;; answers the stain and aerobicity gave, cannot contradict anything. The old golden
+  ;; had K = 0.528, all of it from {pseudomonas} and {klebsiella} calling each other
+  ;; impossible.
+  ;;
+  ;; Graded answers made this case a genuine regression risk rather than a formality.
+  ;; Subsumption used to be checked per FACT, which worked only because subsuming rules
+  ;; always asserted the same flat set and the engine collapsed them into one fact.
+  ;; These three assert DIFFERENT distributions over the same support, so they land on
+  ;; three facts; the per-fact check saw no pair and counted the compromised-host
+  ;; evidence twice, giving K = 0.533. The values below are what correct scoping
+  ;; produces, and they are exactly the surviving rule's own distribution.
   (let ((c (candidates-run 'lisa-user::culture-1a)))
-    (check-candidates c "pseudomonas" 0.745763 0.847458)
-    (check-candidates c "klebsiella"  0.152542 0.254237))
-  (is (approx= (candidates-conflict 'lisa-user::culture-1a) 0.528000)))
+    (check-candidates c "e-coli"      0.240000 0.640000)
+    (check-candidates c "klebsiella"  0.180000 0.580000)
+    (check-candidates c "pseudomonas" 0.100000 0.500000))
+  (is (approx= (candidates-conflict 'lisa-user::culture-1a) 0.000000)))
 
 (deftest candidates-culture-2 ()
   ;; The ambiguous gram stain, and the shape is loud about it: the gram-positive and
@@ -92,18 +127,39 @@
   ;; IDENTICAL to v0.10.0's frame goldens (0.473684 / 0.631579, K = 0.525) with the
   ;; disconfirming rules gone and no frame declared.
   (let ((c (candidates-run 'lisa-user::culture-3)))
-    (check-candidates c "streptococcus-pneumoniae" 0.473684 0.631579))
+    (check-candidates c "streptococcus-pneumoniae" 0.284211 0.442105)
+    ;; Viridans now carries belief instead of being excluded outright, which is the
+    ;; correction: viridans streptococci are a real cause of community-acquired
+    ;; pneumonia and they dominate oropharyngeal flora, so a respiratory specimen
+    ;; growing chains is very often viridans. The old rule said it could not be.
+    (check-candidates c "streptococcus-viridans"   0.126316 0.284211)
+    (check-candidates c "streptococcus-pyogenes"   0.063158 0.221053))
+  ;; K is UNCHANGED at 0.525 -- the respiratory answer still contradicts the
+  ;; enterococcal one just as sharply, because grading redistributed mass INSIDE the
+  ;; streptococci without admitting an enterococcus.
   (is (approx= (candidates-conflict 'lisa-user::culture-3) 0.525000)))
 
 (deftest candidates-culture-4 ()
-  ;; ALSO IDENTICAL to v0.10.0 (0.764045 / 0.898876 and 0.101124 / 0.134831,
-  ;; K = 0.721875) -- and this is the case that most needed a ruling-out rule. There
-  ;; is none. {pyogenes, agalactiae} intersected with {pneumoniae} is empty, and that
-  ;; emptiness IS the exclusion.
+  ;; The case that most needed a ruling-out rule, and still has none: the bench finding
+  ;; (beta hemolysis, bacitracin-sensitive) and the site finding disagree, and the
+  ;; disagreement is carried entirely by intersection.
+  ;;
+  ;; RE-CAPTURED. The respiratory rule used to answer {pneumoniae} flat, so it
+  ;; contradicted {pyogenes, agalactiae} outright. Now it GRADES, and it admits
+  ;; pyogenes at 0.10 -- so part of what was conflict is agreement, and the bench
+  ;; evidence is left even further ahead:
+  ;;
+  ;;   pyogenes    0.7640/0.8989 -> 0.8347/0.9349
+  ;;   pneumoniae  0.1011/0.1348 -> 0.0451/0.0701
+  ;;   K           0.7219        -> 0.6256
+  ;;
+  ;; This is grading working as intended in the direction that matters clinically: a
+  ;; bacitracin-sensitive beta-hemolytic organism IS group A, and an epidemiological
+  ;; prior should yield to a bench result rather than fight it to a standstill.
   (let ((c (candidates-run 'lisa-user::culture-4)))
-    (check-candidates c "streptococcus-pyogenes"   0.764045 0.898876)
-    (check-candidates c "streptococcus-pneumoniae" 0.101124 0.134831))
-  (is (approx= (candidates-conflict 'lisa-user::culture-4) 0.721875)))
+    (check-candidates c "streptococcus-pyogenes"   0.834725 0.934891)
+    (check-candidates c "streptococcus-pneumoniae" 0.045075 0.070117))
+  (is (approx= (candidates-conflict 'lisa-user::culture-4) 0.625625)))
 
 (deftest candidates-culture-5 ()
   ;; Bacitracin resistance and the patient being a neonate are different evidence
@@ -120,8 +176,13 @@
 
 (deftest candidates-excludes-without-naming ()
   ;; No rule in the corpus argues against anything. Organisms still get excluded.
+  ;;
+  ;; VIRIDANS WAS DROPPED FROM THIS LIST BY CATEGORY B, and deliberately. The
+  ;; respiratory rule now grades it at 0.20 rather than excluding it, so in culture-4
+  ;; it keeps a small belief -- it is no longer an organism "no rule has named". The
+  ;; property under test is unchanged and still holds for the organisms nothing named.
   (let ((c (candidates-run 'lisa-user::culture-4)))
-    (dolist (organism '(:streptococcus-viridans :enterococcus-faecalis
+    (dolist (organism '(:enterococcus-faecalis :enterococcus-faecium
                         :staphylococcus-aureus))
       (is (zerop (candidates:bel c organism))
           (format nil "~S keeps no belief" organism))
@@ -290,22 +351,51 @@
             when (equal s set) return b)
       0.0d0))
 
+(defun admitting-mass (organism)
+  "Total belief across every answer whose support ADMITS ORGANISM.
+
+   The graded-answer replacement for ANSWER-STRENGTH, which looked for an answer whose
+   set was exactly {organism} and now finds none -- no epidemiological rule states a
+   singleton any more."
+  (loop for (set . belief) in (neomycin:answers-for 'lisa-user::o1)
+        when (member organism set) sum belief))
+
 (deftest support-can-rise-while-share-falls ()
+  ;; SUPPORT AND SHARE ARE DIFFERENT QUANTITIES -- v0.12's lesson, re-pinned to the
+  ;; case that still shows it after Category B.
+  ;;
+  ;; The original demonstration went culture-1 -> culture-1b on klebsiella, and it no
+  ;; longer reproduces: learning `hospital-acquired' now RAISES klebsiella's share
+  ;; (0.1649 -> 0.1807) instead of dropping it. That divergence was an artifact of the
+  ;; singleton representation, where {klebsiella} and {pseudomonas} were disjoint and
+  ;; fought over one unit of mass. Graded answers overlap, so they stopped fighting.
+  ;;
+  ;; The phenomenon itself is ordinary Dempster-Shafer and did not go anywhere. It
+  ;; moved to E. coli, culture-1a -> culture-1b, where adding the burn fact:
+  ;;
+  ;;   admitting mass   3.40 -> 3.80    a NEW answer admits e-coli
+  ;;   bel              0.2400 -> 0.1985  and its share nonetheless FALLS
+  ;;   margin           0.3200 -> 0.2335
+  ;;
+  ;; E. coli gained evidence and lost ground, because the same fact gave Pseudomonas
+  ;; far more (0.20 on the singleton against e-coli's 0.08 share of a triple). Note the
+  ;; margin moves the OTHER WAY from the v0.12 case: the differential BLURS here, into
+  ;; a near three-way tie, rather than sharpening. Support rising is not evidence that
+  ;; a hypothesis is winning, and it is not evidence that the picture is clearer.
   (let (support-1 bel-1 margin-1)
-    (candidates-run 'lisa-user::culture-1)
-    (setf support-1 (answer-strength :klebsiella '(:klebsiella))
-          bel-1 (candidates:bel (neomycin:consensus 'lisa-user::o1) :klebsiella)
-          margin-1 (candidates:margin (neomycin:consensus 'lisa-user::o1)))
     (candidates-run 'lisa-user::culture-1a)
+    (setf support-1 (admitting-mass :e-coli)
+          bel-1 (candidates:bel (neomycin:consensus 'lisa-user::o1) :e-coli)
+          margin-1 (candidates:margin (neomycin:consensus 'lisa-user::o1)))
+    (candidates-run 'lisa-user::culture-1b)
     (let* ((mass (neomycin:consensus 'lisa-user::o1))
-           (support-2 (answer-strength :klebsiella '(:klebsiella)))
-           (bel-2 (candidates:bel mass :klebsiella))
+           (support-2 (admitting-mass :e-coli))
+           (bel-2 (candidates:bel mass :e-coli))
            (margin-2 (candidates:margin mass)))
       (is (> support-2 support-1)
-          (format nil "the answer naming klebsiella alone STRENGTHENS, ~,3F -> ~,3F"
-                  support-1 support-2))
+          (format nil "a new answer ADMITS e-coli, ~,3F -> ~,3F" support-1 support-2))
       (is (< bel-2 bel-1)
           (format nil "while its share of belief FALLS, ~,4F -> ~,4F" bel-1 bel-2))
-      (is (> margin-2 margin-1)
-          (format nil "because the differential sharpened, margin ~,3F -> ~,3F"
+      (is (< margin-2 margin-1)
+          (format nil "and the differential BLURS rather than sharpening, margin ~,3F -> ~,3F"
                   margin-1 margin-2)))))

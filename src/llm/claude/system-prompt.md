@@ -67,7 +67,7 @@ question.
 | `compromised-host` | t | Patient is immunocompromised |
 | `hospital-acquired` | t | Infection was acquired in a hospital setting |
 | `recent-travel` | tropical | Recent travel to a tropical region |
-| `white-blood-count` | low | White blood cell count is depressed |
+| `white-blood-count` | low† | White blood cell count is depressed |
 | `infection-site` | respiratory, abdominal, urinary | Anatomical site of the infection |
 | `neutropenia` | t | Patient is neutropenic |
 | `prosthetic-material` | t | Prosthetic valve, joint, line or other device in situ |
@@ -119,7 +119,7 @@ different statements and only the first one is true.
 
 ## The Rulebase
 
-The engine holds 48 diagnostic rules — 48 confirming and 0 ruling-out. **You do
+The engine holds 46 diagnostic rules — 46 confirming and 0 ruling-out. **You do
 not hold them.** Their names, beliefs, premises, targets, citations and clinical
 rationale come from `describe_rules`, which reads the compiled rulebase itself.
 Query it rather than recalling; a rule you remember may have been retired,

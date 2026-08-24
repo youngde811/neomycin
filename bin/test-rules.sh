@@ -80,7 +80,7 @@ check "summary is unfiltered"   "d['summary']['total']" "$TOTAL"
 echo ""
 
 echo "--- One rule in full (?name=) ---"
-BODY=$(curl -s "$BASE_URL/rules?name=burn-blood-gram-neg-rod-narrows-to-pseudomonas")
+BODY=$(curl -s "$BASE_URL/rules?name=burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods")
 printf '%s' "$BODY" | python3 -m json.tool
 check "exactly one match"       "d['matched']" "1"
 check "premises are reported"   "len(d['rules'][0]['premises']) > 0" "True"
