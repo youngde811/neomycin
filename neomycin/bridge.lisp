@@ -178,12 +178,27 @@
             (coerce (mapcar #'rule-citation->json rules) 'vector))
       ht)))
 
+(defun grading-clause (grading)
+  "How a graded answer leans, in words -- or NIL when it is flat.
+
+   Without this the narrative reads an epidemiological answer as indifferent among its
+   members, which is the reading grading exists to prevent: a burn rule that says
+   `one of six at 0.40' sounds like it has no view, when in fact half its mass is on
+   Pseudomonas. The narrative is quotable directly by the model, so the lean has to be
+   IN it and not merely somewhere in the payload."
+  (when grading
+    (let ((leader (first grading)))
+      (format nil ", leaning ~{~A~^/~} (~,2F of it)"
+              (mapcar #'organism-name (cdr leader))
+              (car leader)))))
+
 (defun answer-clause (detail)
-  "One answer as a clause: who said it, what it narrowed to, how strongly."
-  (format nil "~{~A~^ and ~} said one of {~{~A~^, ~}} at ~,2F"
+  "One answer as a clause: who said it, what it narrowed to, how strongly, which way."
+  (format nil "~{~A~^ and ~} said one of {~{~A~^, ~}} at ~,2F~A"
           (mapcar (lambda (r) (organism-name (lisa:rule-short-name r))) (third detail))
           (mapcar #'organism-name (first detail))
-          (second detail)))
+          (second detail)
+          (or (grading-clause (fourth detail)) "")))
 
 (defun narrative (hypothesis admitting excluding intersection)
   "The argument in plain language.

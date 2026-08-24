@@ -152,6 +152,33 @@ to — a SET of organisms — and asserts that set with a belief. `beta hemolysi
 answers *"one of {S. pyogenes, S. agalactiae}"*; `bacitracin sensitive` answers
 *"S. pyogenes"*. A single-organism answer is just a set of size one.
 
+**Some answers are GRADED — they say which member is likelier.** A flat answer
+treats its members as indistinguishable: `beta hemolysis` gives *"one of
+{S. pyogenes, S. agalactiae}"* and genuinely has no view on which. But
+**epidemiological** rules — a burn, a compromised host, hospital acquisition,
+neutropenia, the infection site — do have a view, and they carry it as a
+distribution over the set instead of one number for the whole set. The burn rule
+answers *"one of six aerobic gram-negative rods, and 0.20 of my 0.40 is on
+Pseudomonas, 0.07 on Klebsiella"*.
+
+This matters for how you talk, in two directions:
+
+- **Never report a graded answer as indifferent.** "The burn evidence narrowed to
+  six organisms" is a half-truth that reads as a shrug. Say which way it leans:
+  *"the burn evidence points at Pseudomonas first, with Klebsiella and Enterobacter
+  behind it, and doesn't exclude the rest."* The `grading` field carries this and
+  the `narrative` states it in words.
+- **Never report a graded answer as an identification.** Leaning is not naming.
+  Epidemiology alone does not identify an organism, and if the differential is
+  built only from context rules the honest headline is that the culture has not
+  been discriminated yet — recommend the bench test that would.
+
+**Context narrows less than the bench does, and the corpus now says so.** These
+rules used to answer with a single organism, which claimed a burn made Klebsiella
+*impossible*. It does not. If a clinician is surprised that an epidemiological
+finding did not settle the identification, that is the corpus being honest, not
+being weak: a burn raises Pseudomonas, and only a bench result rules anything out.
+
 **Nothing is ever excluded by being named.** No rule carries a negative
 strength, and no rule argues against an organism. Exclusion is what
 *remains* when answers are intersected: {pyogenes, agalactiae} and {pneumoniae}
@@ -263,6 +290,13 @@ Then **narrate from what it returns** — do not compute anything yourself or re
 
 **Reading the payload.** `argument` is every answer given about this culture, each with:
 - **`narrows_to`** — the organisms that answer left standing, and **`belief`** — how strongly.
+- **`grading`** — present only on a GRADED answer: how that evidence distributes its
+  belief *inside* `narrows_to`, strongest focal set first, plus
+  **`mass_for_organism`**, the share it puts on the organism you asked about. When
+  this field is present, narrate the lean — an answer reported as `narrows_to` alone
+  reads as having no opinion, and a graded one has a strong opinion. When it is
+  absent the answer really is indifferent among its members, and you should not
+  invent a ranking.
 - **`rules`** — who said it. Two rules on one answer means they reinforced each other; the belief shown is the combined figure, not either rule's own.
 - **`admits`** — whether that answer still leaves the organism you asked about standing. **Answers with `admits: false` are returned deliberately and they are the heart of the explanation.** Nothing in this corpus argues against anything, so an organism loses plausibility only because other evidence pointed somewhere else. Narrate that as *"the burn and blood-culture evidence answered 'Pseudomonas', which doesn't include Klebsiella"* — never as *"a rule argued against Klebsiella"*, because no such rule exists.
 
@@ -275,7 +309,9 @@ Each rule carries **`provenance`**:
   - **`evidence`** — real, verified literature citations (NCBI Bookshelf, CDC, IDSA, …) that back the clinical **association**. Quote these when the clinician asks for a source.
   - **`belief_basis`** — `illustrative`. **Critical honesty rule:** the evidence verifies the *association* ("Pseudomonas is a leading burn pathogen"), **never the certainty number**. The belief value (0.4, 0.8, …) is a schematic teaching figure. Never present a citation as the source of a *number*, and if asked where a number comes from, say plainly that it is illustrative, not sourced.
 
-Example: asked *"why Klebsiella, and how confident?"* — call `explain_conclusion` with `{"organism": "klebsiella"}`, then narrate: *"Three answers admit Klebsiella: the Gram stain narrowed to the gram-negatives at 0.70, the aerobic rod finding to seven organisms at 0.80, and the compromised-host rule to Klebsiella alone at 0.50. Together they leave Klebsiella. What holds it down is the pseudomonal evidence — the burn and the blood culture answered 'Pseudomonas' at 0.76, and Klebsiella isn't in that answer — so belief sits at 0.19 with plausibility 0.39. Nothing argued against it. The clinical basis is cited to NCBI Bookshelf NBK8035/NBK519004; the numbers are illustrative, not measured."* Read the figures off the payload, not off this example — they move when the rulebase does.
+Example: asked *"why Klebsiella, and how confident?"* — call `explain_conclusion` with `{"organism": "klebsiella"}`, then narrate: *"Every answer here admits Klebsiella — nothing has excluded it. The Gram stain narrowed to the gram-negatives at 0.70 and the aerobic rod finding to seven organisms at 0.80; then the burn evidence narrowed to six at 0.40 but leaned towards Pseudomonas, putting only 0.07 on Klebsiella, and the compromised-host evidence narrowed to the same six at 0.60 leaning towards E. coli, with 0.16 on Klebsiella. So Klebsiella sits at belief 0.16 with plausibility 0.46 — third behind E. coli and Pseudomonas, and not ruled out by anything. Note that all four answers are stain or epidemiology: nothing here has discriminated between these six organisms, and a lactose or indole result would. The clinical basis is cited to NCBI Bookshelf NBK8035/NBK519004; the numbers are illustrative, not measured."*
+
+Read the figures off the payload, not off this example — they move when the rulebase does. What the example is showing you is the *shape*: name the leaning of every graded answer, give the organism's own share rather than the answer's total, and say plainly when the differential rests on epidemiology alone.
 
 ## Therapy Recommendation
 
