@@ -680,3 +680,54 @@
                   pairs)
             (format nil "~(~a~) is listed as asymmetric but its readings now carry the ~
                          same belief -- drop it from *asymmetric-markers*" marker))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 18 -- every parameter the corpus can HEAR is explicitly scoped by the
+;;; bridge.
+;;;
+;;; The bridge files each asserted fact against a context -- patient, culture or
+;;; organism -- from a lookup table, and that lookup DEFAULTED to :organism for
+;;; anything it did not know. The default was silent and total.
+;;;
+;;; `neutropenia', `prosthetic-material', `iv-drug-use' and `age-group' were missing.
+;;; Each was therefore filed against the ORGANISM while the rules that read them join
+;;; through the PATIENT, so four rules -- one of them the only rule reading each of
+;;; those parameters -- were UNFIRABLE through the HTTP bridge. They fired perfectly
+;;; from the Lisp drivers, which assert `(of p1)' directly, which is exactly why the
+;;; suite never noticed: every scenario test goes through the drivers and the bridge
+;;; is a different layer.
+;;;
+;;; Found by a model-in-the-loop release check, when the model reported that it had
+;;; asserted neutropenia, could not find the rule in the trace, and declined to invent
+;;; a reason. The clinician-facing cost was total: a neutropenic patient's neutropenia
+;;; contributed nothing and nothing said so.
+;;; ------------------------------------------------------------------
+
+(deftest property-every-heard-parameter-is-explicitly-scoped ()
+  (let ((vocab (lisa:corpus-premise-vocabulary (neomycin:catalogue-rules))))
+    (is (plusp (length vocab)) "the corpus has a premise vocabulary to check")
+    (dolist (entry vocab)
+      (let* ((param (first entry))
+             (name (string-downcase (symbol-name param))))
+        (is (assoc name lisa-bridge::*param-level* :test #'string=)
+            (format nil "~(~a~) is read by some rule, so lisa-bridge::*param-level* ~
+                         must scope it EXPLICITLY -- the :organism default silently ~
+                         misfiles patient-level facts and makes their rules unfirable ~
+                         through the bridge"
+                    param))))))
+
+(deftest property-patient-parameters-scope-to-the-patient ()
+  ;; The half that catches a WRONG entry rather than a missing one. Every parameter a
+  ;; rule reads alongside a `patient' premise is patient-level by construction.
+  (let ((patient-params '()))
+    ;; Derived from *context-parameters*, which invariant 15 already maintains.
+    (dolist (param *context-parameters*)
+      (when (some (lambda (r) (lisa:rule-premise-values r param)) (candidates-rules))
+        (push param patient-params)))
+    (is (plusp (length patient-params)) "some context parameter is read by a rule")
+    (dolist (param patient-params)
+      (let ((name (string-downcase (symbol-name param))))
+        (is (eq :patient (lisa-bridge::param-level name))
+            (format nil "~(~a~) is a patient-level context parameter and must scope to ~
+                         :patient, not ~(~a~)"
+                    param (lisa-bridge::param-level name)))))))

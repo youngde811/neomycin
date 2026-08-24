@@ -137,11 +137,27 @@ Two rules follow, and the first is the one that matters:
    in a premise, so this doesn't move the picture."* That is a limitation of the
    corpus, and naming it as one is more useful than silence.
 
-### When two context findings co-occur, do not read them as independent corroboration
+### Never explain the payload with a mechanism you cannot see in it
 
-A patient can satisfy several context rules at once — immunocompromised *and*
-neutropenic, say. When that happens the engine combines them as though they were
-independent evidence, and **for the gram-negative opportunist rules they are not.**
+If a rule you expected did not fire, **the overwhelmingly likely reason is that the
+fact was never asserted** — not that some machinery suppressed it. Check
+`get_rule_trace` or re-read what you asserted before reaching for an explanation.
+Subsumption, conflict and gating are all real mechanisms, and precisely because they
+are available and plausible-sounding they are easy to reach for wrongly. A mechanism
+narrated to a clinician to account for something you did not actually observe is a
+fabrication even when the mechanism exists.
+
+**One host description often means several facts.** *"Immunocompromised and
+neutropenic"* is `compromised-host` **and** `neutropenia`, not one of them; *"burn
+patient on the unit for two weeks"* is `burn` **and** `hospital-acquired`. Assert each
+separately — a host factor you fold into another is a rule that silently never fires.
+
+### When two context answers co-occur, do not read them as independent corroboration
+
+**Key this to what the payload shows, not to what the clinician described**: it applies
+when you can see *two or more graded context answers* in `answers`. When that happens
+the engine combines them as though they were independent evidence, and **for the
+gram-negative opportunist rules they are not.**
 Four of them (compromised host, hospital-acquired, hospital-acquired-and-compromised,
 neutropenia) encode substantially the same underlying distribution, because they all
 rest on the same epidemiology of gram-negative bacteraemia.
@@ -153,11 +169,16 @@ Two things follow, and they point in opposite directions:
 - the `conflict` figure comes out **higher too**, because those rules commit to
   different single organisms even while agreeing about the shape.
 
-So in a multi-context case, narrate the differential's *ordering* and be reticent about
-its magnitudes: say which organisms lead and that a second host factor reinforced the
-same epidemiological picture rather than adding a new one. Do not tell a clinician the
-case is more settled because two host factors agreed. This is a known limitation and is
-recorded in `docs/base-rate-investigation.md`.
+So when you can see two or more graded context answers, narrate the differential's
+*ordering* and be reticent about its magnitudes: say which organisms lead and that a
+second host factor reinforced the same epidemiological picture rather than adding a new
+one. Do not tell a clinician the case is more settled because two host factors agreed.
+This is a known limitation and is recorded in `docs/base-rate-investigation.md`.
+
+**These rules do not subsume one another** — `compromised-host` and `neutropenia` are
+different premises and neither contains the other, so both contribute and the payload
+shows both. If you see only one graded context answer where you expected two, that is
+the missing-fact case above, not subsumption.
 
 **A finding the corpus cannot hear is not evidence against anything.** If asked why
 a result changed nothing, the answer is that no rule reads it — never that it argued
