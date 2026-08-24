@@ -347,14 +347,47 @@
 ;;; Context rules narrow to a small set with modest belief. They gate on the bench
 ;;; findings that would have derived the organism-class, since there is no longer a
 ;;; class fact to premise on.
+;;;
+;;; ------------------------------------------------------------------
+;;; CATEGORY B: WHAT EPIDEMIOLOGICAL EVIDENCE CAN AND CANNOT SAY
+;;; ------------------------------------------------------------------
+;;; Every rule in this section used to answer with a SINGLETON. Under the v0.11
+;;; semantics -- absence from an answer IS exclusion -- that made each of them a claim
+;;; that the context established the species outright. The literature does not support
+;;; one of them at that resolution, and the survey (docs/category-b-resolution-survey.md)
+;;; records the check rule by rule.
+;;;
+;;; The asymmetry that makes this a defect rather than a preference: the AUTHORING
+;;; POLICY above already requires that a BENCH marker which is merely variable for an
+;;; organism must keep that organism in the answer. Epidemiological association
+;;; discriminates far LESS sharply than a bench marker. These rules were answering at
+;;; maximum resolution on the thinnest evidence in the corpus.
+;;;
+;;; THE OPPORTUNIST SET. Four of these rules -- burn, compromised host, hospital
+;;; acquired, neutropenia -- now answer with the same six organisms:
+;;;
+;;;   {e-coli, klebsiella, enterobacter, serratia, proteus, pseudomonas}
+;;;
+;;; the aerobic seven less Salmonella, which is an enteric pathogen rather than an
+;;; opportunist and is the only member any of these contexts has evidence to exclude.
+;;; That the four converge is not laziness; it is the finding. Nosocomial and
+;;; compromised-host gram-negative bacteraemia is dominated by E. coli and Klebsiella
+;;; with Pseudomonas third, and the same handful of organisms recurs across all four
+;;; contexts. What changes between them is the RELATIVE likelihood of the members --
+;;; which is precisely the quantity an answer SET cannot express. See section 5.
+;;;
+;;; TWO RULES WERE RETIRED and two were MERGED. See section 5 for both, and for what
+;;; the exercise showed about the representation itself.
 
-(defrule burn-blood-gram-neg-rod-narrows-to-pseudomonas
+(defrule burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods
     (:belief 0.4
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326"
-                             "NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831")
+                             "NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
+                             "Highly Drug-Resistant Pathogens Implicated in Burn-Associated Bacteremia, PMC4128596"
+                             "Gram-Negative Bacilli Blood Stream Infection in Patients with Severe Burns: a 9-Year Cohort, PMC11476612")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a classic cause of bacteraemia in seriously burned patients. GATED ON AEROBIC GROWTH (Category B): without it this rule fired on an ANAEROBIC gram-negative rod and answered {pseudomonas}, an obligate aerobe, in direct contradiction with the bacteroides answer. That was live in culture-2, where it manufactured conflict the driver docstring attributed to the ambiguous Gram stain."))
+                  :note "Pseudomonas aeruginosa is a classic cause of bacteraemia in seriously burned patients, but it is not the only one and the singleton this rule used to assert was a claim that it was. Burn-associated bacteraemia gives P. aeruginosa 34%, K. pneumoniae 12%, A. baumannii 9% and E. cloacae 8%; a nine-year gram-negative cohort in severe burns gives Pseudomonas 50.7%, A. baumannii 46.4%, Klebsiella 13.8%. Proteus, Serratia and E. coli are all described burn-unit organisms. WIDENED to the opportunist set. Acinetobacter is not modelled by this corpus and needs no naming -- the open frame keeps it plausible as residual ignorance. GATED ON AEROBIC GROWTH: without it this rule fired on an ANAEROBIC gram-negative rod and answered {pseudomonas}, an obligate aerobe, contradicting the bacteroides answer. That was live in culture-2, where it manufactured conflict the driver docstring attributed to the ambiguous Gram stain."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
@@ -363,15 +396,28 @@
   (aerobicity (value aerobic) (of ?o))
   (burn (value serious) (of ?p))
   =>
-  (assert (candidates (value '(:pseudomonas)) (of ?o))))
+  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
+                               :proteus :pseudomonas))
+                      (of ?o))))
 
-(defrule compromised-gram-neg-rod-narrows-to-pseudomonas
+;;; MERGED. This rule and COMPROMISED-GRAM-NEG-ROD-NARROWS-TO-PSEUDOMONAS had
+;;; BYTE-IDENTICAL premises once the latter was gated on aerobicity, and answered
+;;; disjoint singletons -- {klebsiella} against {pseudomonas}. Two rules contradicting
+;;; each other on identical evidence is not a differential; it is the corpus disagreeing
+;;; with itself, and PROPERTY-NO-TWO-RULES-SHARE-IDENTICAL-PREMISES forbids it the
+;;; moment they agree on an answer. They were never two observations. They were one
+;;; observation and two citations, each naming the organism its author had in mind.
+;;; Merged at 0.6, the higher of the pair, following David's 2026-08-17 precedent.
+(defrule compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods
     (:belief 0.6
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
-                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326")
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Escherichia, Klebsiella, Enterobacter, Serratia, Citrobacter, Proteus), NBK8035"
+                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004"
+                             "Epidemiological characteristics and management of Gram-negative bacteraemia in different immunocompromised hosts, PMC12233224"
+                             "Pathogenesis of Gram-Negative Bacteremia, Clin Microbiol Rev, doi:10.1128/cmr.00234-20")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a major opportunist in the immunocompromised host. GATED ON AEROBIC GROWTH (Category B) for the same reason as the burn rule above -- Pseudomonas is an obligate aerobe, and without the gate this rule contradicted the bacteroides answer on every anaerobe."))
+                  :note "Both Pseudomonas and Klebsiella are major opportunists in the compromised host, and NEITHER leads: E. coli is the most frequently reported organism in gram-negative bacteraemia in solid-tumour patients (47%), and across nosocomial gram-negative bacteraemia generally E. coli runs 40.5% to Klebsiella's 22.5% and Pseudomonas's 10%. A rule naming either alone excludes the leader. MERGED from the pseudomonas and klebsiella rules that shared this premise set exactly; see the comment above. SUBSUMED by the hospital-acquired rule below when that one also fires -- its premises are a strict superset. See neomycin/consensus.lisp."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -379,15 +425,20 @@
   (aerobicity (value aerobic) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (candidates (value '(:pseudomonas)) (of ?o))))
+  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
+                               :proteus :pseudomonas))
+                      (of ?o))))
 
-(defrule hospital-acquired-aerobic-gram-neg-rod-narrows-to-pseudomonas
+(defrule hospital-acquired-aerobic-gram-neg-rod-narrows-to-opportunist-rods
     (:belief 0.7
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
-                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326")
+                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326"
+                             "Risk factors for mortality in patients with nosocomial Gram-negative rod bacteremia, PubMed 23640443"
+                             "Epidemiology and microbiology of nosocomial bloodstream infections: 482 cases, PMC4288947"
+                             "NCBI Bookshelf / StatPearls, Central Line-Associated Blood Stream Infections, NBK430891")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a leading nosocomial pathogen, notably in ICU bacteraemia and ventilator-associated pneumonia."))
+                  :note "Pseudomonas aeruginosa is a leading nosocomial pathogen, but in nosocomial gram-negative bacteraemia it ranks THIRD: E. coli 40.5%, K. pneumoniae 22.5%, P. aeruginosa 10%, with a second series giving E. coli 25.5% and Klebsiella 11.2%, and NHSN CLABSI data ranking Klebsiella 5.8%, Enterobacter 3.9%, Pseudomonas 3.1%, E. coli 2.7%. This rule carried the HIGHEST belief of the four pseudomonas context rules (0.7) on the organism the surveillance data rank third. WIDENED to the opportunist set; the belief is left where it was, because it now answers a question the evidence supports -- how reliably does a nosocomial aerobic gram-negative rod mean one of these six."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -395,15 +446,20 @@
   (aerobicity (value aerobic) (of ?o))
   (hospital-acquired (value t) (of ?p))
   =>
-  (assert (candidates (value '(:pseudomonas)) (of ?o))))
+  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
+                               :proteus :pseudomonas))
+                      (of ?o))))
 
-(defrule neutropenia-aerobic-gram-neg-rod-narrows-to-pseudomonas
+(defrule neutropenia-aerobic-gram-neg-rod-narrows-to-opportunist-rods
     (:belief 0.5
      :provenance (:origin :neomycin-extrapolation
-                  :evidence ("High Rate of Inappropriate Antibiotics in Patients with Hematologic Malignancies and Pseudomonas aeruginosa Bacteremia following International Guideline Recommendations, PMC10434044"
-                             "Clinical characteristics and outcomes of Pseudomonas aeruginosa bacteremia in febrile neutropenic children and adolescents, PMC5513208")
+                  :evidence ("Review of clinical profile and bacterial spectrum and sensitivity patterns of pathogens in febrile neutropenic patients in hematological malignancies, PMC3764750"
+                             "Clinical characteristics and outcomes of Pseudomonas aeruginosa bacteremia in febrile neutropenic children and adolescents, PMC5513208"
+                             "An eleven-year cohort of bloodstream infections in 552 febrile neutropenic patients, Ann Hematol, doi:10.1007/s00277-020-04144-w")
                   :belief-basis :illustrative
-                  :note "Antipseudomonal cover is standard in febrile neutropenia. NOTE, retained from the pre-v0.11 rule: this is the WEAKEST CITATION IN THE CORPUS -- the sources support empiric coverage rather than the claim that the organism is more likely to be Pseudomonas. Declared honestly rather than quietly strengthened."))
+                  :note "THE CLEAREST SINGLE DEFECT THE CATEGORY B SURVEY FOUND, and it was hiding behind an honest note rather than a silent one. The febrile-neutropenia literature states it directly: Pseudomonas aeruginosa is the THIRD most common gram-negative cause of bacteraemia in these patients, after Klebsiella pneumoniae and Escherichia coli -- E. coli 39.5% and K. pneumoniae 23.3% of gram-negative isolates. The rule named the third-place organism as its sole answer.
+
+The retained pre-v0.11 note said this was the WEAKEST CITATION IN THE CORPUS because its sources support empiric coverage rather than a claim about which organism is likelier. That is not a weak conditional; it is NO conditional. Antipseudomonal cover in febrile neutropenia is a THERAPY policy -- neomycin has a therapy phase to express it, and this is the identification corpus. Widening removes the false identification claim; it does not remove the clinical point, which belongs in neomycin/therapy/."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -411,15 +467,21 @@
   (aerobicity (value aerobic) (of ?o))
   (neutropenia (value t) (of ?p))
   =>
-  (assert (candidates (value '(:pseudomonas)) (of ?o))))
+  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
+                               :proteus :pseudomonas))
+                      (of ?o))))
 
+;;; The two anaerobe rules SURVIVE Category B with their singletons, and the reason is
+;;; worth stating rather than enjoying: the corpus models exactly ONE anaerobic
+;;; gram-negative rod, so {bacteroides} already IS the whole anaerobic pool. Neither
+;;; rule makes a resolution claim at all -- there is nothing either could have excluded.
 (defrule anaerobic-gram-neg-rod-in-blood-narrows-to-bacteroides
     (:belief 0.9
      :provenance (:origin :paip-subset
                   :evidence ("NCBI Bookshelf / StatPearls, Bacteroides Fragilis, NBK553032"
                              "NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobic Gram-Negative Bacilli, Finegold), NBK8438")
                   :belief-basis :illustrative
-                  :note "Bacteroides fragilis is the commonest anaerobic gram-negative rod isolated from blood."))
+                  :note "Bacteroides fragilis is the commonest anaerobic gram-negative rod isolated from blood. SURVIVES CATEGORY B, but the narrowness is an artifact of CORPUS COVERAGE rather than of evidence: real anaerobic gram-negative bacteraemia also includes Fusobacterium and Prevotella, which this corpus cannot name. The open frame keeps them plausible as residual ignorance, which is what makes the narrow answer safe -- the same disclosure NOVOBIOCIN-SENSITIVE-NARROWS-TO-EPIDERMIDIS makes for the unmodelled coagulase-negative staphylococci."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
@@ -436,7 +498,7 @@
                              "NCBI Bookshelf / StatPearls, Anaerobic Infections, NBK482349"
                              "IDSA/SIS, Complicated Intra-abdominal Infection guideline (Solomkin et al.), Clin Infect Dis 2010;50(2):133")
                   :belief-basis :illustrative
-                  :note "Bacteroides species dominate the colonic flora and are the usual anaerobes in intra-abdominal sepsis."))
+                  :note "Bacteroides species dominate the colonic flora and are the usual anaerobes in intra-abdominal sepsis. SURVIVES CATEGORY B on the same terms as the blood rule above, and carries the same disclosure: Fusobacterium and Prevotella are unmodelled, not excluded."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -446,17 +508,15 @@
   =>
   (assert (candidates (value '(:bacteroides)) (of ?o))))
 
-;;; The Klebsiella and Salmonella context rules. Each used to premise on the derived
-;;; :enterobacteriaceae class; each now gates on the aerobic gram-negative rod finding
-;;; that would have derived it.
-
-(defrule hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-klebsiella
+(defrule hospital-acquired-compromised-aerobic-gram-neg-rod-narrows-to-opportunist-rods
     (:belief 0.6
      :provenance (:origin :paip-subset
                   :evidence ("ASM Clinical Microbiology Reviews 1998 (Podschun & Ullmann), Klebsiella spp. as Nosocomial Pathogens, doi:10.1128/CMR.11.4.589 (PMC88898)"
-                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004")
+                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004"
+                             "Risk factors for mortality in patients with nosocomial Gram-negative rod bacteremia, PubMed 23640443"
+                             "Epidemiology and microbiology of nosocomial bloodstream infections: 482 cases, PMC4288947")
                   :belief-basis :illustrative
-                  :note "Klebsiella pneumoniae is a leading nosocomial pathogen in immunocompromised inpatients. NOTE: this rule SUBSUMES the compromised-host-only rule below -- its premises are a strict superset -- so when both fire the more specific one stands alone. See neomycin/consensus.lisp."))
+                  :note "Klebsiella pneumoniae is a leading nosocomial pathogen in immunocompromised inpatients -- a solid SECOND at 22.5% (11.2% in a second series), behind E. coli at 40.5% (25.5%). Naming Klebsiella alone excluded the leader. WIDENED to the opportunist set. This rule SUBSUMES the compromised-host-only rule above -- its premises are a strict superset -- so when both fire the more specific one stands alone, and it now also subsumes the hospital-acquired-only rule, which it did not before: those two answered different singletons, so the specificity policy never engaged between them. See neomycin/consensus.lisp."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -465,31 +525,20 @@
   (hospital-acquired (value t) (of ?p))
   (compromised-host (value t) (of ?p))
   =>
-  (assert (candidates (value '(:klebsiella)) (of ?o))))
+  (assert (candidates (value '(:e-coli :klebsiella :enterobacter :serratia
+                               :proteus :pseudomonas))
+                      (of ?o))))
 
-(defrule compromised-aerobic-gram-neg-rod-narrows-to-klebsiella
-    (:belief 0.5
-     :provenance (:origin :paip-subset
-                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Escherichia, Klebsiella, Enterobacter, Serratia, Citrobacter, Proteus), NBK8035"
-                             "NCBI Bookshelf / StatPearls, Klebsiella Pneumonia, NBK519004")
-                  :belief-basis :illustrative
-                  :note "Klebsiella is a common opportunist in the compromised host. Subsumed by the hospital-acquired rule above when that one also fires."))
-  (organism (id ?o) (culture ?c))
-  (culture (id ?c) (patient ?p))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
-  (aerobicity (value aerobic) (of ?o))
-  (compromised-host (value t) (of ?p))
-  =>
-  (assert (candidates (value '(:klebsiella)) (of ?o))))
-
-(defrule tropical-travel-aerobic-gram-neg-rod-narrows-to-salmonella
+;;; The travel rule keeps real content, and it is the only context rule in this section
+;;; that does: it points AWAY from the opportunist set and towards the enteric organisms.
+(defrule tropical-travel-aerobic-gram-neg-rod-narrows-to-enteric-rods
     (:belief 0.65
      :provenance (:origin :paip-subset
                   :evidence ("CDC Yellow Book 2026, Typhoid & Paratyphoid Fever, NBK620886"
-                             "NCBI Bookshelf / StatPearls, Typhoid Fever, NBK557513")
+                             "NCBI Bookshelf / StatPearls, Typhoid Fever, NBK557513"
+                             "Fever in the Returned Traveler, PMC7152027")
                   :belief-basis :illustrative
-                  :note "Enteric fever is strongly associated with travel to endemic regions."))
+                  :note "Enteric fever is strongly associated with travel to endemic regions, and enteric bacteria -- E. coli, Campylobacter, Salmonella, Shigella -- are the commonest bacterial causes of fever from the tropics. WIDENED, but only to the enteric rods: this rule does not fire on fever, it fires on a blood culture ALREADY growing an aerobic gram-negative rod, and conditioned on that, travel to an endemic region genuinely raises Salmonella a long way. What it cannot support is the implied claim that E. coli bacteraemia stops happening because the patient travelled. Pseudomonas, Proteus, Serratia and Enterobacter are left out on the enteric-source reading, which is evidence, not a hunch."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
@@ -497,20 +546,58 @@
   (aerobicity (value aerobic) (of ?o))
   (recent-travel (value tropical) (of ?p))
   =>
-  (assert (candidates (value '(:salmonella)) (of ?o))))
+  (assert (candidates (value '(:salmonella :e-coli :klebsiella)) (of ?o))))
 
-(defrule blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella
-    (:belief 0.55
-     :provenance (:origin :paip-subset
-                  :evidence ("NCBI Bookshelf / StatPearls, Typhoid Fever, NBK557513")
-                  :belief-basis :illustrative
-                  :note "Leukopenia is reported in roughly 15-25% of typhoid cases. NOTE, retained: docs/belief-conditional-audit.md 3.3 flagged that figure as P(low WBC | Salmonella), a sensitivity, for a rule that fires ON low WBC -- and 0.55 is derived from neither it nor a posterior. Carried across unchanged rather than silently adjusted; grounding it is separate work."))
-  (organism (id ?o) (culture ?c))
-  (culture (id ?c) (patient ?p))
-  (culture-site (value blood) (of ?c))
-  (gram (value neg) (of ?o))
-  (morphology (value rod) (of ?o))
-  (aerobicity (value aerobic) (of ?o))
-  (white-blood-count (value low) (of ?p))
-  =>
-  (assert (candidates (value '(:salmonella)) (of ?o))))
+;;; ==================================================================
+;;; 5. RETIRED: what Category B removed, and why
+;;; ==================================================================
+;;; BLOOD-LOW-WBC-AEROBIC-GRAM-NEG-ROD-NARROWS-TO-SALMONELLA (was 0.55) is GONE.
+;;;
+;;; It is the WRONG CONDITIONAL that docs/belief-conditional-audit.md 3.3 predicted,
+;;; now confirmed. The rule fired ON a low white count, so it had to answer
+;;; P(Salmonella | low WBC, aerobic gram-negative rod in blood). The 15-25% figure its
+;;; note cited is P(low WBC | typhoid) -- a SENSITIVITY, and a poor one: leukopenia
+;;; occurs in only about 25% of typhoid patients (24.6% in a 191-patient series), and a
+;;; normal or raised count is commoner and does not exclude the diagnosis.
+;;;
+;;; Correcting the conditional does not rescue the rule, which is why it was retired
+;;; rather than widened. Leukopenia in gram-negative bacteraemia marks SEVERITY, not
+;;; species -- it occurs across E. coli, Klebsiella and Pseudomonas sepsis alike. The
+;;; honest widened answer is therefore the whole aerobic set, which adds nothing the
+;;; Gram stain did not already say. A rule whose honest answer is "one of the seven"
+;;; should not be a rule.
+;;;
+;;; Sources: PMC9018254 (Laboratory Findings in Typhoid); PubMed 1496717 (The white
+;;; cell count in typhoid fever); NBK557513.
+;;;
+;;; CONSEQUENCE: `white-blood-count' is now INERT -- no rule in the corpus premises on
+;;; it. It stays in context.lisp and in the bridge's parameter map because a clinician
+;;; may still report it and the record should stay faithful, but it is marked inert in
+;;; system-prompt.md and tools.json so the model never solicits it as a discriminating
+;;; test. prompt-tests.lisp checks that marking in BOTH directions.
+;;;
+;;; COMPROMISED-GRAM-NEG-ROD-NARROWS-TO-PSEUDOMONAS (was 0.6) is GONE, merged into
+;;; COMPROMISED-AEROBIC-GRAM-NEG-ROD-NARROWS-TO-OPPORTUNIST-RODS above. See the comment
+;;; there: once gated on aerobicity its premises were byte-identical to the klebsiella
+;;; rule's, and the two answered disjoint singletons.
+;;;
+;;; ------------------------------------------------------------------
+;;; WHAT THIS SECTION SHOWED ABOUT THE REPRESENTATION
+;;; ------------------------------------------------------------------
+;;; Four of these rules now assert the SAME six-organism answer and differ only in
+;;; belief. That is not an authoring failure; it is what the evidence says. Burn,
+;;; compromised host, hospital acquisition and neutropenia are all associated with the
+;;; same handful of organisms, and what genuinely differs between them is the RELATIVE
+;;; likelihood of the members -- Pseudomonas rising in a burn, E. coli leading almost
+;;; everywhere else.
+;;;
+;;; AN ANSWER SET CANNOT EXPRESS THAT. It can only say "one of these", and exclusion is
+;;; the only mechanism it has for saying anything sharper. The singletons these rules
+;;; used to assert were the representation's only available way to express "Pseudomonas
+;;; is likelier here" -- and the price was a false claim that everything else was
+;;; impossible. Widening removes the false claim and, with it, the corpus's ability to
+;;; rank the members on epidemiological grounds at all.
+;;;
+;;; That trade is deliberate and is recorded in docs/category-b-resolution-survey.md
+;;; section 5. Bench findings still rank organisms, because a bench finding genuinely
+;;; does exclude. Epidemiology no longer pretends to.
