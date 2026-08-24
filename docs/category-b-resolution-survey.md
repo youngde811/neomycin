@@ -550,3 +550,120 @@ release check** (prompt + tool schemas + bridge + engine) before tagging.
    drift silently), then the full release check.
 
 Nothing in steps 1–4 has been done. This document is the survey only.
+
+---
+
+# 7. Outcome — what was actually done, and what the work found
+
+**Added after implementation.** Sections 1–6 are the survey as reviewed; this section
+records where it led, including the two places the survey's own recommendation turned
+out to be wrong.
+
+## 7.1 The survey's plan did not survive contact, and the failure was the finding
+
+Step 2 was applied exactly as §4 proposed: the singletons widened to the flat sets the
+literature supports. The result, measured on all three flagship scenarios:
+
+```
+culture-1 / 1a / 1b   —   every organism  bel=0.0000  pl=1.0000,  K=0.0000
+```
+
+Not a changed ranking. **No ranking.** Once widened, the answers are *nested*
+(six ⊂ seven ⊂ eight) rather than disjoint, so no element carries belief, no two
+answers contradict, and the corpus's entire output collapses to "one of these six".
+culture-1 — the PAIP scenario the fork is built on — concluded nothing at all, and
+35 tests failed.
+
+The mechanism generalises, which is what makes it a finding rather than a mishap:
+
+> **An answer set can only express exclusion.** What actually differs between a burn,
+> a compromised host, hospital acquisition and neutropenia is the *relative likelihood*
+> of the same six organisms. No set can say that.
+
+So the singletons were not simply mis-authored. They were the representation's only
+available way to express "Pseudomonas is likelier here", and the price was a false
+claim that everything else was impossible. **Widening removes the lie and removes the
+differential with it, because under this representation they were the same thing.**
+
+## 7.2 What was built instead: graded answers
+
+A rule may now assert a mass function over several focal sets rather than one flat set:
+
+```lisp
+(assert (candidates (value '((0.20 :pseudomonas)
+                             (0.07 :klebsiella)
+                             (0.05 :enterobacter)
+                             (0.08 :e-coli :proteus :serratia)))
+                    (of ?o)))
+```
+
+Nothing is excluded — the unclaimed 0.60 sits on Θ, which also absorbs Acinetobacter
+and everything else the corpus does not model — and Pseudomonas still leads. Both at
+once.
+
+This turned out to be a small addition rather than a rewrite: the mass representation
+in `candidates.lisp` was *already* a sparse alist over arbitrary subsets and
+`combine-two` was already general. The only thing restricting rules to simple support
+functions was the `answer` constructor, whose docstring said so outright.
+
+**Total commitment per rule was held at its previous `:belief`**, so the literature
+decided only the *shape*. §2's "resolution, not calibration" survived intact, and
+invariant 13 now enforces the equality mechanically.
+
+Nine rules are graded (six gram-negative, three gram-positive). Every bench rule stays
+flat, because a bench finding really does admit or exclude.
+
+## 7.3 Where §4's verdicts changed
+
+| # | survey said | actually done | why |
+|---|---|---|---|
+| 2 + 8 | widen both | **merged into one rule** | Once #2 was gated on aerobicity its premises became *byte-identical* to #8's. They answered disjoint singletons — the corpus contradicting itself on identical evidence. `property-no-two-rules-share-identical-premises` forbids it the moment they agree. |
+| 16 | widen | **graded, not retired** | §4 flagged it for retirement because a flat `{saprophyticus, epidermidis}` is exactly what the bench rule already says. Grading keeps the content: the urinary site does not narrow the *group*, it says which *member* is likelier. |
+| 10 | retire | **retired** ✓ | Confirmed wrong conditional; no defensible distribution exists, so grading does not rescue it either. |
+
+## 7.4 Two v0.12 findings turned out to be artifacts
+
+Both were properties of the singleton representation rather than of the evidence, and
+both are now recorded as such in the tests that used to pin them:
+
+- **"Supporting evidence can drop an organism out of coverage."** Adding
+  `hospital-acquired` to culture-1 dropped klebsiella from 0.194 to 0.097, across the
+  coverage gate. It now **raises** it, 0.1649 → 0.1807. The collapse needed
+  `{klebsiella}` and `{pseudomonas}` to be disjoint and fighting over one unit of mass.
+- **"Support rises while share falls"** survives, but had to move. Re-pinned to E. coli
+  across culture-1a → culture-1b: admitting mass 3.40 → 3.80 while belief falls
+  0.2400 → 0.1985. Note the margin moves the *opposite* way from the v0.12 case — the
+  differential blurs into a near three-way tie rather than sharpening.
+
+## 7.5 The finding the survey deferred, now visible
+
+§5C recorded that belief ordering runs opposite to evidential strength, and §2 ruled
+calibration out of scope. Holding each rule's total commitment fixed honoured that —
+and made the consequence visible: **culture-1 now leads with E. coli, not Pseudomonas.**
+
+That is not a bug. The burn rule still commits 0.4 against the compromised-host rule's
+0.6, and that ordering is precisely the mis-calibration §5C identified. The singletons
+hid it; grading surfaces it in the ranking. It is an argument for looking at the
+numbers deliberately, as their own piece of work — not for tuning them here.
+
+## 7.6 Final state
+
+- Suite: **1316 assertions / 181 tests / 0 failures** (from 1272 / 175).
+- All four `bin/*.sh` smoke tests pass against a live bridge; two were asserting the
+  singleton corpus and one had been comparing belief against a magic constant under a
+  label claiming it was a comparison.
+- `white-blood-count` is now inert (rule #10 retired) and marked as such in
+  `system-prompt.md`, `tools.json` and `*deliberately-inert*`.
+- Invariant 13 guards the graded shape: masses positive, focal sets distinct, total
+  equal to the declared `:belief`, and a strict residue left on Θ — because a graded
+  rule committing everything claims the answer is settled, the overclaim this shape
+  exists to prevent.
+
+## 7.7 Still open
+
+- **The premise-gate work found a live bug in a shipped scenario** and it is fixed, but
+  the gates were missing for years without anything noticing. There is no invariant
+  that a context rule must gate on the stain/morphology/aerobicity its answer
+  presupposes. That is a property test worth writing.
+- **The belief numbers.** §5C's table is unchanged and now has visible consequences.
+- **The release check** (model in the loop) is the remaining gate before tagging.
