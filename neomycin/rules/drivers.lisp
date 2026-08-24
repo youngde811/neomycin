@@ -75,8 +75,15 @@
    Gram stain is ambiguous. Two conflicting GRAM facts are asserted with explicit
    belief values (0.8 for neg, 0.2 for pos), exercising the belief-system protocol
    on the fact side as well as the rule side. With an anaerobic gram-neg rod in the
-   blood, the bacteroides rule dominates while the gram-pos disconfirming rule pulls
-   plausibility below 1.0 -- a good workout for both combinators."
+   blood the bacteroides answer dominates (bel 0.841), while the gram-POSITIVE answer
+   is disjoint from every gram-negative one and drives K to 0.679 -- a good workout
+   for both combinators.
+
+   The organism is an ANAEROBE, which is what makes this the scenario that exposed the
+   Category B premise gap: the two pseudomonas context rules used to fire here, having
+   never gated on aerobicity, and asserted an obligate aerobe against the bacteroides
+   answer. Gating them dropped pseudomonas to bel 0.0 and K from 0.90 to 0.679. What
+   is left is the stain ambiguity, which is all this scenario ever meant to test."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))

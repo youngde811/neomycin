@@ -354,12 +354,13 @@
                   :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326"
                              "NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a classic cause of bacteraemia in seriously burned patients."))
+                  :note "Pseudomonas aeruginosa is a classic cause of bacteraemia in seriously burned patients. GATED ON AEROBIC GROWTH (Category B): without it this rule fired on an ANAEROBIC gram-negative rod and answered {pseudomonas}, an obligate aerobe, in direct contradiction with the bacteroides answer. That was live in culture-2, where it manufactured conflict the driver docstring attributed to the ambiguous Gram stain."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (burn (value serious) (of ?p))
   =>
   (assert (candidates (value '(:pseudomonas)) (of ?o))))
@@ -370,11 +371,12 @@
                   :evidence ("NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
                              "NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326")
                   :belief-basis :illustrative
-                  :note "Pseudomonas aeruginosa is a major opportunist in the immunocompromised host."))
+                  :note "Pseudomonas aeruginosa is a major opportunist in the immunocompromised host. GATED ON AEROBIC GROWTH (Category B) for the same reason as the burn rule above -- Pseudomonas is an obligate aerobe, and without the gate this rule contradicted the bacteroides answer on every anaerobe."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
   (compromised-host (value t) (of ?p))
   =>
   (assert (candidates (value '(:pseudomonas)) (of ?o))))

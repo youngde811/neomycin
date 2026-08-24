@@ -445,10 +445,12 @@
                              "NCBI Bookshelf / StatPearls, Group B Streptococcus and Pregnancy, NBK482443"
                              "CDC Active Bacterial Core surveillance, Early-Onset Neonatal Sepsis Surveillance and Trends")
                   :belief-basis :illustrative
-                  :note "S. agalactiae (group B) is the leading cause of early-onset neonatal sepsis and meningitis."))
+                  :note "S. agalactiae (group B) is the leading cause of early-onset neonatal sepsis and meningitis. GATED ON THE STAIN AND MORPHOLOGY (Category B): the rule previously premised on beta hemolysis and NOTHING ELSE, so it fired on a beta-hemolytic E. COLI and answered S. agalactiae -- and E. coli is precisely the organism the literature names as GBS's rival here, the two together causing about two thirds of early-onset infections. Pure-context rules must gate on the findings that would have derived the class, as RESPIRATORY-CHAINS-NARROWS-TO-PNEUMONIAE already did. The ANSWER was right; the premises were not."))
   (organism (id ?o))
   (patient (id ?p))
   (age-group (value neonate) (of ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
   (hemolysis (value beta) (of ?o))
   =>
   (assert (candidates (value '(:streptococcus-agalactiae)) (of ?o))))
@@ -458,9 +460,13 @@
      :provenance (:origin :neomycin-extrapolation
                   :evidence ("NCBI Bookshelf / StatPearls, Staphylococcus epidermidis Infection, NBK563240")
                   :belief-basis :illustrative
-                  :note "S. epidermidis is the classic biofilm-forming pathogen of prosthetic joints, valves and indwelling devices."))
+                  :note "S. epidermidis is the classic biofilm-forming pathogen of prosthetic joints, valves and indwelling devices. GATED ON THE STAIN AND MORPHOLOGY (Category B): a coagulase reading presupposes a staphylococcus, but the corpus was inconsistent about saying so -- the bench rule COAGULASE-NEGATIVE-NARROWS-TO-COAGULASE-NEGATIVE-STAPH gates on gram, morphology AND clumps, while this one gated on nothing. Clumps is deliberately NOT required: a growth conformation the clinician has not reported should not silence the rule.
+
+SURVIVES CATEGORY B AS A SINGLETON, with a disclosure. CoNS cause 46.2% of prosthetic joint infections and 20-25% of prosthetic valve endocarditis, and S. epidermidis is the most prevalent CoNS in device infection -- S. saprophyticus essentially never is. But the narrowness is partly an artifact of CORPUS COVERAGE, not of evidence: S. lugdunensis, S. capitis and S. haemolyticus are real device pathogens this corpus cannot name. The open frame keeps them plausible as residual ignorance, which is what makes the narrow answer safe."))
   (organism (id ?o))
   (patient (id ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
   (coagulase (value negative) (of ?o))
   (prosthetic-material (value t) (of ?p))
   =>
@@ -474,6 +480,8 @@
                   :note "S. saprophyticus is a leading cause of uncomplicated cystitis in young women, second only to E. coli."))
   (organism (id ?o))
   (patient (id ?p))
+  (gram (value pos) (of ?o))
+  (morphology (value coccus) (of ?o))
   (coagulase (value negative) (of ?o))
   (infection-site (value urinary) (of ?p))
   =>

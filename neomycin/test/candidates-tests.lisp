@@ -64,15 +64,29 @@
   (is (approx= (candidates-conflict 'lisa-user::culture-1a) 0.528000)))
 
 (deftest candidates-culture-2 ()
-  ;; The ambiguous gram stain, and the shape is loud about it: gram-positive and
-  ;; gram-negative answers are DISJOINT, so K reaches 0.90. That is the honest reading
-  ;; of a contradictory stain, and considerably louder than the 0.4168 the frame
-  ;; system reported for the same case.
+  ;; The ambiguous gram stain, and the shape is loud about it: the gram-positive and
+  ;; gram-negative answers are DISJOINT, so K stays high. RE-CAPTURED IN THE CATEGORY B
+  ;; PREMISE-GATE PASS, and the movement is the point.
+  ;;
+  ;; This organism is an ANAEROBE. Before the gate, the two pseudomonas context rules
+  ;; premised on the gram stain and morphology but NOT on aerobicity, so both fired
+  ;; here and asserted {pseudomonas} -- an obligate aerobe -- at a combined 0.76,
+  ;; contradicting {bacteroides} at 0.9. K was 0.90 and this comment credited all of it
+  ;; to the stain. Some of it was the corpus contradicting itself.
+  ;;
+  ;;   bacteroides  0.6490/0.7212 -> 0.8411/0.9346   (the answer stops being fought)
+  ;;   pseudomonas  0.2284/0.3005 -> 0.0000/0.0935   (bel to ZERO, as it must be)
+  ;;   K            0.90          -> 0.679
+  ;;
+  ;; Pseudomonas keeps a plausibility of 0.0935 and no belief at all -- and klebsiella
+  ;; and e-coli sit at exactly the same pair, because on an anaerobe nothing separates
+  ;; them. That residue is the gram ambiguity and nothing else, which is what K = 0.679
+  ;; now measures. The number is smaller and it means what the comment says.
   (let ((c (candidates-run 'lisa-user::culture-2)))
-    (check-candidates c "bacteroides" 0.649038 0.721154)
-    (check-candidates c "pseudomonas" 0.228365 0.300481))
-  (is (> (candidates-conflict 'lisa-user::culture-2) 0.85)
-      "an ambiguous stain should read as deeply conflicted"))
+    (check-candidates c "bacteroides" 0.841121 0.934579)
+    (check-candidates c "pseudomonas" 0.000000 0.093458))
+  (is (approx= (candidates-conflict 'lisa-user::culture-2) 0.679000)
+      "an ambiguous stain should read as deeply conflicted -- by the STAIN"))
 
 (deftest candidates-culture-3 ()
   ;; IDENTICAL to v0.10.0's frame goldens (0.473684 / 0.631579, K = 0.525) with the
