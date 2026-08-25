@@ -549,3 +549,60 @@
                                        'lisa-user::culture-age 'lisa-user::|3|)))
     (is (stringp note)
         "culture-age is assertable and no rule premises on it -- that is inert")))
+
+;;; ------------------------------------------------------------------
+;;; The prompt's K/margin figures, pinned to the algebra that produces them
+;;; ------------------------------------------------------------------
+;;;
+;;; system-prompt.md teaches the K/margin dissociation from a worked pair, and the
+;;; model reasons from it. Nothing guarded the numbers, and the failure had already
+;;; happened once in this file's history: a worked example said `K = 0.38' for a year
+;;; after the real figure moved to 0.56.
+;;;
+;;; It had happened AGAIN, differently, and this is the interesting part. The figures
+;;; were right; the LABELS were wrong. They are two CONSTRUCTED answer pairs -- the
+;;; ones NEAR-EQUAL-CONFLICT-OPPOSITE-MEANING builds in candidates-tests -- and the
+;;; prompt presented them as "the burn ICU case" and "the respiratory strep case",
+;;; real consultations a reader could go and run. docs/category-b-resolution-survey.md
+;;; predicted precisely this, naming the burn-ICU figures as the ones that would "move
+;;; most of all" once graded answers landed. They moved: culture-1b now runs K=0.207
+;;; with margin 0.036 -- low conflict, nothing settled -- which is the OPPOSITE of the
+;;; "about as decisive as this corpus gets" the prompt attached to it.
+;;;
+;;; So this pins both halves: the numbers against a live recomputation, and the
+;;; absence of the clinical labels that made them a claim about the corpus.
+
+(defun round2 (x) (/ (fround (* 100 x)) 100))
+
+(deftest prompt-quotes-the-real-conflict-margin-figures ()
+  (destructuring-bind (decisive-mass decisive-k)
+      (combined (cons '(:pseudomonas) 0.928d0) (cons '(:klebsiella) 0.60d0))
+    (destructuring-bind (tied-mass tied-k)
+        (combined (cons '(:pseudomonas) 0.76d0) (cons '(:klebsiella) 0.76d0))
+      ;; What the prompt says, recomputed. If the algebra moves, the prompt is wrong
+      ;; and this fails -- which is the whole point.
+      (let ((claim-decisive (format nil "`K=~,2F, margin=~,2F`"
+                                    (round2 decisive-k)
+                                    (round2 (candidates:margin decisive-mass))))
+            (claim-tied (format nil "`K=~,2F, margin=~,2F`"
+                                (round2 tied-k)
+                                (round2 (candidates:margin tied-mass)))))
+        (is (prompt-contains-p claim-decisive)
+            (format nil "system-prompt.md no longer states ~A for the decisive pair -- ~
+                         the algebra moved and the prompt did not" claim-decisive))
+        (is (prompt-contains-p claim-tied)
+            (format nil "system-prompt.md no longer states ~A for the tied pair"
+                    claim-tied))))))
+
+(deftest prompt-does-not-sell-constructed-masses-as-consultations ()
+  ;; The misattribution itself. These are two-answer mass functions; presenting them
+  ;; as named clinical cases invites the reader -- model or human -- to quote them as
+  ;; what a driver produces, and culture-1b has not produced them since v0.13.
+  (dolist (label '("the **burn ICU** case runs"
+                   "The **respiratory strep** case runs"
+                   "Two real scenarios from this corpus"))
+    (is (not (prompt-contains-p label))
+        (format nil "system-prompt.md has reattached the clinical label ~S to a ~
+                     constructed mass pair" label)))
+  (is (prompt-contains-p "not consultations")
+      "system-prompt.md no longer says these figures are not consultations"))

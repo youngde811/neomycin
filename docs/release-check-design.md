@@ -37,7 +37,7 @@ string processing answers exactly and a judge answers approximately.
 A judge would also reintroduce the failure mode being tested. The whole point is that
 model output is not self-certifying.
 
-## 3. The five checks
+## 3. The six checks
 
 Run over each `## Assistant` block, with fenced code stripped — a payload echoed back is
 not a claim.
@@ -92,7 +92,23 @@ saying otherwise describes a mechanism that does not exist.
 is the phrasing the system prompt explicitly asks for. A check that punished the correct
 answer would be worse than no check.
 
-### 3.5 A margin against nothing
+### 3.5 Ignorance must be `pl - bel`
+
+An organism's ignorance is the width of its interval. That is arithmetic, checkable
+without knowing anything about the case, and a stated triple that fails it is
+self-contradicting on its face.
+
+It earns a check because the payload invited the error. `ignorance` was emitted at two
+scopes under one key — m(Θ) for the whole consultation, and `pl - bel` per hypothesis —
+and on 2026-08-24 an organism at `bel 0.91 / pl ~1.0` was narrated as having *"essentially
+no residual ignorance (0.002)"*. That 0.002 was the consultation's m(Θ); the organism's own
+ignorance was 0.09, which the same sentence had just implied by quoting bel and pl. Every
+number was real and in a payload, so **check 3.3 passed it**.
+
+The entity-level key is `theta_mass` now. This check catches the residue — including the
+plain arithmetic slip, which no rename prevents.
+
+### 3.6 A margin against nothing
 
 `margin` is the gap between the leading answer and the nearest answer that
 **contradicts** it. Often nothing does, and the bridge then reports `margin_against` as
@@ -131,7 +147,7 @@ is correct phrasing and occurs within a sentence of legitimate margin mentions. 
 principle as the negation exemption in 3.4 — a check that punished the correct answer
 would be worse than no check.
 
-**What it does not check.** That the margin is attributed to the leading *answer* rather
+**What 3.6 does not check.** That the margin is attributed to the leading *answer* rather
 than to one member of it, when that is done without comparative language. *"Margin 0.23
 for E. coli"*, with a set-valued leader and no rival, still passes. Detecting it needs a
 judgement about what the prose is attributing, which is exactly what §5 says this harness
@@ -145,7 +161,7 @@ heading and was being folded into the final `## Assistant` block.
 
 Recorded because it is the same lesson the harness exists to enforce: **a check is only
 as good as what it looks at**, and this one had to be tested before it could be trusted.
-All five checks are negative-tested by injecting a real fault into a real transcript.
+All six checks are negative-tested by injecting a real fault into a real transcript.
 Check 3.5 needed no injection: it was written against the session that motivated it
 and run over both transcripts of 2026-08-24, where it flags the one real defect and
 stays silent on the three margin readings that were correct — including the two in
@@ -203,6 +219,19 @@ Adding a scenario is adding a dict entry. The bar for a new one is that it exerc
 narration path the others do not.
 
 ## 7. Operating it
+
+### Reduced-verbosity transcripts
+
+`--transcript` now warns when the captured verbosity is not `full`. At `normal` the
+driver keeps results only for conclusions, rule-trace, partial-matches, why and
+recommend-therapy; `describe_rules` payloads are elided, so **any figure quoted from the
+rule catalogue has nothing to be checked against** and 3.3 passes it silently.
+
+Measured: a hand-run session on 2026-08-24 quoted a rule's belief as `0.8` with no
+payload behind it, and passed — `0.8` happened to appear elsewhere. The scenarios this
+harness drives itself always run at `full`, so the exposure was confined to exactly the
+hand-run sessions one most wants checked, and it was silent about it.
+
 
 A **release gate, not a commit hook**: it costs API calls and is non-deterministic, so
 it runs at the cadence of the manual check it replaces.

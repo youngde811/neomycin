@@ -96,7 +96,14 @@
         ;; false and NOT null, so it cannot be used here either.
         (setf (gethash "margin_against" ht)
               (if rival (coerce (mapcar #'organism-name rival) 'vector) 'cl:null)))
-      (setf (gethash "ignorance" ht) (candidates:ignorance mass))
+      ;; THETA_MASS, not "ignorance". Both quantities in this payload have a
+        ;; claim on that word -- m(Theta) here, and pl-bel per hypothesis -- and
+        ;; emitting them under one key is how they came to be swapped: an organism
+        ;; at bel 0.91 / pl 1.00 was narrated as having "essentially no residual
+        ;; ignorance (0.002)", quoting the entity's m(Theta) in a sentence about the
+        ;; organism, whose own ignorance was 0.09. Same shape as margin_against:
+        ;; the payload was ambiguous and the reader resolved it wrongly.
+        (setf (gethash "theta_mass" ht) (candidates:ignorance mass))
       (setf (gethash "answers" ht) (answers->json (answer-details organism)))
       (setf (gethash "hypotheses" ht) (hypotheses->json organism))
       (setf (gethash "set_valued" ht) (set-valued->json mass)))
@@ -267,7 +274,8 @@
           ;; Real JSON null, same reasoning as /conclusions above.
           (setf (gethash "margin_against" ht)
                 (if rival (coerce (mapcar #'organism-name rival) 'vector) 'cl:null)))
-        (setf (gethash "ignorance" ht) (candidates:ignorance mass))
+        ;; theta_mass, same reasoning as /conclusions above.
+        (setf (gethash "theta_mass" ht) (candidates:ignorance mass))
         (setf (gethash "argument" ht)
               (coerce (mapcar (lambda (d) (answer-argument->json d hypothesis))
                               (append admitting excluding))
