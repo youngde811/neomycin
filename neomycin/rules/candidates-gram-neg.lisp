@@ -6,8 +6,10 @@
 ;;; the gram-negative identities (5), the 8 ruling-out rules that touch them, and the
 ;;; neutropenia host factor. 23 rules in, 21 out after two merges.
 ;;;
-;;; This is the harder cluster -- deeper chaining and far more cross-disconfirmation
-;;; than the gram-positives -- so it is the real test of whether the shape holds.
+;;; This was the harder cluster to convert -- the source rules chained deeper and
+;;; cross-disconfirmed far more than the gram-positives -- which is what made it the
+;;; real test of whether the shape holds. Neither mechanism survives the conversion:
+;;; nothing chains here and nothing argues against anything.
 ;;;
 ;;; Same rules as the gram-positive file: confirming only, visible RHS asserting a
 ;;; CANDIDATES fact, belief on that fact, no organism-class, no frame.

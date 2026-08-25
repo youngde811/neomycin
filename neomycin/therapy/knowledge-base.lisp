@@ -130,15 +130,21 @@
 ;;   :staphylococcus-aureus :staphylococcus-epidermidis :staphylococcus-saprophyticus
 ;;   :streptococcus-pneumoniae :streptococcus-pyogenes :streptococcus-agalactiae
 ;;   :streptococcus-viridans :enterococcus-faecalis :enterococcus-faecium
-;; FOUR keywords are NOT leaf identities -- they are taxonomic CLASSES, concluded as
-;; organism-CLASS facts and carried here as therapy backstop items only when no member
-;; species clears the coverage gate (conclusions-for-solver):
-;;   :enterobacteriaceae (family, since C2)
-;;   :staphylococcus :streptococcus :enterococcus (genera, since the gram-positive
-;;     increment -- each was a leaf identity before it, the same
-;;     genus-masquerading-as-a-species defect C2 fixed for enterobacteriaceae)
-;; Their KB sensitivities are the empiric class-level figures the roll-up inherits,
-;; and that is the right home for them: empiric therapy is pitched at the genus.
+;; FOUR keywords are not organisms the corpus can conclude -- they are TAXONOMIC
+;; ROLL-UP TARGETS, and they exist only inside this KB:
+;;   :enterobacteriaceae (family)
+;;   :staphylococcus :streptococcus :enterococcus (genera)
+;; Their sensitivities are the empiric class-level figures, and that is the right home
+;; for them: empiric therapy is pitched at the genus. A species carrying no entry of
+;; its own inherits its family's figure in KB-SUSCEPTIBILITY. That is their ONLY job.
+;;
+;; They are NOT reached from the rulebase and are NOT treated as backstop items. No
+;; rule concludes an organism-CLASS -- a genus IS a candidates set, and nothing chains
+;; -- and CONCLUSIONS-FOR-SOLVER no longer consults the taxonomy at all. A SET-valued
+;; answer is a coverage obligation discharged MEMBER BY MEMBER, never through a family:
+;; ceftazidime covers :enterobacteriaceae at bel 0.66 and :salmonella at 0.46, so
+;; against a 0.5 threshold the family proxy read covered while the member was not.
+;; See SET-OBLIGATION-ENTRIES in therapy/bridge.lisp.
 ;; ==========================================================================
 
 (in-package :neomycin-therapy)
@@ -166,14 +172,11 @@
 ;;; --------------------------------------------------------------------------
 ;;; Taxonomy: the gram-positive genera.
 ;;; --------------------------------------------------------------------------
-;;; Same mechanism, applied to the three genera the gram-positive increment promoted
-;;; from leaf identities to organism-classes. The existing :staphylococcus /
+;;; Same mechanism, applied to the three gram-positive genera. The :staphylococcus /
 ;;; :streptococcus / :enterococcus sensitivity entries below were always empiric
-;;; GENUS-level figures -- they simply used to be reachable as identities. Declaring
-;;; membership keeps them reachable, now as the roll-up target for species that carry
-;;; no entries of their own, and makes the item-selection rule work: identify
-;;; S. aureus and the genus is not separately treated; pin down nothing and the genus
-;;; is treated empirically as a backstop.
+;;; GENUS-level figures; they were briefly reachable as identities in their own right,
+;;; and are not any more. Declaring membership keeps them doing the one job that
+;;; survives: the roll-up target for species carrying no entries of their own.
 ;;;
 ;;; :staphylococcus-aureus already carries its own entries for the anti-staphylococcal
 ;;; drugs (nafcillin, vancomycin, linezolid), so roll-up never triggers for it. The
