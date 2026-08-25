@@ -260,19 +260,128 @@ BANNED = [
 # \w+n't catches hasn't / haven't / wasn't / doesn't and the rest in one alternative.
 # Spelling them individually is how "the evidence hasn't ruled out salmonella" -- correct
 # phrasing the prompt asks for -- was flagged as a violation on the first gated release.
+# A margin with nothing to measure against. `margin' is the gap between the leading
+# answer and the nearest answer that CONTRADICTS it -- and when nothing does, the
+# bridge reports no rival and margin carries the leader's own support instead. That
+# reading was got wrong in a clinician session on 2026-08-24: a payload with
+# `margin_against' unset and a SEVEN-ORGANISM leading answer was narrated as "margin
+# 0.23 (E. coli leading over the runner-up group)", inventing a rival the payload had
+# explicitly declined to name and reassigning the leader from the set to one member.
+#
+# Every number in that sentence was real and appeared in the payload, so check (3)
+# passed it. This is the structural version of the same idea: not "is the number
+# there" but "does the prose claim a comparison the payload says does not exist".
+#
+# `rival' is deliberately NOT in this list. "Every rival organism sits at bel 0" is
+# correct phrasing and appears within a sentence of a legitimate margin mention.
+# An organism's ignorance is pl - bel. That is arithmetic, so a stated triple can be
+# checked without knowing anything about the case.
+#
+# It is worth checking because the payload used to invite the error: `ignorance' was
+# emitted at TWO scopes -- m(Theta) for the consultation and pl-bel per hypothesis --
+# under one key. On 2026-08-24 an organism at bel 0.91 / pl ~1.0 was narrated as
+# having "essentially no residual ignorance (0.002)", which is the consultation's
+# m(Theta); its own ignorance was 0.09. Every number was real and in the payload, so
+# check (3) passed it. The entity-level key is `theta_mass' now, and this catches the
+# residue -- including the plain arithmetic slip, which no rename prevents.
+#
+# The sentence is self-contradicting on its face: bel and pl were quoted in the same
+# clause as the ignorance that does not fit between them.
+IGNORANCE_TRIPLE = re.compile(
+    r"\b(?:bel|belief)\b[^.\n]{0,24}?(\d*\.\d+)"          # bel 0.91
+    r"[^.\n]{0,80}?"
+    r"\b(?:pl|plausibility)\b[^.\n]{0,24}?~?(\d*\.?\d+)"   # pl ~1.0
+    r"[^.\n]{0,80}?"
+    r"\bignorance\b[^.\n]{0,24}?(\d*\.\d+)",              # ignorance 0.002
+    re.I)
+
+# Rounding slack. Quoting 0.2984/0.7247 as 0.30/0.72 leaves 0.42 against a true
+# 0.4263, so anything tighter than this flags honest rounding.
+IGNORANCE_TOLERANCE = 0.025
+
+MARGIN_MENTION = re.compile(r"\bmargins?\b", re.I)
+COMPARATIVE = re.compile(
+    r"\b(over|ahead of|versus|vs\.?|runner[-\s]?up|out(?:ranks|paces)|"
+    r"beats?|lead(?:s|ing)? over|in front of)\b", re.I)
+
+# How far either side of a `margin' mention to look for comparative language. Bounded
+# rather than sentence-scoped on purpose: "E. coli" defeats every sentence splitter
+# worth writing, and the phrase that matters sits within a clause of the number.
+MARGIN_BACK, MARGIN_FORWARD = 40, 120
+
+
+def margin_contexts(payload):
+    """Every (margin_against, leading_answer) a payload states, at any depth.
+
+    /conclusions carries one per organism entity; /why carries one at top level.
+    """
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "margin_against" in node:
+                found.append((node.get("margin_against"),
+                              node.get("leading_answer")))
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(payload)
+    return found
+
+
+def no_rival(margin_against):
+    """True when the payload says nothing contradicts the leading answer.
+
+    Accepts the legacy string sentinel as well as real JSON null: transcripts
+    captured before the serialization was fixed carry "NULL", and --transcript is
+    meant to work on saved files.
+    """
+    return (margin_against is None
+            or (isinstance(margin_against, str)
+                and margin_against.strip().upper() == "NULL")
+            or margin_against == [])
+
+
 NEGATION_WINDOW = re.compile(
     r"\b(no|nothing|none|never|not|cannot|\w+n't)\b[^.]{0,60}$", re.I)
 
+
+def transcript_verbosity(path):
+    """The verbosity the driver captured PATH at, or None if the header omits it.
+
+    Only `full' captures every tool result. At `normal' the driver elides results
+    for everything except conclusions, rule-trace, partial-matches, why and
+    recommend-therapy -- which means `describe_rules' payloads are absent, and check
+    (3) cannot verify a single catalogue figure the assistant quotes from them.
+
+    That is not hypothetical. A hand-run session on 2026-08-24 quoted a rule's belief
+    of 0.8 with no payload behind it; the check passed because 0.8 happened to appear
+    elsewhere in the transcript. The gate itself drives at `full', so the exposure is
+    exactly the hand-run sessions one most wants checked -- and it was silent.
+    """
+    head = path.read_text(encoding="utf-8")[:2000]
+    m = re.search(r"^- Verbosity: `([a-z]+)`", head, re.M)
+    return m.group(1) if m else None
 
 def check_transcript(path, facts):
     events = parse_transcript(path.read_text(encoding="utf-8"))
     allowed = set(facts["catalogue"])
     failures = []
+    # The margin context most recently PUT IN FRONT of the model. Same ordering
+    # discipline as check (3): what the assistant may say is bounded by what it has
+    # already been shown.
+    margin_seen = []
 
     for kind, name, body in events:
         if kind in ("result", "call"):
             if body is not None:
                 harvest(body, allowed)
+                ctx = margin_contexts(body)
+                if ctx:
+                    margin_seen = ctx
             continue
         if kind == "clinician":
             for _, v in numbers_in(body):
@@ -312,6 +421,42 @@ def check_transcript(path, facts):
                     continue  # "nothing argued against it" is the CORRECT phrasing
                 snippet = prose[max(0, m.start() - 40):m.end() + 40].replace("\n", " ")
                 failures.append(("phrasing", f"{why}: ...{snippet.strip()}..."))
+
+        # (5) an organism's ignorance must be pl - bel
+        for m in IGNORANCE_TRIPLE.finditer(prose):
+            bel, pl, ign = (float(g) for g in m.groups())
+            if abs(ign - (pl - bel)) > IGNORANCE_TOLERANCE:
+                snippet = m.group(0).replace("\n", " ").strip()
+                failures.append((
+                    "ignorance",
+                    f"states bel {bel:g}, pl {pl:g} and ignorance {ign:g}, but an "
+                    f"organism's ignorance is pl - bel = {pl - bel:.3g} -- "
+                    f"`theta_mass' is the consultation's, not the organism's: "
+                    f"...{snippet}..."))
+
+        # (6) margin against nothing
+        if margin_seen and all(no_rival(ma) for ma, _ in margin_seen):
+            for m in MARGIN_MENTION.finditer(prose):
+                window = prose[max(0, m.start() - MARGIN_BACK):
+                               m.end() + MARGIN_FORWARD]
+                hit = COMPARATIVE.search(window)
+                # NEGATED COMPARISONS ARE THE CORRECT PHRASING, exactly as in (4).
+                # The prompt now asks the model to SAY there is no rival, and it
+                # does -- "no rival to measure a margin against", "unopposed
+                # support, not a lead over a competitor", "no rival to report a
+                # win over". Every one of those names the comparison in order to
+                # deny it. Flagging them punished the fix for working: this check
+                # failed two scenarios of the release gate on its first live run,
+                # and both transcripts were right.
+                if hit and NEGATION_WINDOW.search(window[:hit.start()]):
+                    hit = None
+                if hit:
+                    snippet = window.replace("\n", " ").strip()
+                    failures.append((
+                        "margin",
+                        f"narrates the margin as a comparison (`{hit.group(0)}') when "
+                        f"the payload named no contradicting answer -- "
+                        f"`margin_against' was null: ...{snippet}..."))
 
     return failures
 
@@ -358,7 +503,22 @@ def main():
     print(f"corpus: {len(facts['rules'])} rules, {len(facts['parameters'])} parameters\n")
 
     if args.transcript:
-        pairs = [(Path(args.transcript).stem, Path(args.transcript))]
+        given = Path(args.transcript)
+        pairs = [(given.stem, given)]
+        verbosity = transcript_verbosity(given)
+        if verbosity != "full":
+            named = f"`{verbosity}`" if verbosity else "not recorded"
+            print(f"WARNING: transcript verbosity is {named}, not `full`.")
+            print("         Tool results other than conclusions / rule-trace / "
+                  "partial-matches / why /")
+            print("         recommend-therapy were ELIDED when this was captured -- "
+                  "`describe_rules`")
+            print("         payloads among them. Numbers quoted from the rule "
+                  "catalogue therefore have")
+            print("         no payload to be checked against, and check (3) will "
+                  "pass them silently.")
+            print("         Re-run the consultation with "
+                  "--transcript-verbosity full for a full check.\n")
     else:
         wanted = args.scenario or list(SCENARIOS)
         unknown = [s for s in wanted if s not in SCENARIOS]

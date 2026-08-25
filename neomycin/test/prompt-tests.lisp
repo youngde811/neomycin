@@ -407,6 +407,46 @@
         (format nil "system-prompt.md has reintroduced ~S, which the measured ~
                      behaviour of K contradicts" claim))))
 
+(deftest prompt-reads-a-margin-with-no-rival ()
+  ;; Both halves of a real misreading, from the clinician session of 2026-08-24. The
+  ;; payload carried a SEVEN-ORGANISM `leading_answer' and `margin_against' null --
+  ;; nothing contradicted it -- and the narration was "margin 0.23 (E. coli leading
+  ;; over the runner-up group)". It invented a rival the engine had explicitly
+  ;; declined to name, and handed the margin to one member of the leading set.
+  ;;
+  ;; The model did not invent that reading; the prompt taught it. Two sentences were
+  ;; wrong: `margin' was described as the leading ORGANISM's belief above the
+  ;; RUNNER-UP's, and -- flatly false -- a set-valued leader was said to score margin
+  ;; 0 and K 0. LISA::MARGIN's own docstring says the opposite, and the corpus
+  ;; produces the counterexample. This pins the corrections.
+  (dolist (topic '("`margin_against` is `null`"
+                   "the set is the headline"
+                   "Set SIZE reports the resolution"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md no longer explains ~S, which is how the ~
+                     margin came to be narrated as a contest that did not exist"
+                topic)))
+  (dolist (claim '("It is 0 whenever no single organism leads"
+                   "That case has margin 0 **and** K 0"
+                   "how far the leading organism's belief sits above the runner-up's"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md has reintroduced ~S -- a set-valued leading ~
+                     answer does NOT imply margin 0, and the leader is an ANSWER ~
+                     rather than an organism" claim))))
+
+(deftest prompt-and-tools-carry-the-inert-flag ()
+  ;; /assert-fact used to answer identically for a value the corpus premises on and
+  ;; one it cannot hear, so `age-group: elderly' was recorded for an 82-year-old,
+  ;; fired nothing, and was never mentioned again. The bridge now returns `inert'
+  ;; on every assertion. The prompt has to tell the model to READ it -- the flag is
+  ;; worth nothing if the narration still passes over it in silence.
+  (dolist (topic '("`inert`" "`inert_note`"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not mention ~A, so the model has no ~
+                     instruction to disclose an inert assertion" topic)))
+  (is (tools-contains-p "inert_note")
+      "tools.json does not document the inert flag on assert_fact's response"))
+
 (deftest tools-read-conflict-with-the-margin ()
   (dolist (topic '("margin" "margin_against"))
     (is (tools-contains-p topic)
@@ -462,3 +502,107 @@
                     "describe_rules" "get_partial_matches" "recommend_therapy"
                     "reset_session"))
       (is (search tool text) (format nil "tools.json defines ~A" tool)))))
+
+;;; ------------------------------------------------------------------
+;;; Inert assertions are no longer silent
+;;; ------------------------------------------------------------------
+;;;
+;;; /assert-fact answered identically for a value the corpus premises on and one no
+;;; rule can ever match. In the clinician session of 2026-08-24 that meant
+;;; `age-group' = `elderly', asserted for an 82-year-old against a corpus that hears
+;;; `neonate' and nothing else: recorded, inert, never mentioned again, and invisible
+;;; to every layer -- the bridge returned the same 200, and the release check
+;;; validates parameter NAMES without ever looking at values.
+;;;
+;;; LISA-BRIDGE::INERT-NOTE is the answer, and it is tested here rather than over HTTP
+;;; because the decision is the interesting part; hunchentoot is not.
+
+(deftest inert-note-is-silent-for-a-value-the-corpus-hears ()
+  (dolist (case '((lisa-user::age-group . lisa-user::neonate)
+                  (lisa-user::gram       . lisa-user::neg)
+                  (lisa-user::hemolysis  . lisa-user::beta)))
+    (is (null (lisa-bridge::inert-note (string-downcase (symbol-name (car case)))
+                                       (car case) (cdr case)))
+        (format nil "~(~a~) = ~(~a~) is premised on by a real rule, so it must not ~
+                     be reported inert" (car case) (cdr case)))))
+
+(deftest inert-note-names-what-the-parameter-can-hear ()
+  ;; The exact defect. `elderly' must be flagged, and the note has to say what WOULD
+  ;; have worked -- "that did nothing" is half an answer to a caller who now has to
+  ;; pick something else.
+  (let ((note (lisa-bridge::inert-note "age-group"
+                                       'lisa-user::age-group 'lisa-user::elderly)))
+    (is (stringp note)
+        "age-group = elderly matches no premise in the corpus and must be reported inert")
+    (when (stringp note)
+      (is (search "INERT" note) "the note says so in a word a client can match on")
+      (is (search "age-group" note) "the note names the parameter")
+      (is (search "elderly" note) "the note names the value that did nothing")
+      (is (search "neonate" note)
+          "the note names what age-group IS read for, which is the actionable half"))))
+
+(deftest inert-note-covers-a-parameter-no-rule-reads-at-all ()
+  ;; A declared fact class nothing premises on. The vocabulary is derived from
+  ;; PREMISES precisely so this case is visible; the note must not fall through to a
+  ;; nil that reads as "fine".
+  (let ((note (lisa-bridge::inert-note "culture-age"
+                                       'lisa-user::culture-age 'lisa-user::|3|)))
+    (is (stringp note)
+        "culture-age is assertable and no rule premises on it -- that is inert")))
+
+;;; ------------------------------------------------------------------
+;;; The prompt's K/margin figures, pinned to the algebra that produces them
+;;; ------------------------------------------------------------------
+;;;
+;;; system-prompt.md teaches the K/margin dissociation from a worked pair, and the
+;;; model reasons from it. Nothing guarded the numbers, and the failure had already
+;;; happened once in this file's history: a worked example said `K = 0.38' for a year
+;;; after the real figure moved to 0.56.
+;;;
+;;; It had happened AGAIN, differently, and this is the interesting part. The figures
+;;; were right; the LABELS were wrong. They are two CONSTRUCTED answer pairs -- the
+;;; ones NEAR-EQUAL-CONFLICT-OPPOSITE-MEANING builds in candidates-tests -- and the
+;;; prompt presented them as "the burn ICU case" and "the respiratory strep case",
+;;; real consultations a reader could go and run. docs/category-b-resolution-survey.md
+;;; predicted precisely this, naming the burn-ICU figures as the ones that would "move
+;;; most of all" once graded answers landed. They moved: culture-1b now runs K=0.207
+;;; with margin 0.036 -- low conflict, nothing settled -- which is the OPPOSITE of the
+;;; "about as decisive as this corpus gets" the prompt attached to it.
+;;;
+;;; So this pins both halves: the numbers against a live recomputation, and the
+;;; absence of the clinical labels that made them a claim about the corpus.
+
+(defun round2 (x) (/ (fround (* 100 x)) 100))
+
+(deftest prompt-quotes-the-real-conflict-margin-figures ()
+  (destructuring-bind (decisive-mass decisive-k)
+      (combined (cons '(:pseudomonas) 0.928d0) (cons '(:klebsiella) 0.60d0))
+    (destructuring-bind (tied-mass tied-k)
+        (combined (cons '(:pseudomonas) 0.76d0) (cons '(:klebsiella) 0.76d0))
+      ;; What the prompt says, recomputed. If the algebra moves, the prompt is wrong
+      ;; and this fails -- which is the whole point.
+      (let ((claim-decisive (format nil "`K=~,2F, margin=~,2F`"
+                                    (round2 decisive-k)
+                                    (round2 (candidates:margin decisive-mass))))
+            (claim-tied (format nil "`K=~,2F, margin=~,2F`"
+                                (round2 tied-k)
+                                (round2 (candidates:margin tied-mass)))))
+        (is (prompt-contains-p claim-decisive)
+            (format nil "system-prompt.md no longer states ~A for the decisive pair -- ~
+                         the algebra moved and the prompt did not" claim-decisive))
+        (is (prompt-contains-p claim-tied)
+            (format nil "system-prompt.md no longer states ~A for the tied pair"
+                    claim-tied))))))
+
+(deftest prompt-does-not-sell-constructed-masses-as-consultations ()
+  ;; The misattribution itself. These are two-answer mass functions; presenting them
+  ;; as named clinical cases invites the reader -- model or human -- to quote them as
+  ;; what a driver produces, and culture-1b has not produced them since v0.13.
+  (dolist (label '("the **burn ICU** case runs"
+                   "The **respiratory strep** case runs"
+                   "Two real scenarios from this corpus"))
+    (is (not (prompt-contains-p label))
+        (format nil "system-prompt.md has reattached the clinical label ~S to a ~
+                     constructed mass pair" label)))
+  (is (prompt-contains-p "not consultations")
+      "system-prompt.md no longer says these figures are not consultations"))

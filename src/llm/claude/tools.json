@@ -1,7 +1,7 @@
 [
   {
     "name": "assert_fact",
-    "description": "Assert a clinical fact into Lisa's working memory. Each fact has a type (e.g. gram, morphology) and a value. The bridge automatically files each fact under the correct context in the patient -> culture -> organism tree; you only name an organism (via 'entity') when a case involves more than one. Use this to build up the clinical picture before running inference.",
+    "description": "Assert a clinical fact into Lisa's working memory. Each fact has a type (e.g. gram, morphology) and a value. The bridge automatically files each fact under the correct context in the patient -> culture -> organism tree; you only name an organism (via 'entity') when a case involves more than one. Use this to build up the clinical picture before running inference. The response carries 'inert' (always present, true or false): true means no rule in the compiled corpus premises on that value, so the fact was recorded and can never match or change any conclusion, and 'inert_note' names the values that parameter IS read for. Tell the clinician when a finding they reported came back inert -- it looks identical to a live assertion otherwise.",
     "input_schema": {
       "type": "object",
       "properties": {

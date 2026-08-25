@@ -255,7 +255,8 @@
     (let ((differential (aref organisms 0)))
       (is (gethash "hypotheses" differential) "the differential names hypotheses")
       (is (numberp (gethash "conflict" differential)) "K is reported")
-      (is (numberp (gethash "ignorance" differential)) "residual ignorance is reported"))
+      (is (numberp (gethash "theta_mass" differential))
+          "m(Theta) for the consultation is reported, under its own name"))
     (is (plusp (length (gethash "conclusions" payload)))
         "the flat leading-calls list is populated")))
 ;;; ------------------------------------------------------------------
@@ -296,3 +297,84 @@
   ;; is not a parameter this corpus has at all.
   (is (zerop (length (neomycin::matching-rules :premises "oxidase")))
       "a finding the corpus does not model returns nothing"))
+
+;;; ------------------------------------------------------------------
+;;; `no rival' on the wire
+;;; ------------------------------------------------------------------
+;;;
+;;; MARGIN_AGAINST names the nearest answer that CONTRADICTS the leader, and there
+;;; often is none -- the leading answer stands unopposed. That absence was emitted as
+;;; the keyword :NULL, which jzon stringifies to the JSON STRING "NULL": truthy in
+;;; every client language there is. A Python consumer writing `if margin_against:'
+;;; read "there IS a rival" in precisely the case where there was none.
+;;;
+;;; It cost a real misreading. In the clinician session of 2026-08-24 a payload with
+;;; no rival and a seven-organism leading answer was narrated as "E. coli leading over
+;;; the runner-up group" -- a contest the engine had explicitly declined to describe.
+;;;
+;;; These assert the SERIALIZED form, not the Lisp value, because the Lisp value was
+;;; never the bug: :NULL is a perfectly good sentinel until jzon renders it.
+
+(defun payload-json (payload)
+  (com.inuoe.jzon:stringify payload))
+
+(deftest conclusions-emits-real-json-null-for-no-rival ()
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let* ((json (payload-json (neomycin:conclusions-payload))))
+    (is (search "\"margin_against\":null" json)
+        "culture-1 leaves the leading answer unopposed, so /conclusions must emit a
+         real JSON null for margin_against")
+    (is (not (search "\"margin_against\":\"NULL\"" json))
+        "margin_against is serialized as the STRING \"NULL\", which is truthy in
+         every client language -- the trap this test exists to hold shut")))
+
+(deftest why-emits-real-json-null-for-no-rival ()
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let ((json (payload-json (why-for :e-coli))))
+    (is (search "\"margin_against\":null" json)
+        "/why must report `no contradicting answer' the same way /conclusions does")
+    (is (not (search "\"margin_against\":\"NULL\"" json))
+        "/why is serializing the string \"NULL\" again")))
+
+(deftest a-named-rival-still-serializes-as-a-list ()
+  ;; The other half: fixing the null must not turn a REAL rival into one. culture-4
+  ;; is the case where two answers genuinely contradict.
+  (run-scenario 'lisa-user::culture-4 :candidates)
+  (let ((json (payload-json (why-for :streptococcus-pneumoniae))))
+    (is (not (search "\"margin_against\":null" json))
+        "culture-4 has a contradicting answer, so margin_against must name it")))
+
+;;; ------------------------------------------------------------------
+;;; Two ignorances, two names
+;;; ------------------------------------------------------------------
+;;;
+;;; m(Theta) for the consultation and pl-bel for a hypothesis are different
+;;; quantities, and both were emitted as "ignorance" in the same payload. An organism
+;;; at bel 0.91 / pl 1.00 was duly narrated as having "essentially no residual
+;;; ignorance (0.002)" -- the entity's m(Theta) -- when its own was 0.09. The entity
+;;; figure is THETA_MASS now; the per-hypothesis one keeps the name, which is also
+;;; what the therapy payload's susceptibilities use.
+
+(deftest entity-ignorance-is-named-theta-mass ()
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let* ((payload (neomycin:conclusions-payload))
+         (organism (aref (gethash "organisms" payload) 0)))
+    (is (nth-value 1 (gethash "theta_mass" organism))
+        "the entity-level m(Theta) is reported as theta_mass")
+    (is (not (nth-value 1 (gethash "ignorance" organism)))
+        "no key called `ignorance' survives at entity level -- that name now belongs
+         to the per-hypothesis quantity alone")))
+
+(deftest hypothesis-ignorance-is-still-pl-minus-bel ()
+  ;; The other half of the rename: per hypothesis the name is unchanged AND the
+  ;; arithmetic holds, which is what the release check asserts against prose.
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let* ((payload (neomycin:conclusions-payload))
+         (organism (aref (gethash "organisms" payload) 0)))
+    (loop for h across (gethash "hypotheses" organism)
+          for bel = (gethash "bel" h)
+          for pl = (gethash "pl" h)
+          for ign = (gethash "ignorance" h)
+          do (is (< (abs (- ign (- pl bel))) 1d-9)
+                 (format nil "~A: ignorance must be pl - bel"
+                         (gethash "value" h))))))
