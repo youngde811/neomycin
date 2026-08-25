@@ -12,7 +12,7 @@ Reading a transcript by hand catches those. It caught several. But it is slow, i
 not scale, and whether it happens depends on how carefully somebody reads. This makes it
 mechanical.
 
-FOUR CHECKS, all string processing over the transcript. No LLM judge:
+SIX CHECKS, all string processing over the transcript. No LLM judge:
 
   1. RULE NAMES  -- every rule name the assistant quotes exists in the compiled corpus.
   2. TEST NAMES  -- every microbiology test it names is one the corpus can actually
@@ -24,6 +24,17 @@ FOUR CHECKS, all string processing over the transcript. No LLM judge:
   4. PHRASING    -- no claim that a rule "argued against" or "ruled out" an organism.
                     Nothing in this corpus argues against anything, and saying so
                     describes a mechanism that does not exist.
+                    Negations are exempt: "nothing argued against it" is correct.
+  5. IGNORANCE   -- a stated bel/pl/ignorance triple for ONE organism must satisfy
+                    ignorance = pl - bel. Pure arithmetic. It caught a sentence quoting
+                    the consultation's m(Theta) as an organism's own ignorance, in the
+                    same clause as the bel and pl that contradict it.
+  6. MARGIN AGAINST NOTHING -- when the payload reports `margin_against: null', nothing
+                    contradicts the leading answer, and the prose may not narrate the
+                    margin as a lead OVER a rival. The first STRUCTURAL check: not "is
+                    this token real" but "does the prose claim a relation the payload
+                    denies". Every number in the sentence that motivated it was real,
+                    so check 3 passed it.
 
 WHY A RELEASE GATE AND NOT A COMMIT HOOK: it costs API calls and is non-deterministic.
 Run it at the same cadence as the manual check it replaces -- before tagging.
@@ -79,6 +90,18 @@ SCENARIOS = {
         "Blood culture: gram-negative rods, aerobic. No allergies. What is this and what "
         "should I treat with?",
         "Is there a narrower agent?",
+    ],
+    # The ONLY scenario that hedges a fact, and the only one that exercises evidence
+    # discounting (v0.16.0). Until then a hedge changed nothing, so a model quoting a
+    # remembered figure here would have been quoting a number that was never wrong --
+    # check 3 can only see it now that the hedge actually moves the differential.
+    "hedged-stain": [
+        "Seriously burned, immunocompromised patient. Blood culture, anaerobic "
+        "organism. The microbiologist is hedging: PROBABLY gram-negative rods on the "
+        "slide, but POSSIBLY gram-positive - the stain was poor. Please run inference "
+        "and give me the differential.",
+        "How much of that conflict comes from the stain itself, and how confident "
+        "should I be? Quote the actual figures.",
     ],
     "bench-discrimination": [
         "Aerobic gram-negative rods in the blood. Biochemicals are back - lactose "
