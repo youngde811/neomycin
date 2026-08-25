@@ -24,6 +24,29 @@
 
 ;; Update the version symbol in this file whenever you do a new release.
 ;;
+;; 4.6.0 (2026-08-25) -- a MINOR bump: evidence strength now reaches the answer.
+;;
+;;   ADDED   CANDIDATES:DISCOUNT -- Shafer's discounting on a mass function. Scales every
+;;           focal mass by alpha and puts the freed mass on Theta, weakening an answer
+;;           without changing its shape. Pure algebra; knows nothing of rules or facts.
+;;
+;;   CHANGED an answer is now DISCOUNTED by how strongly the premises that fired its
+;;           rule were believed. A rule's :belief says how strongly its answer follows
+;;           FROM its premises and says nothing about how strongly those premises were
+;;           held; the two are different quantities and they multiply. The discount is
+;;           read per FIRING from the premise belief snapshots the derivation record
+;;           already carries -- the conclusion fact's own belief is the combined result
+;;           of every contributor and cannot be decomposed per rule.
+;;
+;;           Before this, evidence belief reached the concluded fact and stopped there.
+;;           A hedged Gram stain asserted at 0.8/0.2 produced a differential identical
+;;           to one asserted at 0.5/0.5, or at 0.2/0.8 -- the reading REVERSED. The
+;;           bridge accepted a `confidence', echoed it back, and it changed nothing.
+;;           Only rulebases that assert facts below full belief are affected.
+;;
+;; Certainty factors and the Barnett per-hypothesis Dempster-Shafer system are
+;; UNCHANGED.
+;;
 ;; 4.5.2 (2026-08-24) -- a PATCH: one payload field that was declared but never
 ;; rendered.
 ;;
@@ -123,4 +146,4 @@
 ;; UNCHANGED and still the systems Lisa's own examples and suite exercise.
 
 (eval-when (:load-toplevel :execute)
-  (pushnew :lisa4.5.2 *features*))
+  (pushnew :lisa4.6.0 *features*))
