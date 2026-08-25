@@ -31,6 +31,27 @@ rather than re-synced, so an older one can lag the current rulebase.
 
 ## Current
 
+The three below form a progression, and each is kept because it shows something the
+others cannot: `v011` is the narration baseline, `v013` adds graded answers, `v016` adds
+evidence discounting. Read `v016` first if you want to know how the system behaves today.
+
+- **`v016-hedged-stain-release-check.md`** (2026-08-25, v0.16.0) — **the only capture in
+  which a clinician HEDGES a fact**, and the only one that exercises evidence
+  discounting. A stain read *probably* gram-negative and *possibly* gram-positive
+  enters at confidence 0.8 / 0.6, and the two Gram rules' answers arrive discounted to
+  0.56 and 0.42 rather than at their declared 0.7 — so `K` is 0.2352 rather than the
+  0.49 this consultation returned for **any** hedge before v0.16.0. Every figure in its
+  golden table is derivable by hand from two multiplications. The headline stays on a
+  SET with every member at `bel 0.0000`, the model explains the discount correctly and
+  unprompted, reads `K` with the margin rather than alone, and asks for the one missing
+  premise (`morphology`) instead of guessing. **The best current example of what the
+  narration should look like.**
+
+- **`v013-graded-answers-release-check.md`** (2026-08-24, v0.13.0) — the same burn-ICU
+  case once epidemiological rules could assert a mass function over several focal sets.
+  Shows a rule ranking its members without excluding any of them, which a single answer
+  set cannot express.
+
 - **`v011-burn-icu-release-check.md`** (2026-08-22) — the burn-ICU case under v0.11
   candidate sets, run as the **release check** and checked figure-by-figure against
   independently computed goldens (the table is in the file). Shows the three
@@ -40,7 +61,9 @@ rather than re-synced, so an older one can lag the current rulebase.
   negative-polarity bench reading that now fires a rule. It also caught a live
   defect on its first run — `?premises=` could not be queried by parameter name, and
   the model consequently made a false statement about the corpus to a clinician.
-  The best current example of what the narration should look like.
+  Superseded as the narration exemplar by `v016` above, and its figures predate both
+  graded answers (v0.13) and evidence discounting (v0.16) — but it remains the clearest
+  record of the release check catching a live defect on its first run.
 
 
 - **`strep-hemolysis-conflict-rule-catalogue.md`** (2026-08-11) — a respiratory

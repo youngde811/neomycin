@@ -98,6 +98,23 @@ was called 80% negative, 50/50, or 80% POSITIVE. culture-2 is the only scenario 
 hedges a fact and the only one whose goldens moved. Guarded by
 `candidates-evidence-discount`, which pins the RELATION rather than a number.
 
+**Dempster is the readout, and that is a DECISION rather than a default.**
+`candidates:*normalization*` is `:dempster`; `:yager` is available and both are
+exercised by the suite. Measured across all eight drivers (2026-08-25), K is BIMODAL:
+0.00–0.21 where the evidence is epidemiological, 0.53–0.68 where a bench finding
+overrules it. The high half is not the pathological regime it resembles — culture-4's
+0.626 is the graded respiratory answer being OVERRULED by a beta-hemolytic,
+bacitracin-sensitive reading, and renormalizing it away is the correct answer, not a
+hidden one. Yager would report pyogenes at 0.313 instead of 0.835 and push the
+difference onto Θ, which reads as ignorance the evidence does not actually have.
+
+The case that once argued for Yager was culture-2, where Dempster returned bacteroides
+at 0.841 — above the 0.8 the clinician put on the stain. **That was not Dempster's
+doing**: evidence belief never reached the arithmetic, and with discounting in place
+K falls to 0.1228 and the answer to 0.7058, below its evidence as it should be. Revisit
+only if a scenario produces high K between two answers of comparable strength, which
+none currently does.
+
 **Nothing is excluded by being named.** There are no ruling-out rules and no negative
 beliefs anywhere in the corpus. `{pyogenes, agalactiae}` intersected with
 `{pneumoniae}` is empty, and that emptiness *is* the exclusion.
@@ -404,7 +421,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1633 assertions / 210 tests):
+Coverage (~1649 assertions / 214 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,
@@ -462,13 +479,20 @@ again.
 ## Key Packages
 
 - `lisa` / `lisa-user` — Core engine and user-facing DSL (defrule, assert, run, reset)
-- `belief` (nickname for `lisa.belief`) — pluggable belief protocol: CF, Barnett DS, and
-  shared-frame systems; `belief-factor`, `combine-beliefs` / `ds-combine`,
-  `normalize-belief`, `ds-belief` accessors; and the frame layer — `make-frame`,
-  `resolve-mask`, `evidence-pool` / `pool-add` / `pool-mass` / `pool-conflict`,
-  `mass-belief` / `mass-plausibility` / `mass-set-valued`, `*frame-operator*`
-  (`:cautious` default, `:conjunctive` for comparison), `*frame-normalization*`
-  (`:dempster` / `:yager`)
+- `belief` (nickname for `lisa.belief`) — the pluggable belief PROTOCOL, and nothing
+  algebra-specific: `belief-factor`, `use-system`, `valid-belief-p`, the four operations
+  a system must implement (`combine-beliefs`, `conjoin-beliefs`, `weaken-belief`,
+  `normalize-belief`), the fire-time entry point `adjust-belief`, the readouts
+  (`belief->number` / `belief->english` / `belief->json`), and the Barnett accessors
+  (`ds-belief`, `ds-combine`, `ds-ignorance`). The system objects themselves are
+  `*candidates-system*` (the default), `*cf-system*` and `*ds-system*`.
+
+  **The set algebra lives in `candidates`, not here** — `answer`, `graded-answer`,
+  `combine-two`, `discount`, `bel` / `pl`, `conflict-of`, `margin`, `*normalization*`.
+  It knows nothing of rules or facts. This bullet used to list a `frame` layer —
+  `make-frame`, `evidence-pool`, `*frame-operator*` and eight more — that was deleted
+  with the declared-frame system at v0.11. Not one of those names existed for five
+  releases, which is why `claude-md-tests.lisp` now checks every symbol this file names.
 - `lisa-bridge` — identification HTTP bridge (start, stop, reset-session)
 - `neomycin-therapy` (nickname `therapy`) — therapy phase: solver protocol, KB abstraction,
   `def*` authoring, the antibiogram overlay, and the `/recommend-therapy` glue
