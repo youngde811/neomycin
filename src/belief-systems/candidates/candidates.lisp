@@ -187,6 +187,29 @@
   "Total ignorance: all mass on Theta. The identity for combination."
   (list (cons +universe+ 1.0d0)))
 
+(defun discount (m alpha)
+  "Shafer's discounting: weaken a mass function by ALPHA, the strength of the evidence
+   behind it. Every focal mass is scaled by ALPHA and the mass this frees goes to
+   Theta, where it excludes nothing.
+
+   This is how an OBSERVATION's strength reaches an answer. A rule states the set its
+   evidence narrows to, and its :belief says how strongly that set follows FROM the
+   premises -- but not how strongly the premises were believed in the first place. A
+   Gram stain read as `probably negative' should narrow less far than one read
+   outright, and discounting is the operation that says so without touching the shape
+   of the answer: the same focal sets, less committed.
+
+   ALPHA = 1 returns M unchanged. ALPHA = 0 returns the vacuous mass function, which
+   is the honest reading of evidence nobody believed -- it excludes nothing and ranks
+   nothing, rather than arguing against the answer it declined to support."
+  (let ((a (max 0.0d0 (min 1.0d0 (to-double alpha)))))
+    (if (>= a 1.0d0)
+        m
+        (let ((out '()))
+          (dolist (e m)
+            (setf out (mass-incf out (car e) (* a (cdr e)))))
+          (mass-incf out +universe+ (- 1.0d0 a))))))
+
 (defun conflict-of (m)
   "K -- mass this combination put on the empty set. Read it BEFORE normalizing; both
    normalizations resolve it away by construction, so a normalized mass function

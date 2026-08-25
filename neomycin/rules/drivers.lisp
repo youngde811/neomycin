@@ -70,20 +70,12 @@
   (when runp
     (run)))
 
-(defun culture-2 (&key (runp t))
-  "Second PAIP scenario (pg. 556): same burned, immunocompromised patient, but the
-   Gram stain is ambiguous. Two conflicting GRAM facts are asserted with explicit
-   belief values (0.8 for neg, 0.2 for pos), exercising the belief-system protocol
-   on the fact side as well as the rule side. With an anaerobic gram-neg rod in the
-   blood the bacteroides answer dominates (bel 0.841), while the gram-POSITIVE answer
-   is disjoint from every gram-negative one and drives K to 0.679 -- a good workout
-   for both combinators.
+(defun culture-2-hedged (neg pos &key (runp t))
+  "culture-2's scenario with the Gram stain hedged at NEG/POS.
 
-   The organism is an ANAEROBE, which is what makes this the scenario that exposed the
-   Category B premise gap: the two pseudomonas context rules used to fire here, having
-   never gated on aerobicity, and asserted an obligate aerobe against the bacteroides
-   answer. Gating them dropped pseudomonas to bel 0.0 and K from 0.90 to 0.679. What
-   is left is the stain ambiguity, which is all this scenario ever meant to test."
+   Parameterized because the hedge is the point: the two GRAM facts are asserted with
+   explicit belief values, and the differential must MOVE when they change. It did not
+   until v0.16 -- see the culture-2 docstring below and CANDIDATES-EVIDENCE-DISCOUNT."
   (reset)
   (assert (patient (id p1)))
   (assert (culture (id c1) (patient p1)))
@@ -92,12 +84,36 @@
   (assert (burn (value serious) (of p1)))
   (assert (culture-site (value blood) (of c1)))
   (assert (culture-age (value 3) (of c1)))
-  (assert (gram (value neg) (of o1)) :belief 0.8)
-  (assert (gram (value pos) (of o1)) :belief 0.2)
+  (assert (gram (value neg) (of o1)) :belief neg)
+  (assert (gram (value pos) (of o1)) :belief pos)
   (assert (morphology (value rod) (of o1)))
   (assert (aerobicity (value anaerobic) (of o1)))
   (when runp
     (run)))
+
+(defun culture-2 (&key (runp t))
+  "Second PAIP scenario (pg. 556): same burned, immunocompromised patient, but the
+   Gram stain is ambiguous. Two conflicting GRAM facts are asserted with explicit
+   belief values (0.8 for neg, 0.2 for pos), exercising the belief-system protocol
+   on the fact side as well as the rule side. With an anaerobic gram-neg rod in the
+   blood the bacteroides answer leads (bel 0.706, pl 0.980), while the gram-POSITIVE
+   answer is disjoint from every gram-negative one and drives K to 0.1228.
+
+   THE FACT SIDE WAS INERT UNTIL v0.16, and this scenario is the only one that could
+   have shown it. Every rule's answer entered combination at the rule's own declared
+   :belief -- 0.7 / 0.7 / 0.9 -- so the hedge reached the CANDIDATES facts (0.56 /
+   0.14 / 0.72) and stopped there. The differential was bit-identical whether the
+   clinician called the stain 80% negative, 50/50, or 80% POSITIVE, and the old
+   goldens (bacteroides 0.841, K 0.679) were measuring only that two gram rules had
+   both fired. Answers are now DISCOUNTED by the strength of the premises that fired
+   them (neomycin:answer-mass-of), which is what moved these numbers and no others.
+
+   The organism is an ANAEROBE, which is what makes this the scenario that exposed the
+   Category B premise gap: the two pseudomonas context rules used to fire here, having
+   never gated on aerobicity, and asserted an obligate aerobe against the bacteroides
+   answer. Gating them dropped pseudomonas to bel 0.0. What is left is the stain
+   ambiguity, which is all this scenario ever meant to test -- and now measures."
+  (culture-2-hedged 0.8 0.2 :runp runp))
 
 (defun culture-3 (&key (runp t))
   "Gram-pos cocci in chains from a respiratory site in a compromised host.

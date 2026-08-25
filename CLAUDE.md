@@ -85,6 +85,19 @@ Nothing accumulates during inference; `neomycin:consensus` combines those answer
 intersection when a client reads working memory. Θ is never enumerated, so nothing
 declares a frame and nothing has to be kept in step with the rulebase.
 
+**Evidence strength discounts the answer.** A rule's `:belief` says how strongly its
+answer follows FROM its premises; it does not say how strongly those premises were
+believed. So each firing's answer is DISCOUNTED (Shafer) by the conjoined belief of the
+premises that fired it — read from the snapshots the engine already captures in the
+derivation table, per firing, because the conclusion fact's own belief is the combined
+result of every contributor and cannot be decomposed per rule. A hedged Gram stain
+therefore narrows less far than one read outright, and `confidence` on `/assert-fact`
+reaches the differential. **It did not until v0.16**: evidence belief stopped at the
+`candidates` fact, and culture-2 returned a bit-identical differential whether the stain
+was called 80% negative, 50/50, or 80% POSITIVE. culture-2 is the only scenario that
+hedges a fact and the only one whose goldens moved. Guarded by
+`candidates-evidence-discount`, which pins the RELATION rather than a number.
+
 **Nothing is excluded by being named.** There are no ruling-out rules and no negative
 beliefs anywhere in the corpus. `{pyogenes, agalactiae}` intersected with
 `{pneumoniae}` is empty, and that emptiness *is* the exclusion.

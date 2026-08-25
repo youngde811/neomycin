@@ -115,28 +115,65 @@
 
 (deftest candidates-culture-2 ()
   ;; The ambiguous gram stain, and the shape is loud about it: the gram-positive and
-  ;; gram-negative answers are DISJOINT, so K stays high. RE-CAPTURED IN THE CATEGORY B
-  ;; PREMISE-GATE PASS, and the movement is the point.
+  ;; gram-negative answers are DISJOINT, so conflict is real. RE-CAPTURED IN THE
+  ;; EVIDENCE-DISCOUNT PASS (v0.16), and the movement is the point.
   ;;
-  ;; This organism is an ANAEROBE. Before the gate, the two pseudomonas context rules
-  ;; premised on the gram stain and morphology but NOT on aerobicity, so both fired
-  ;; here and asserted {pseudomonas} -- an obligate aerobe -- at a combined 0.76,
-  ;; contradicting {bacteroides} at 0.9. K was 0.90 and this comment credited all of it
-  ;; to the stain. Some of it was the corpus contradicting itself.
+  ;; This is the ONLY scenario that hedges a fact, and it was the only one that could
+  ;; have shown that hedging did nothing. Every rule's answer used to enter combination
+  ;; at the rule's declared :belief -- 0.7 / 0.7 / 0.9 -- so the clinician's 0.8/0.2
+  ;; reached the CANDIDATES facts (0.56 / 0.14 / 0.72) and stopped. Answers are now
+  ;; discounted by the strength of the premises that fired them:
   ;;
-  ;;   bacteroides  0.6490/0.7212 -> 0.8411/0.9346   (the answer stops being fought)
-  ;;   pseudomonas  0.2284/0.3005 -> 0.0000/0.0935   (bel to ZERO, as it must be)
-  ;;   K            0.90          -> 0.679
+  ;;   bacteroides  0.8411/0.9346 -> 0.7058/0.9803   (the answer stops overclaiming)
+  ;;   pseudomonas  0.0000/0.0935 -> 0.0000/0.2745   (an anaerobe: bel stays ZERO)
+  ;;   K            0.679         -> 0.1228
   ;;
-  ;; Pseudomonas keeps a plausibility of 0.0935 and no belief at all -- and klebsiella
-  ;; and e-coli sit at exactly the same pair, because on an anaerobe nothing separates
-  ;; them. That residue is the gram ambiguity and nothing else, which is what K = 0.679
-  ;; now measures. The number is smaller and it means what the comment says.
+  ;; K FELL because it was never measuring the stain ambiguity. It was measuring that
+  ;; two gram rules had both fired, at full strength, as though the clinician had
+  ;; asserted both readings outright. What it measures now is 0.56 of gram-negative
+  ;; mass against 0.14 of gram-positive -- the hedge as stated.
+  ;;
+  ;; Bacteroides falling to 0.7058 is not a loss of confidence; it is the arithmetic
+  ;; no longer being inflated by renormalizing away conflict the corpus invented. Note
+  ;; pl RISES (0.9346 -> 0.9803): less mass is committed anywhere, so less is denied.
+  ;;
+  ;; Pseudomonas keeps bel 0.0 and gains plausibility -- klebsiella and e-coli sit at
+  ;; exactly the same pair, because on an anaerobe nothing separates them.
   (let ((c (candidates-run 'lisa-user::culture-2)))
-    (check-candidates c "bacteroides" 0.841121 0.934579)
-    (check-candidates c "pseudomonas" 0.000000 0.093458))
-  (is (approx= (candidates-conflict 'lisa-user::culture-2) 0.679000)
-      "an ambiguous stain should read as deeply conflicted -- by the STAIN"))
+    (check-candidates c "bacteroides" 0.705844 0.980339)
+    (check-candidates c "pseudomonas" 0.000000 0.274495))
+  (is (approx= (candidates-conflict 'lisa-user::culture-2) 0.122752)
+      "an ambiguous stain should read as conflicted in PROPORTION to the ambiguity"))
+
+(deftest candidates-evidence-discount ()
+  ;; THE GUARD THE GOLDENS COULD NOT BE. A golden pins one hedge; re-breaking the
+  ;; discount would just move it, and someone would re-capture it. This pins the
+  ;; RELATION: the clinician's confidence must reach the answer.
+  ;;
+  ;; For five releases (v0.11-v0.15) it did not. /assert-fact accepted a `confidence',
+  ;; plumbed it to :belief, echoed it back in the response, and the differential was
+  ;; bit-identical whether the stain was called 80% negative or 80% POSITIVE. Nothing
+  ;; in the suite could see it, because culture-2's goldens were re-captured to the
+  ;; undiscounted values and agreed with themselves.
+  (flet ((bact (neg pos)
+           (belief:use-system :candidates)
+           (let ((*standard-output* (make-broadcast-stream)))
+             (lisa-user::culture-2-hedged neg pos))
+           (candidates:bel (neomycin:consensus 'lisa-user::o1) :bacteroides)))
+    (let ((confident (bact 0.99 0.01))
+          (stated    (bact 0.80 0.20))
+          (even      (bact 0.50 0.50))
+          (reversed  (bact 0.20 0.80)))
+      ;; Strictly monotonic in the strength of the gram-negative reading. Any one of
+      ;; these failing means evidence belief has stopped reaching the differential.
+      (is (> confident stated) "a near-certain stain must beat a hedged one")
+      (is (> stated even)      "an 80/20 stain must beat a coin flip")
+      (is (> even reversed)    "a coin flip must beat a stain read the other way")
+      ;; And the reversal must actually collapse the answer, not merely dent it: a
+      ;; clinician who says `probably gram-POSITIVE' has not made a case for an
+      ;; anaerobic gram-negative rod.
+      (is (< reversed 0.15) "a stain read gram-positive must not sustain bacteroides")
+      (is (> confident 0.85) "a stain read gram-negative outright must sustain it"))))
 
 (deftest candidates-culture-3 ()
   ;; IDENTICAL to v0.10.0's frame goldens (0.473684 / 0.631579, K = 0.525) with the
