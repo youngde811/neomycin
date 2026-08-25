@@ -222,7 +222,17 @@ neomycin/
                         every fact value advertised must be one some rule premises on —
                         or be marked inert (†), which is checked in BOTH directions)
   clinician-samples/  — saved driver transcripts
-docs/                 — design docs, runbook, clinician scenarios, therapy demo
+docs/                 — LIVE documentation only: anything cited as authority for how the
+                        system behaves today (runbook, clinician scenarios, getting-started,
+                        the therapy/solver/antibiogram designs, the surveys CLAUDE.md and the
+                        rule notes cite, the demos). The paper lives here too
+  attic/              — the record of what neomycin USED TO BE: the declared shared frame
+                        (deleted v0.11), chaining and the organism-class, disconfirming rules
+                        and negative belief, the narrows-to conversion working files, and
+                        superseded plans and captures. NOTHING here is authority for current
+                        behaviour; each file carries a banner naming the mechanism that is
+                        gone, and files are left as written rather than corrected. The
+                        boundary is CITED-AS-AUTHORITY, not age — see docs/attic/README.md
 
 # --- Lisa substrate (used as-is; engine intentionally not renamed) ---
 lisa.asd              — Lisa core (depends on log4cl)

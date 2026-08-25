@@ -1,6 +1,9 @@
 ;;; -*- Mode: Lisp -*-
 ;;;
-;;; SPIKE RULES for docs/narrows-to-spike.lisp. Throwaway; not in any ASDF system.
+;;; ATTIC -- historical record.
+;;; Throwaway spike rules from the narrows-to conversion. Not in any ASDF system. The shipped corpus is neomycin/rules/.
+;;;
+;;; SPIKE RULES for docs/attic/narrows-to-spike.lisp. Throwaway; not in any ASDF system.
 ;;;
 ;;; THE GRAM-NEGATIVE HALF as narrows-to rules: the enterobacteriaceae cluster (9),
 ;;; the gram-negative identities (5), the 8 ruling-out rules that touch them, and the

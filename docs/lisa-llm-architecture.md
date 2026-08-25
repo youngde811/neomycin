@@ -5,7 +5,7 @@
 - **Phase 1 (Lisa Server/Bridge)**: COMPLETE — Hunchentoot HTTP server on port 8090, JSON via jzon, endpoints for assert-fact, run-inference, conclusions, rule-trace, partial-matches, reset.
 - **Phase 2 (Claude Tool Integration)**: COMPLETE — Python driver (`src/llm/claude/driver.py`) with tool-call dispatch loop, using the Anthropic-protocol client (points at api.anthropic.com by default; set `ANTHROPIC_BASE_URL` to route through an internal wrapper). System prompt with full MYCIN ontology.
 - **Phase 3 (Conversational Flow)**: COMPLETE — `/partial-matches` endpoint enables goal-directed dialogue; Claude uses it to identify missing facts and ask discriminating questions.
-- **Phase 4 (Expanded Rulebase)**: Not started — see `docs/next-steps-llm-integration.md`.
+- **Phase 4 (Expanded Rulebase)**: Not started — see `docs/attic/next-steps-llm-integration.md`.
 
 The design below was written pre-implementation. Decisions that were speculative at the time are now resolved: bridge = Hunchentoot, client = Python CLI, communication = HTTP + Claude tool-use.
 

@@ -1,9 +1,12 @@
 ;;; -*- Mode: Lisp -*-
 ;;;
-;;; SPIKE RULES for docs/narrows-to-spike.lisp. Throwaway; not in any ASDF system.
+;;; ATTIC -- historical record.
+;;; Throwaway spike rules from the narrows-to conversion. Not in any ASDF system. The shipped corpus is neomycin/rules/.
+;;;
+;;; SPIKE RULES for docs/attic/narrows-to-spike.lisp. Throwaway; not in any ASDF system.
 ;;;
 ;;; THE FULL GRAM-POSITIVE CLUSTER as narrows-to rules, per
-;;; docs/narrows-to-gram-pos-sketch.md. 27 rules in the shipped corpus (15 cluster +
+;;; docs/attic/narrows-to-gram-pos-sketch.md. 27 rules in the shipped corpus (15 cluster +
 ;;; 4 host-factor + 8 ruling-out) become 23 here, after four merges.
 ;;;
 ;;;   * CONFIRMING RULES ONLY. Nothing is excluded by being named. All 8 ruling-out

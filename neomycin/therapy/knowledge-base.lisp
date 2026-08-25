@@ -158,7 +158,7 @@
 ;;; --------------------------------------------------------------------------
 ;;; A family member with no sensitivity of its own inherits its family's curated
 ;;; figure (empiric therapy is pitched at the family level; chaining decision 4,
-;;; docs/chaining-belief-spike.md §7). Membership also drives item-selection: when a
+;;; docs/attic/chaining-belief-spike.md §7). Membership also drives item-selection: when a
 ;;; member SPECIES is identified, the family is not separately treated (the species
 ;;; covers it); the family is treated only as a backstop when NO member species
 ;;; clears the gate. :e-coli / :enterobacter / :serratia / :proteus carry no

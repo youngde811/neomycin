@@ -1,7 +1,9 @@
 # Shared frame of discernment — a design proposal
 
+> **📦 ATTIC — historical record.** The design for a DECLARED shared frame of discernment. **That system shipped at v0.9/v0.10 and was deleted outright at v0.11**, replaced by Dempster-Shafer over an OPEN frame, which needs no declaration. Read for the reasoning, not the mechanism.
+
 > **UPDATE 2026-08-17 — decisions settled and phase 0 has run. Read
-> `docs/shared-frame-phase0-results.md` alongside this.** David settled §11 as: D1
+> `docs/attic/shared-frame-phase0-results.md` alongside this.** David settled §11 as: D1
 > unconditional, D2 keep Barnett, D3 measure both, D4 add `:other-organism`, D5 phase
 > 0 sufficient. Phase 0 then measured the corpus and found that §9.4 (independence) is
 > not a caveat but the blocking problem: the corpus's rules are not independent bodies
@@ -11,7 +13,7 @@
 > Sections §6.3, §7 and §9.4 below are superseded by measurements.
 
 > **Status: proposal, no code (2026-08-17).** Written in response to
-> `docs/belief-conditional-audit.md` and David's reply to it. That audit found five
+> `docs/attic/belief-conditional-audit.md` and David's reply to it. That audit found five
 > rules answering the wrong conditional and three class beliefs answering none, and
 > proposed a `:conditional` provenance keyword plus a property test to guard it. This
 > proposal argues those are symptoms of one representational choice, and that the
@@ -42,7 +44,7 @@ model plainly:
 > `{H, not-H}` … Restricting the frame to a single hypothesis and its negation (the
 > Barnett simplification) keeps combination O(1) and avoids power-set mass functions.
 
-`docs/next-steps-llm-integration.md:193` records the deferral:
+`docs/attic/next-steps-llm-integration.md:193` records the deferral:
 
 > Full power-set DS (set-valued / taxonomic hypotheses) remains deferred; the
 > dichotomous-frame simplification is the right cost/benefit point for now.
@@ -497,7 +499,7 @@ Phase 0 is the only commitment being asked for.
 
 ## 12. Relationship to the conditional audit
 
-`docs/belief-conditional-audit.md` proposed three steps: declare a `:conditional`
+`docs/attic/belief-conditional-audit.md` proposed three steps: declare a `:conditional`
 provenance keyword, guard it with a property test, then fix the five rules.
 
 **This proposal supersedes steps 1 and 2.** The keyword would record which flavour of

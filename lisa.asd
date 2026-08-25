@@ -80,7 +80,7 @@
        ;; Dempster-Shafer over a SHARED frame of discernment (subsets of a declared
        ;; frame) rather than the dichotomous {H, not-H} frame per hypothesis that
        ;; dempster-shafer.lisp implements. Algebra only; see
-       ;; docs/shared-frame-design.md.
+       ;; docs/attic/shared-frame-design.md.
        ;; Dempster-Shafer over an OPEN frame: answers are SETS of hypotheses, they
        ;; combine by intersection, and Theta is symbolic so nothing enumerates the
        ;; universe. Algebra only -- knows nothing of rules or facts.
@@ -162,7 +162,7 @@
 ;;; depend on this. The rulebase-DEPENDENT goldens (scenarios, rules) live in the
 ;;; dependent system instead, so neomycin can validate its own canonical rulebase
 ;;; (neomycin/rules/) without inheriting Lisa's example goldens -- which
-;;; diverge once neomycin re-parents rules. See docs/chaining-belief-spike.md §7.1.
+;;; diverge once neomycin re-parents rules. See docs/attic/chaining-belief-spike.md §7.1.
 (asdf:defsystem "lisa/test-base"
   :description "Rulebase-independent test harness + belief-algebra suite (no external deps)."
   :depends-on ("lisa")

@@ -1,5 +1,8 @@
 ;;; -*- Mode: Lisp -*-
 ;;;
+;;; ATTIC -- historical record.
+;;; Throwaway spike that showed the narrows-to shape reproduced the shipped numbers. The conversion shipped at v0.11; the corpus is the authority now.
+;;;
 ;;; SPIKE: confirming rules only, over an OPEN frame. Throwaway.
 ;;; NOT part of any ASDF system, NOT loaded by anything, NOT tested.
 ;;;
@@ -137,7 +140,7 @@
 ;;; ============================================================
 ;;; 3. The rules -- CONFIRMING ONLY, each asserting its answer
 ;;; ============================================================
-;;; Real defrules through the real Rete, in docs/narrows-to-rules.lisp. Each narrows
+;;; Real defrules through the real Rete, in docs/attic/narrows-to-rules.lisp. Each narrows
 ;;; to the set its evidence licenses and asserts a CANDIDATES fact carrying its
 ;;; belief. There is no disconfirming rule anywhere in this spike, no rule has an
 ;;; empty RHS, and nothing declares a frame.
@@ -146,8 +149,8 @@
   "Load the spike's rulebase. Plain defrules in their own file, readable as rules --
    which matters, since the question is whether a HUMAN can author this shape."
   (let ((root (asdf:system-source-directory "neomycin")))
-    (load (merge-pathnames "docs/narrows-to-rules.lisp" root))
-    (load (merge-pathnames "docs/narrows-to-rules-gram-neg.lisp" root))))
+    (load (merge-pathnames "docs/attic/narrows-to-rules.lisp" root))
+    (load (merge-pathnames "docs/attic/narrows-to-rules-gram-neg.lisp" root))))
 
 ;;; ============================================================
 ;;; 4. Combination as a READ over working memory

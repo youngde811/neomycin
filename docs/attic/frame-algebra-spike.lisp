@@ -1,6 +1,9 @@
 ;;; -*- Mode: Lisp -*-
 ;;;
-;;; PHASE 0 SPIKE for docs/shared-frame-design.md. Throwaway measurement code.
+;;; ATTIC -- historical record.
+;;; Throwaway phase-0 measurement code for the shared frame. That system was deleted at v0.11. Will not run against the current tree.
+;;;
+;;; PHASE 0 SPIKE for docs/attic/shared-frame-design.md. Throwaway measurement code.
 ;;; NOT part of any ASDF system, NOT loaded by anything, NOT tested.
 ;;;
 ;;; Purpose: produce the numbers §6.3 of the design could not state, so the
@@ -8,14 +11,14 @@
 ;;; standalone (no engine hooks), then REPLAYS the real engine's firings through
 ;;; it and prints the comparison against the current DS goldens.
 ;;;
-;;; Precedent for living in docs/: docs/belief-system-prototype.lisp, which is
+;;; Precedent for living in docs/: docs/attic/belief-system-prototype.lisp, which is
 ;;; where the current DS system started.
 ;;;
 ;;; Usage, from an SBCL REPL at project root with :neomycin loaded:
-;;;   (load "docs/frame-algebra-spike.lisp")
+;;;   (load "docs/attic/frame-algebra-spike.lisp")
 ;;;   (frame-spike:report)
 ;;;
-;;; DESIGN DECISIONS BEING MEASURED (docs/shared-frame-design.md §11):
+;;; DESIGN DECISIONS BEING MEASURED (docs/attic/shared-frame-design.md §11):
 ;;;   D1 unconditional  — a chained rule's belief does NOT discount by its class.
 ;;;                       Operationally: premise strength excludes DERIVED premises
 ;;;                       (organism-class / organism-identity facts) and reflects only
@@ -620,7 +623,7 @@
     (dolist (widened '(nil t))
       (let* ((*focal-widening*
                (when widened
-                 ;; SLICE D's four proposed corrections (docs/slice-d-focal-width.md).
+                 ;; SLICE D's four proposed corrections (docs/attic/slice-d-focal-width.md).
                  '(("aerobic-gram-neg-rod-suggests-enterobacteriaceae" . (:pseudomonas))
                    ("gram-pos-cocci-in-chains-suggests-streptococcus"
                     . (:enterococcus-faecalis :enterococcus-faecium))

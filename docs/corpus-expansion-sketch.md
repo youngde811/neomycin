@@ -21,7 +21,7 @@ things that scale differently, and the distinction should drive what we build:
   19 tier-2 chained species, 5 host-factor modifiers, 16 disconfirming) reaching **17**
   organism-identity values across **four** organism-classes. *(Was 27 rules / ~13
   identities / 1 class before the gram-positive increment — see
-  `gram-positive-cluster-design.md`.)* Breadth was the genuine bottleneck for realistic
+  `docs/attic/gram-positive-cluster-design.md`.)* Breadth was the genuine bottleneck for realistic
   scenarios and — more to the point for this fork — for making the CF-vs-DS divergence
   *empirically* interesting; at 8 conflicting rules the DS ignorance intervals barely
   got exercised. At 16, with two clean partitions (hemolysis three ways, coagulase two)
@@ -197,7 +197,7 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    for the LLM driver.
 4. **More disconfirming rules — esp. biochemical cross-disconfirmation among the
    enterobacteriaceae siblings.** ✅ **DELIVERED** (`feature/sibling-cross-disconfirmation`,
-   design `docs/sibling-cross-disconfirmation-design.md`): four new cross-disconfirming
+   design `docs/attic/sibling-cross-disconfirmation-design.md`): four new cross-disconfirming
    rules (red pigment −0.8, indole+ −0.6, lactose-fermenter −0.7, lactose-non-fermenter
    −0.6) generalize the urease pattern, so the observed session case now pulls **both**
    E. coli and Serratia below `pl 1.0` (E. coli [0.26, 0.41], Serratia [0.375, 0.625]).
@@ -221,7 +221,7 @@ Ranked by value-per-effort for *this fork's* goals (DS legibility + fidelity):
    has six species. (The engine handles it already; this is pure corpus authoring +
    goldens.)
 5. **Host-factor modifiers.** ✅ **DELIVERED** (`feature/gram-positive-cluster` slice D,
-   design `docs/gram-positive-cluster-design.md` §3.3): five patient-level rules —
+   design `docs/attic/gram-positive-cluster-design.md` §3.3): five patient-level rules —
    neutropenia → Pseudomonas (0.5), prosthetic material → S. epidermidis (0.6), IV drug
    use → S. aureus (0.55), neonate → S. agalactiae (0.7), urinary → S. saprophyticus
    (0.65). Three further candidates (neutropenia → viridans, asplenia → pneumococcus,

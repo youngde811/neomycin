@@ -1,5 +1,7 @@
 # Frequency-grounded identification beliefs — design & slice plan
 
+> **📦 ATTIC — historical record.** Deferred at v0.11 and never implemented; the branch was deleted. Retained for the argument, not as a plan.
+
 > ## ⏸️ Status: DEFERRED (2026-08-11). Design retained; implementation retired.
 >
 > The `feature/ds-grounded-beliefs` branch was **deleted** in favour of other work.
@@ -34,7 +36,7 @@
 
 > Status: **IN PROGRESS (staged, LIGHT track).** Opens the feature (branch
 > `feature/ds-grounded-beliefs`). Reopens, with a concrete need now in hand, the idea
-> deferred in `susceptibility-belief-design.md §8` ("Rules → native DS").
+> deferred in `docs/susceptibility-belief-design.md §8` ("Rules → native DS").
 >
 > **Review decisions (Q1–4, §8):** (1) **staged** — LIGHT now, FULL behind the Slice C
 > gate; (2) first rule **red-pigment → Serratia**; (3) mechanism **authoring-time bake**
@@ -80,7 +82,7 @@ DS-legibility thesis.
   and the numeric-assert routing all handle intervals on *facts* today
   (`dempster-shafer.lisp`). What is **not** interval-ready is the *rule-belief* input
   (see §5).
-- **The prior assessment.** `susceptibility-belief-design.md §8` weighed giving rule
+- **The prior assessment.** `docs/susceptibility-belief-design.md §8` weighed giving rule
   beliefs native `[bel, pl]` values and marked it **deferred/conditional** — *"pursue
   only if a concrete expressiveness need emerges that disconfirming rules genuinely
   cannot meet."* This doc argues the need has emerged (sample-size-legible *grounding*,
@@ -116,7 +118,7 @@ class. No change to the composition law.
 ## 4. The CF-vs-DS asymmetry (why this is harder than the antibiogram)
 
 The antibiogram was cheap because susceptibility uncertainty was **deliberately
-decoupled** from the identification algebra (`susceptibility-belief-design.md §4`,
+decoupled** from the identification algebra (`docs/susceptibility-belief-design.md §4`,
 decision C): a `ds-belief` susceptibility reduces by its own rule, **never** routed
 through `belief:*belief-system*`. A grounded **identification** belief cannot be
 decoupled — it *is* the diagnostic quantity, so it must flow through CF-vs-DS (that is
@@ -214,9 +216,9 @@ mechanism (authoring-time helper vs post-load rule re-definition).
   remaining groundable discriminators; teach `system-prompt.md` to narrate a grounded
   belief ("the observed frequency in N isolates", `s/(n+σ)`) distinctly from an
   illustrative one. **Docs re-capture from Slice A's Serratia change** (do not miss):
-  `clinician-scenarios.md` Scenario 9 (Serratia composed 0.60 → ≈0.7231; the
+  `docs/clinician-scenarios.md` Scenario 9 (Serratia composed 0.60 → ≈0.7231; the
   cross-disconfirmation table Serratia [0.375,0.625] → [0.5109,0.7065]) and the
-  **`demo-runsheet.md` cheat-sheet** Serratia kicker row (bel 0.375 → 0.5109, pl 0.625 →
+  **`docs/demo-runsheet.md` cheat-sheet** Serratia kicker row (bel 0.375 → 0.5109, pl 0.625 →
   0.7065; E. coli row unchanged; qualitative "both < pl 1.0 / E. coli falls further"
   still holds). The runsheet lives on `develop`, so this matters once the feature merges
   — before next month's demo.

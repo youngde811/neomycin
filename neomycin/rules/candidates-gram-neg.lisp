@@ -206,7 +206,7 @@ BELIEF RAISED 0.6 -> 0.7 to match the fermenter reading, which it had been disco
                              "Microbiology (Mikrobiologiya) 2015, Pigmentation of Serratia marcescens and prodigiosin, PMID 25916146"
                              "NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035")
                   :belief-basis :illustrative
-                  :note "The red pigment prodigiosin is essentially specific to Serratia marcescens among the Enterobacteriaceae. MERGED from a pair that disagreed: the confirming rule was held to 0.75 by 'many clinical isolates are non-pigmented', which docs/belief-conditional-audit.md 3.1 identified as the WRONG CONDITIONAL -- that is P(pigment | serratia), a sensitivity, and irrelevant once red pigment has actually been observed. The excluding rule's 0.8 survives, close to the ~0.90 the deferred grounding work estimated."))
+                  :note "The red pigment prodigiosin is essentially specific to Serratia marcescens among the Enterobacteriaceae. MERGED from a pair that disagreed: the confirming rule was held to 0.75 by 'many clinical isolates are non-pigmented', which docs/attic/belief-conditional-audit.md 3.1 identified as the WRONG CONDITIONAL -- that is P(pigment | serratia), a sensitivity, and irrelevant once red pigment has actually been observed. The excluding rule's 0.8 survives, close to the ~0.90 the deferred grounding work estimated."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
@@ -251,7 +251,7 @@ BELIEF RAISED 0.6 -> 0.7 to match the fermenter reading, which it had been disco
                   :evidence ("NCBI Bookshelf / StatPearls, Enterobacter Infections, NBK559296"
                              "NCBI Bookshelf, Medical Microbiology 4th ed. ch.26 (Enterobacteriaceae), NBK8035")
                   :belief-basis :illustrative
-                  :note "Motility separates the motile Enterobacter from the non-motile Klebsiella. Serratia is named alongside Enterobacter because it is also motile, indole-negative and a variable lactose reactor -- the corpus records no motility fact that would exclude it, a gap docs/slice-d-focal-width.md flagged, and naming the wider set is the honest reading of what the evidence can actually distinguish."))
+                  :note "Motility separates the motile Enterobacter from the non-motile Klebsiella. Serratia is named alongside Enterobacter because it is also motile, indole-negative and a variable lactose reactor -- the corpus records no motility fact that would exclude it, a gap docs/attic/slice-d-focal-width.md flagged, and naming the wider set is the honest reading of what the evidence can actually distinguish."))
   (organism (id ?o))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
@@ -582,7 +582,7 @@ The focal masses were rescaled to the new total in the SAME proportions -- e-col
 ;;; ==================================================================
 ;;; BLOOD-LOW-WBC-AEROBIC-GRAM-NEG-ROD-NARROWS-TO-SALMONELLA (was 0.55) is GONE.
 ;;;
-;;; It is the WRONG CONDITIONAL that docs/belief-conditional-audit.md 3.3 predicted,
+;;; It is the WRONG CONDITIONAL that docs/attic/belief-conditional-audit.md 3.3 predicted,
 ;;; now confirmed. The rule fired ON a low white count, so it had to answer
 ;;; P(Salmonella | low WBC, aerobic gram-negative rod in blood). The 15-25% figure its
 ;;; note cited is P(low WBC | typhoid) -- a SENSITIVITY, and a poor one: leukopenia

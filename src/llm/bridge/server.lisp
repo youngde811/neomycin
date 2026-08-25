@@ -72,7 +72,7 @@
    hypotheses summing to 1.16 -- and nothing notices. The frame shares one mass
    function per organism, so evidence for one constrains the others arithmetically,
    mass is conserved, and an organism no rule mentions still gets a plausibility.
-   `ds` remains available for comparison. See docs/shared-frame-design.md.
+   `ds` remains available for comparison. See docs/attic/shared-frame-design.md.
 
    Called from START."
   (let* ((env (uiop:getenv "LISA_BELIEF_SYSTEM"))

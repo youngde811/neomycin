@@ -1,6 +1,9 @@
 ;;; -*- Mode: Lisp -*-
 ;;;
-;;; SLICE D ANALYSIS for docs/shared-frame-design.md. Throwaway audit tool.
+;;; ATTIC -- historical record.
+;;; Throwaway audit tool for the shared-frame slice D. The frame system it reads was deleted at v0.11. Will not run against the current tree.
+;;;
+;;; SLICE D ANALYSIS for docs/attic/shared-frame-design.md. Throwaway audit tool.
 ;;; NOT part of any ASDF system, NOT loaded by anything, NOT tested.
 ;;;
 ;;; QUESTION: for each rule, is its focal set as wide as its premises license?
@@ -25,7 +28,7 @@
 ;;; focal set as too narrow only on evidence the corpus itself supplies.
 ;;;
 ;;; Usage, from an SBCL REPL at project root with :neomycin loaded:
-;;;   (load "docs/focal-width-audit.lisp")
+;;;   (load "docs/attic/focal-width-audit.lisp")
 ;;;   (focal-audit:report)
 
 (defpackage :focal-audit

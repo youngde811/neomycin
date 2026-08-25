@@ -9,7 +9,7 @@
 ;; rule has an empty RHS. Exclusion is a consequence of intersecting answers.
 ;;
 ;; Every value was measured against the real Rete and cross-checked against
-;; docs/narrows-to-spike.lisp. Where a golden matches v0.10.0's frame system exactly,
+;; docs/attic/narrows-to-spike.lisp. Where a golden matches v0.10.0's frame system exactly,
 ;; that is noted -- it is evidence that removing the disconfirming rules changed the
 ;; corpus's shape without changing what it concludes.
 

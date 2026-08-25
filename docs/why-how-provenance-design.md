@@ -2,7 +2,7 @@
 
 > Status: **approach locked, implementation not started.** This doc opens the
 > feature (branch `feature/why-how-provenance`), the way
-> `chaining-belief-spike.md` opened the chained cluster. Logged as
+> `docs/attic/chaining-belief-spike.md` opened the chained cluster. Logged as
 > `corpus-expansion-sketch.md` §5 candidate 7.
 
 ## 1. Why (the credibility problem)

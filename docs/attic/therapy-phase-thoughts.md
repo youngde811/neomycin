@@ -1,5 +1,7 @@
 # My thoughts on our therapy-recommendation phase
 
+> **📦 ATTIC — historical record.** Early thinking, before the therapy phase was designed. The shipped design is `docs/therapy-phase-design.md` and `docs/exact-solver-design.md`.
+
 ---
 
 Scope honesty: neomycin is absolutely not intended as a clinical diagnostic tool that would live in the wild. But, in

@@ -3,7 +3,7 @@
 ;;; Part of neomycin's canonical rulebase.
 ;;;
 ;;; THE FULL GRAM-POSITIVE CLUSTER as narrows-to rules, per
-;;; docs/narrows-to-gram-pos-sketch.md. 27 rules in the pre-v0.11 corpus (15 cluster +
+;;; docs/attic/narrows-to-gram-pos-sketch.md. 27 rules in the pre-v0.11 corpus (15 cluster +
 ;;; 4 host-factor + 8 ruling-out) become 23 here, after four merges.
 ;;;
 ;;;   * CONFIRMING RULES ONLY. Nothing is excluded by being named. All 8 ruling-out

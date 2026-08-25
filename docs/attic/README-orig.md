@@ -1,5 +1,7 @@
 # neomycin
 
+> **📦 ATTIC — historical record.** The v0.6.0 project README, kept for its framing. **Superseded by the repo-root `README.md`.** Its version numbers, rule counts and belief figures are all stale.
+
 **neomycin 0.6.0 (research preview) · built on the [Lisa](https://github.com/youngde811/Lisa) 4.2.0 engine**
 
 > **Not the antibiotic.** The name is an homage to William Clancey's *NEOMYCIN*,
@@ -109,7 +111,7 @@ enterobacteriaceae siblings, and the 27 → 50 corpus expansion — three chaine
 in place of one, host-factor modifiers, and corpus-wide property tests. Scaling the
 corpus *further* is no longer a headline goal: at 50 rules the shape is what matters,
 and the remaining §5 candidates in
-[`docs/corpus-expansion-sketch.md`](corpus-expansion-sketch.md) (significance/contaminant
+[`docs/corpus-expansion-sketch.md`](docs/corpus-expansion-sketch.md) (significance/contaminant
 context, site breadth, clinical syndromes) each add a new *kind* of reasoning rather
 than more of the same.
 

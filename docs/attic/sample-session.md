@@ -1,10 +1,12 @@
 # Lisa/Claude session transcript
 
+> **📦 ATTIC — historical record.** Also an ATTIC record: the belief system, the rule shapes and the narration below all predate v0.11.
+
 > **Historical record (pre-v0.9.0).** The belief figures below were produced by the
 > per-hypothesis Dempster-Shafer system, which was the default until the shared
 > frame of discernment replaced it. They are left as captured rather than rewritten
 > — a transcript is a record of what the system did at the time. Current numbers
-> differ; see `docs/shared-frame-design.md`.
+> differ; see `docs/attic/shared-frame-design.md`.
 
 - Started: 2026-07-02T12:05:45
 - Model: `claude-opus-4-7`
@@ -13,7 +15,7 @@
 - Verbosity: `normal`
 
 > **⚠️ Historical capture (pre-chaining).** Recorded July 2026, before the
-> enterobacteriaceae *chained cluster* (`docs/chaining-belief-spike.md`). Some rule
+> enterobacteriaceae *chained cluster* (`docs/attic/chaining-belief-spike.md`). Some rule
 > names and the Klebsiella/Salmonella beliefs shown below have since changed — those
 > species are now refined from a derived `organism-class`, so their belief composes
 > through the family (e.g. Klebsiella 0.50 → 0.40). **Enterobacteriaceae is no longer a

@@ -1,12 +1,14 @@
 # Which question does a rule's belief answer? — a corpus audit
 
+> **📦 ATTIC — historical record.** The audit that led to the shared frame of discernment. **That frame was deleted at v0.11** and the belief system is now Dempster-Shafer over an OPEN frame (`src/belief-systems/candidates/`). The five "wrong conditional" findings were resolved differently, by GRADED ANSWERS at v0.13 — see `docs/category-b-resolution-survey.md`.
+
 > **Status: findings only, no code, no belief changed (2026-08-13).** Written to be
 > read and argued with before anything is renumbered. Every classification below is a
 > judgement about a rule's *stated rationale*, and several are genuinely arguable —
 > §7 lists the ones I want checked.
 >
 > This is the audit called for by the standalone finding in
-> `docs/ds-grounded-beliefs-design.md`, which was retained when that work was deferred
+> `docs/attic/ds-grounded-beliefs-design.md`, which was retained when that work was deferred
 > on 2026-08-11: *"some illustrative beliefs may encode the WRONG conditional
 > (sensitivity, not posterior) — worth auditing."* This is that audit. It does not
 > resume the grounding project.
