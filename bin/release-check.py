@@ -440,6 +440,16 @@ def check_transcript(path, facts):
                 window = prose[max(0, m.start() - MARGIN_BACK):
                                m.end() + MARGIN_FORWARD]
                 hit = COMPARATIVE.search(window)
+                # NEGATED COMPARISONS ARE THE CORRECT PHRASING, exactly as in (4).
+                # The prompt now asks the model to SAY there is no rival, and it
+                # does -- "no rival to measure a margin against", "unopposed
+                # support, not a lead over a competitor", "no rival to report a
+                # win over". Every one of those names the comparison in order to
+                # deny it. Flagging them punished the fix for working: this check
+                # failed two scenarios of the release gate on its first live run,
+                # and both transcripts were right.
+                if hit and NEGATION_WINDOW.search(window[:hit.start()]):
+                    hit = None
                 if hit:
                     snippet = window.replace("\n", " ").strip()
                     failures.append((

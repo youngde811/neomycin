@@ -142,10 +142,19 @@ Two things had to be fixed alongside it, and they are the more important half:
   `"NULL"`, which is truthy in every client language — including the Python this harness
   is written in. It is real JSON `null` now.
 
-`rival` is deliberately **not** in the banned list: *"every rival organism sits at bel 0"*
-is correct phrasing and occurs within a sentence of legitimate margin mentions. Same
-principle as the negation exemption in 3.4 — a check that punished the correct answer
-would be worse than no check.
+**Negated comparisons are exempt**, exactly as in 3.4, and this was not a precaution —
+it was a bug the release gate caught on this check's first live run. The corrected
+prompt asks the model to *say* there is no rival, and it does: *"no rival to measure a
+margin against"*, *"unopposed support, not a lead over a competitor"*, *"no rival to
+report a win over"*. Each names the comparison in order to deny it, and the check failed
+two scenarios for it. **It was punishing the fix for working.** `rival` is likewise not
+in the banned list: *"every rival organism sits at bel 0"* is correct phrasing and
+occurs within a sentence of legitimate margin mentions. A check that punished the
+correct answer would be worse than no check.
+
+**Not exercised end to end.** No scenario asserts an inert value, so `inert: false` is
+all the gate has ever seen; the disclosure obligation is covered by unit tests and not
+by the model-in-the-loop run. Worth a scenario.
 
 **What 3.6 does not check.** That the margin is attributed to the leading *answer* rather
 than to one member of it, when that is done without comparative language. *"Margin 0.23
