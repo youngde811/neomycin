@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.16.0"
+  :version "0.16.1"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -108,6 +108,9 @@
                      ;; Guards the LLM system prompt against the compiled
                      ;; rulebase; depends on property-tests for DOMAIN-RULES.
                      (:file "prompt-tests" :depends-on ("property-tests"))
+                     ;; Guards CLAUDE.md against the compiled image; reuses
+                     ;; BACKTICKED-TOKENS from prompt-tests.
+                     (:file "claude-md-tests" :depends-on ("prompt-tests"))
                      (:file "provenance-tests")
                      ;; The v0.11 shape end to end: scenario goldens, per-rule
                      ;; isolation, and the properties the shape exists for.
