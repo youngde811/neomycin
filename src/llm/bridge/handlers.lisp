@@ -47,6 +47,59 @@
      (setf (gethash "status" ht) "ok")
      ht)))
 
+;;; ------------------------------------------------------------------
+;;; Inert observations.
+;;;
+;;; A fact CLASS the knowledge base does not declare is rejected below, loudly. A
+;;; VALUE no rule premises on is a different failure and, until now, a SILENT one:
+;;; the assertion succeeds, the response is byte-for-byte indistinguishable from a
+;;; live one, and the consultation proceeds as though the finding had been recorded.
+;;;
+;;; Measured in a clinician session on 2026-08-24. The clinician opened with "82 year
+;;; old male"; the client asserted `age-group' = `elderly'; the corpus hears `neonate'
+;;; and nothing else. It fired nothing, it was never mentioned again, and no layer of
+;;; the stack said a word -- not the bridge, which returned the same 200 it returns
+;;; for a live value, and not the release check, which validates parameter NAMES
+;;; against the catalogue and never looks at values.
+;;;
+;;; See LISA:CORPUS-PREMISE-VOCABULARY, whose own header names this hazard exactly:
+;;; a client that cannot tell inert from live will eventually ask its user for an
+;;; observation the rulebase can never act on -- and when the client is an LLM and the
+;;; user is a clinician, that is a real lab test ordered for an answer that cannot be
+;;; entered.
+;;;
+;;; DOMAIN-NEUTRAL. The vocabulary is computed from the COMPILED rulebase, so this
+;;; knows no more about organisms than the rest of :LISA-BRIDGE does. It is the same
+;;; derivation NEOMYCIN::CATALOGUE-RULES uses, and deliberately not a call into it:
+;;; that would invert the load order.
+;;; ------------------------------------------------------------------
+
+(defun active-knowledge-rules ()
+  "Every knowledge rule currently compiled into the engine."
+  (remove-if-not #'lisa:knowledge-rule-p
+                 (lisa:get-rule-list (lisa:inference-engine))))
+
+(defun inert-note (fact-type class-sym value-sym)
+  "Why asserting CLASS-SYM = VALUE-SYM can change nothing, or NIL if it can.
+
+   NIL is the answer for a value some rule premises on -- the ordinary case. A
+   string is returned only when the assertion is inert, and it names what the
+   corpus WOULD hear for this parameter, because `that value does nothing' is
+   half an answer to a caller who has to pick another."
+  (let ((rules (active-knowledge-rules)))
+    (unless (lisa:corpus-premises-value-p rules class-sym value-sym)
+      (let ((heard (cdr (assoc class-sym (lisa:corpus-premise-vocabulary rules)))))
+        (if heard
+            (format nil "INERT: no rule premises on `~(~A~)' = `~(~A~)'. The fact was ~
+                         recorded and can never match, so it will not change any ~
+                         conclusion. This parameter is read only for: ~{`~(~A~)'~^, ~}."
+                    fact-type (symbol-name value-sym)
+                    (mapcar #'symbol-name heard))
+            (format nil "INERT: no rule premises on `~(~A~)' at any value. The fact ~
+                         was recorded and can never match, so it will not change any ~
+                         conclusion."
+                    fact-type))))))
+
 (hunchentoot:define-easy-handler (assert-fact-handler :uri "/assert-fact"
                                                       :default-request-type :post) ()
   (let ((body (read-json-body)))
@@ -92,6 +145,13 @@
               (setf (gethash "value" result) value)
               (setf (gethash "scoped_to" result)
                     (string-downcase (symbol-name of-id)))
+              ;; Say so when the fact can never match. ALWAYS emitted, true or
+              ;; false: a key that is present only on failure is one a client can
+              ;; forget to look for, which is the silence this exists to end.
+              (let ((note (inert-note fact-type class-sym value-sym)))
+                (setf (gethash "inert" result) (and note t))
+                (when note
+                  (setf (gethash "inert_note" result) note)))
               (when entity-name
                 (setf (gethash "entity" result) entity-name))
               (when confidence

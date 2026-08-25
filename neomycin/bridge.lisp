@@ -87,8 +87,15 @@
         ;; members each have Bel 0, so guessing from `hypotheses' finds nothing.
         (setf (gethash "leading_answer" ht)
               (coerce (mapcar #'organism-name leader) 'vector))
+        ;; REAL JSON null, not the keyword :NULL -- jzon stringifies that to the
+        ;; STRING "NULL", which is truthy in every client language there is. A
+        ;; Python consumer writing `if payload["margin_against"]:' therefore read
+        ;; "there is a rival" in exactly the case where there is none, and a model
+        ;; reading the payload saw a string where the meaning was absence. Under
+        ;; jzon the mapping is 'CL:NULL -> null, T -> true, NIL -> false; NIL is
+        ;; false and NOT null, so it cannot be used here either.
         (setf (gethash "margin_against" ht)
-              (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
+              (if rival (coerce (mapcar #'organism-name rival) 'vector) 'cl:null)))
       (setf (gethash "ignorance" ht) (candidates:ignorance mass))
       (setf (gethash "answers" ht) (answers->json (answer-details organism)))
       (setf (gethash "hypotheses" ht) (hypotheses->json organism))
@@ -257,8 +264,9 @@
           (setf (gethash "margin" ht) margin)
           (setf (gethash "leading_answer" ht)
                 (coerce (mapcar #'organism-name leader) 'vector))
+          ;; Real JSON null, same reasoning as /conclusions above.
           (setf (gethash "margin_against" ht)
-                (if rival (coerce (mapcar #'organism-name rival) 'vector) :null)))
+                (if rival (coerce (mapcar #'organism-name rival) 'vector) 'cl:null)))
         (setf (gethash "ignorance" ht) (candidates:ignorance mass))
         (setf (gethash "argument" ht)
               (coerce (mapcar (lambda (d) (answer-argument->json d hypothesis))

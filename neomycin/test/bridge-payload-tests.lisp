@@ -296,3 +296,49 @@
   ;; is not a parameter this corpus has at all.
   (is (zerop (length (neomycin::matching-rules :premises "oxidase")))
       "a finding the corpus does not model returns nothing"))
+
+;;; ------------------------------------------------------------------
+;;; `no rival' on the wire
+;;; ------------------------------------------------------------------
+;;;
+;;; MARGIN_AGAINST names the nearest answer that CONTRADICTS the leader, and there
+;;; often is none -- the leading answer stands unopposed. That absence was emitted as
+;;; the keyword :NULL, which jzon stringifies to the JSON STRING "NULL": truthy in
+;;; every client language there is. A Python consumer writing `if margin_against:'
+;;; read "there IS a rival" in precisely the case where there was none.
+;;;
+;;; It cost a real misreading. In the clinician session of 2026-08-24 a payload with
+;;; no rival and a seven-organism leading answer was narrated as "E. coli leading over
+;;; the runner-up group" -- a contest the engine had explicitly declined to describe.
+;;;
+;;; These assert the SERIALIZED form, not the Lisp value, because the Lisp value was
+;;; never the bug: :NULL is a perfectly good sentinel until jzon renders it.
+
+(defun payload-json (payload)
+  (com.inuoe.jzon:stringify payload))
+
+(deftest conclusions-emits-real-json-null-for-no-rival ()
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let* ((json (payload-json (neomycin:conclusions-payload))))
+    (is (search "\"margin_against\":null" json)
+        "culture-1 leaves the leading answer unopposed, so /conclusions must emit a
+         real JSON null for margin_against")
+    (is (not (search "\"margin_against\":\"NULL\"" json))
+        "margin_against is serialized as the STRING \"NULL\", which is truthy in
+         every client language -- the trap this test exists to hold shut")))
+
+(deftest why-emits-real-json-null-for-no-rival ()
+  (run-scenario 'lisa-user::culture-1 :candidates)
+  (let ((json (payload-json (why-for :e-coli))))
+    (is (search "\"margin_against\":null" json)
+        "/why must report `no contradicting answer' the same way /conclusions does")
+    (is (not (search "\"margin_against\":\"NULL\"" json))
+        "/why is serializing the string \"NULL\" again")))
+
+(deftest a-named-rival-still-serializes-as-a-list ()
+  ;; The other half: fixing the null must not turn a REAL rival into one. culture-4
+  ;; is the case where two answers genuinely contradict.
+  (run-scenario 'lisa-user::culture-4 :candidates)
+  (let ((json (payload-json (why-for :streptococcus-pneumoniae))))
+    (is (not (search "\"margin_against\":null" json))
+        "culture-4 has a contradicting answer, so margin_against must name it")))

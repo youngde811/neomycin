@@ -407,6 +407,46 @@
         (format nil "system-prompt.md has reintroduced ~S, which the measured ~
                      behaviour of K contradicts" claim))))
 
+(deftest prompt-reads-a-margin-with-no-rival ()
+  ;; Both halves of a real misreading, from the clinician session of 2026-08-24. The
+  ;; payload carried a SEVEN-ORGANISM `leading_answer' and `margin_against' null --
+  ;; nothing contradicted it -- and the narration was "margin 0.23 (E. coli leading
+  ;; over the runner-up group)". It invented a rival the engine had explicitly
+  ;; declined to name, and handed the margin to one member of the leading set.
+  ;;
+  ;; The model did not invent that reading; the prompt taught it. Two sentences were
+  ;; wrong: `margin' was described as the leading ORGANISM's belief above the
+  ;; RUNNER-UP's, and -- flatly false -- a set-valued leader was said to score margin
+  ;; 0 and K 0. LISA::MARGIN's own docstring says the opposite, and the corpus
+  ;; produces the counterexample. This pins the corrections.
+  (dolist (topic '("`margin_against` is `null`"
+                   "the set is the headline"
+                   "Set SIZE reports the resolution"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md no longer explains ~S, which is how the ~
+                     margin came to be narrated as a contest that did not exist"
+                topic)))
+  (dolist (claim '("It is 0 whenever no single organism leads"
+                   "That case has margin 0 **and** K 0"
+                   "how far the leading organism's belief sits above the runner-up's"))
+    (is (not (prompt-contains-p claim))
+        (format nil "system-prompt.md has reintroduced ~S -- a set-valued leading ~
+                     answer does NOT imply margin 0, and the leader is an ANSWER ~
+                     rather than an organism" claim))))
+
+(deftest prompt-and-tools-carry-the-inert-flag ()
+  ;; /assert-fact used to answer identically for a value the corpus premises on and
+  ;; one it cannot hear, so `age-group: elderly' was recorded for an 82-year-old,
+  ;; fired nothing, and was never mentioned again. The bridge now returns `inert'
+  ;; on every assertion. The prompt has to tell the model to READ it -- the flag is
+  ;; worth nothing if the narration still passes over it in silence.
+  (dolist (topic '("`inert`" "`inert_note`"))
+    (is (prompt-contains-p topic)
+        (format nil "system-prompt.md does not mention ~A, so the model has no ~
+                     instruction to disclose an inert assertion" topic)))
+  (is (tools-contains-p "inert_note")
+      "tools.json does not document the inert flag on assert_fact's response"))
+
 (deftest tools-read-conflict-with-the-margin ()
   (dolist (topic '("margin" "margin_against"))
     (is (tools-contains-p topic)
@@ -462,3 +502,50 @@
                     "describe_rules" "get_partial_matches" "recommend_therapy"
                     "reset_session"))
       (is (search tool text) (format nil "tools.json defines ~A" tool)))))
+
+;;; ------------------------------------------------------------------
+;;; Inert assertions are no longer silent
+;;; ------------------------------------------------------------------
+;;;
+;;; /assert-fact answered identically for a value the corpus premises on and one no
+;;; rule can ever match. In the clinician session of 2026-08-24 that meant
+;;; `age-group' = `elderly', asserted for an 82-year-old against a corpus that hears
+;;; `neonate' and nothing else: recorded, inert, never mentioned again, and invisible
+;;; to every layer -- the bridge returned the same 200, and the release check
+;;; validates parameter NAMES without ever looking at values.
+;;;
+;;; LISA-BRIDGE::INERT-NOTE is the answer, and it is tested here rather than over HTTP
+;;; because the decision is the interesting part; hunchentoot is not.
+
+(deftest inert-note-is-silent-for-a-value-the-corpus-hears ()
+  (dolist (case '((lisa-user::age-group . lisa-user::neonate)
+                  (lisa-user::gram       . lisa-user::neg)
+                  (lisa-user::hemolysis  . lisa-user::beta)))
+    (is (null (lisa-bridge::inert-note (string-downcase (symbol-name (car case)))
+                                       (car case) (cdr case)))
+        (format nil "~(~a~) = ~(~a~) is premised on by a real rule, so it must not ~
+                     be reported inert" (car case) (cdr case)))))
+
+(deftest inert-note-names-what-the-parameter-can-hear ()
+  ;; The exact defect. `elderly' must be flagged, and the note has to say what WOULD
+  ;; have worked -- "that did nothing" is half an answer to a caller who now has to
+  ;; pick something else.
+  (let ((note (lisa-bridge::inert-note "age-group"
+                                       'lisa-user::age-group 'lisa-user::elderly)))
+    (is (stringp note)
+        "age-group = elderly matches no premise in the corpus and must be reported inert")
+    (when (stringp note)
+      (is (search "INERT" note) "the note says so in a word a client can match on")
+      (is (search "age-group" note) "the note names the parameter")
+      (is (search "elderly" note) "the note names the value that did nothing")
+      (is (search "neonate" note)
+          "the note names what age-group IS read for, which is the actionable half"))))
+
+(deftest inert-note-covers-a-parameter-no-rule-reads-at-all ()
+  ;; A declared fact class nothing premises on. The vocabulary is derived from
+  ;; PREMISES precisely so this case is visible; the note must not fall through to a
+  ;; nil that reads as "fine".
+  (let ((note (lisa-bridge::inert-note "culture-age"
+                                       'lisa-user::culture-age 'lisa-user::|3|)))
+    (is (stringp note)
+        "culture-age is assertable and no rule premises on it -- that is inert")))

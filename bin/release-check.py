@@ -260,6 +260,66 @@ BANNED = [
 # \w+n't catches hasn't / haven't / wasn't / doesn't and the rest in one alternative.
 # Spelling them individually is how "the evidence hasn't ruled out salmonella" -- correct
 # phrasing the prompt asks for -- was flagged as a violation on the first gated release.
+# A margin with nothing to measure against. `margin' is the gap between the leading
+# answer and the nearest answer that CONTRADICTS it -- and when nothing does, the
+# bridge reports no rival and margin carries the leader's own support instead. That
+# reading was got wrong in a clinician session on 2026-08-24: a payload with
+# `margin_against' unset and a SEVEN-ORGANISM leading answer was narrated as "margin
+# 0.23 (E. coli leading over the runner-up group)", inventing a rival the payload had
+# explicitly declined to name and reassigning the leader from the set to one member.
+#
+# Every number in that sentence was real and appeared in the payload, so check (3)
+# passed it. This is the structural version of the same idea: not "is the number
+# there" but "does the prose claim a comparison the payload says does not exist".
+#
+# `rival' is deliberately NOT in this list. "Every rival organism sits at bel 0" is
+# correct phrasing and appears within a sentence of a legitimate margin mention.
+MARGIN_MENTION = re.compile(r"\bmargins?\b", re.I)
+COMPARATIVE = re.compile(
+    r"\b(over|ahead of|versus|vs\.?|runner[-\s]?up|out(?:ranks|paces)|"
+    r"beats?|lead(?:s|ing)? over|in front of)\b", re.I)
+
+# How far either side of a `margin' mention to look for comparative language. Bounded
+# rather than sentence-scoped on purpose: "E. coli" defeats every sentence splitter
+# worth writing, and the phrase that matters sits within a clause of the number.
+MARGIN_BACK, MARGIN_FORWARD = 40, 120
+
+
+def margin_contexts(payload):
+    """Every (margin_against, leading_answer) a payload states, at any depth.
+
+    /conclusions carries one per organism entity; /why carries one at top level.
+    """
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "margin_against" in node:
+                found.append((node.get("margin_against"),
+                              node.get("leading_answer")))
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(payload)
+    return found
+
+
+def no_rival(margin_against):
+    """True when the payload says nothing contradicts the leading answer.
+
+    Accepts the legacy string sentinel as well as real JSON null: transcripts
+    captured before the serialization was fixed carry "NULL", and --transcript is
+    meant to work on saved files.
+    """
+    return (margin_against is None
+            or (isinstance(margin_against, str)
+                and margin_against.strip().upper() == "NULL")
+            or margin_against == [])
+
+
 NEGATION_WINDOW = re.compile(
     r"\b(no|nothing|none|never|not|cannot|\w+n't)\b[^.]{0,60}$", re.I)
 
@@ -268,11 +328,18 @@ def check_transcript(path, facts):
     events = parse_transcript(path.read_text(encoding="utf-8"))
     allowed = set(facts["catalogue"])
     failures = []
+    # The margin context most recently PUT IN FRONT of the model. Same ordering
+    # discipline as check (3): what the assistant may say is bounded by what it has
+    # already been shown.
+    margin_seen = []
 
     for kind, name, body in events:
         if kind in ("result", "call"):
             if body is not None:
                 harvest(body, allowed)
+                ctx = margin_contexts(body)
+                if ctx:
+                    margin_seen = ctx
             continue
         if kind == "clinician":
             for _, v in numbers_in(body):
@@ -312,6 +379,20 @@ def check_transcript(path, facts):
                     continue  # "nothing argued against it" is the CORRECT phrasing
                 snippet = prose[max(0, m.start() - 40):m.end() + 40].replace("\n", " ")
                 failures.append(("phrasing", f"{why}: ...{snippet.strip()}..."))
+
+        # (5) margin against nothing
+        if margin_seen and all(no_rival(ma) for ma, _ in margin_seen):
+            for m in MARGIN_MENTION.finditer(prose):
+                window = prose[max(0, m.start() - MARGIN_BACK):
+                               m.end() + MARGIN_FORWARD]
+                hit = COMPARATIVE.search(window)
+                if hit:
+                    snippet = window.replace("\n", " ").strip()
+                    failures.append((
+                        "margin",
+                        f"narrates the margin as a comparison (`{hit.group(0)}') when "
+                        f"the payload named no contradicting answer -- "
+                        f"`margin_against' was null: ...{snippet}..."))
 
     return failures
 

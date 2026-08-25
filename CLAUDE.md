@@ -266,9 +266,9 @@ bin/
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/health` | GET | Health check |
-| `/assert-fact` | POST | Assert a fact: `{fact_type, value, entity?, entity_class?, confidence?}` |
+| `/assert-fact` | POST | Assert a fact: `{fact_type, value, entity?, entity_class?, confidence?}`. Always returns **`inert`** (true/false) and, when true, an **`inert_note`** naming what that parameter *can* hear. A value no rule premises on is accepted, recorded, and matches nothing — and used to be reported with a response byte-identical to a live one, which is how `age-group: elderly` was filed for an 82-year-old against a corpus that hears only `neonate`, and never mentioned again. Domain-neutral: computed from the compiled rulebase via `lisa:corpus-premises-value-p` |
 | `/run-inference` | POST | Fire rules (captures rule trace) |
-| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Per organism it reports `conflict` (K) **with `margin`**, the gap between `leading_answer` and `margin_against` (the nearest answer that *contradicts* the leader — a coarser answer that still admits it is not a rival). The pair is interpretable and neither half is: K counts rival mass **overruled**, so it rises as the winner strengthens. Measured: burn-ICU `K=0.557, margin=0.740` (decisive) vs respiratory-strep `K=0.562, margin=0.000` (dead tie). Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
+| `/conclusions` | GET | Organism-identity results + belief factors, and the active `belief_system`. Per organism it reports `conflict` (K) **with `margin`**, the gap between `leading_answer` and `margin_against` (the nearest answer that *contradicts* the leader — a coarser answer that still admits it is not a rival). **`margin_against` is real JSON `null` when nothing contradicts the leader**, and the leading answer is then unopposed rather than ahead of anything; it was the keyword `:null` until this was fixed, and jzon renders that as the *string* `"NULL"` — truthy in every client language, and duly misread. `leading_answer` is frequently a SET, and the margin then belongs to the set, not to any member. The pair is interpretable and neither half is: K counts rival mass **overruled**, so it rises as the winner strengthens. Measured: burn-ICU `K=0.557, margin=0.740` (decisive) vs respiratory-strep `K=0.562, margin=0.000` (dead tie). Under the default shared-frame system it adds a `frame` block: the frame's `elements` and `subsets`, then per organism entity the `operator` and `normalization` in force, the unnormalized conflict `K`, `m(Θ)`, **every** hypothesis with `{bel, pl, ignorance}` whether or not a rule concluded it, and the `set_valued` focal masses ("one of this family, unsaid which"). Emitted only under `frame` — never a stale projection |
 | `/rule-trace` | GET | Get which rules fired last run |
 | `/partial-matches` | GET | Rules one fact from firing (goal-directed dialogue) |
 | `/rules` | GET | The rule catalogue, read from the compiled rulebase: per rule its `narrows_to` (the organisms its evidence leaves standing), `resolution` (that set's size), `belief`, `premises`, and `:provenance`; plus a corpus `summary` — the rule count, every organism the corpus can name, the `parameters` it can *hear*, and the distribution of `resolutions`. `summary.parameters` is the corpus's INPUT vocabulary, computed from rule premises: a parameter or value absent from it is **inert** — assertable, accepted, and matched by no rule. Filters (ANDed): `?name=`, `?names=<organism>` (every rule whose answer admits it), `?premises=`. Needs no inference — it describes the corpus, not working memory. **Served from `neomycin/bridge.lisp`** |
@@ -318,7 +318,7 @@ before tagging, with the bridge up and an LLM backend configured:
 ```
 
 It drives scripted consultations at `--transcript-verbosity full`, so every tool result
-is captured alongside the prose, and then makes four assertions — all string processing,
+is captured alongside the prose, and then makes five assertions — all string processing,
 no LLM judge:
 
 1. **Rule names** — every rule the assistant quotes exists in the compiled corpus.
@@ -330,6 +330,11 @@ no LLM judge:
    recall-from-memory structurally, and nothing else in the stack can.
 4. **Phrasing** — no claim that something "argued against" or "ruled out" an organism.
    Negations are exempt, because *"nothing argued against it"* is the correct phrasing.
+5. **A margin against nothing** — when the payload reports `margin_against: null`,
+   nothing contradicts the leading answer, and the prose may not narrate the margin as
+   a lead *over* a rival. The first STRUCTURAL check: not "is this token real" but
+   "does the prose claim a relation the payload denies". Every number in the sentence
+   that motivated it was real, so check 3 passed it.
 
 **It is a release gate, not a commit hook** — it costs API calls and is
 non-deterministic. Same cadence as the manual check it replaces.
