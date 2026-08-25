@@ -448,41 +448,54 @@ not met. Nothing had to argue the anaerobe back in.
 | 0.70 | the nine **gram-positives** |
 | 0.90 | {bacteroides} |
 
-**The differential** — `K = 0.679`, ignorance 0.028, margin 0.776:
+**The differential** — `K = 0.368`, m(Θ) 0.113, margin 0.579:
 
 | organism | bel | pl |
 |---|---|---|
-| **bacteroides** | 0.841 | 0.935 |
-| all sixteen others | 0.000 | 0.094 |
+| **bacteroides** | 0.661 | 0.918 |
+| the seven other **gram-negatives** | 0.000 | 0.257 |
+| the nine **gram-positives** | 0.000 | 0.195 |
 
 **This scenario demonstrates conflict from the bench, and it now demonstrates only
 that.** A gram stain cannot be both — the two answers share no member, so intersecting
-them puts mass on the empty set. **K = 0.679**, and every bit of it comes from the
+them puts mass on the empty set. **K = 0.368**, and every bit of it comes from the
 contradictory stain.
 
-> **The number fell, and the reason is a corpus defect this scenario was hiding.** It
-> used to read `K = 0.900` with pseudomonas at 0.228, and both pseudomonas figures were
-> wrong. This organism is an **anaerobe**, and the two Pseudomonas context rules had
-> never gated on aerobicity — so they fired here and asserted {pseudomonas}, an
-> obligate aerobe, against {bacteroides} at a combined 0.76. Part of the conflict this
-> scenario was attributing to the stain was the corpus contradicting itself. With the
-> gates added, Pseudomonas holds **no belief at all** and a plausibility of 0.094 — the
-> same pair as every other non-anaerobe, because on an anaerobe nothing separates them.
-> That residue *is* the stain ambiguity, so `K = 0.679` finally measures what this
-> scenario always claimed to measure. Guarded now by invariant 15.
+Note that the gram-positives and the gram-negatives no longer sit at the *same*
+plausibility. The clinician called the stain **probably** negative and only **possibly**
+positive, so the gram-negative reading is the stronger one and the organisms it admits
+keep more room (0.257 against 0.195). That difference is the hedge, showing up in the
+answer.
+
+> **These figures moved at v0.16, and the reason is worth stating plainly.** This
+> scenario used to report `K = 0.679` with bacteroides at `bel 0.841` — and it reported
+> exactly those numbers *whatever confidences you asserted*. Evidence belief reached the
+> `candidates` facts and went no further: every rule's answer entered combination at the
+> rule's own declared `:belief`, so 0.8/0.6 here and 0.8/0.2 in the `culture-2` driver
+> produced identical differentials, which is why this document could quote the driver's
+> goldens against its own hedge for four releases without anything noticing. Answers are
+> now discounted by the strength of the premises that fired them, and the numbers above
+> are specific to the 0.8/0.6 hedge described. See `neomycin:answer-mass-of`.
+
+> **An earlier correction, kept because it is a different lesson.** Before v0.13 this
+> case read `K = 0.900` with pseudomonas at 0.228, on an organism the corpus knows is an
+> **anaerobe**. Two Pseudomonas context rules had never gated on aerobicity, so they
+> fired here and asserted an obligate aerobe against {bacteroides}. Part of the conflict
+> this scenario attributed to the stain was the corpus contradicting itself. With the
+> gates added, Pseudomonas holds no belief at all. Guarded now by invariant 15.
 
 Nothing argues against anything: the gram-positive reading simply names nine organisms,
 none of which is Bacteroides, and the arithmetic does the rest.
 
-**What to narrate.** Not the point estimate alone. `bel 0.841` for Bacteroides looks
-strong, and with K at 0.679 it is what survived after Dempster normalization
-redistributed a conflict that dominated the run. Read the **margin** with it: 0.776
-says the leader is a long way clear of the nearest answer that contradicts it, so
-unlike the respiratory-strep case in Scenario 3 (margin 0.084) this is not a tie. The
-honest report is: *"Bacteroides is the only answer consistent with an anaerobic
-gram-negative rod, but the stain is contradicting itself — repeat it before relying on
-any of this."* This is the case that argues most strongly for reading K and margin
-before reading anything else.
+**What to narrate.** Not the point estimate alone. `bel 0.661` for Bacteroides is a
+lead, not an identification, and with K at 0.368 better than a third of the belief in
+this run went to combinations that cannot both hold. Read the **margin** with it: 0.579
+says the leader is clear of the nearest answer that contradicts it, so unlike the
+respiratory-strep case in Scenario 3 (margin 0.084) this is not a tie. The honest report
+is: *"Bacteroides is the only answer consistent with an anaerobic gram-negative rod, but
+the stain is contradicting itself — repeat it before relying on any of this."* This is
+the case that argues most strongly for reading K and margin before reading anything
+else.
 
 ---
 
@@ -1103,11 +1116,13 @@ coverage.
 
 ## Notes for Investigators
 
-- **Read K WITH the margin — neither is interpretable alone.** High conflict (7 at
-  0.679, 9-conflict at 0.736, 12 at 0.626) means the point estimates survived heavy
-  renormalization. But K rises as a winner *strengthens* against rivals, so it is not a
-  reliability score: Scenario 7 has K = 0.679 with a margin of 0.776 (decisive) while
-  Scenario 3 has a margin of 0.084 (a near-tie). Quote them as a pair.
+- **Read K WITH the margin — neither is interpretable alone.** High conflict (9 at
+  0.736, 12 at 0.626) means the point estimates survived heavy renormalization. But K
+  rises as a winner *strengthens* against rivals, so it is not a reliability score, and
+  the cleanest demonstration is that the ORDER can invert: Scenario 7 has the LOWER
+  conflict (K = 0.368) and a margin of 0.579, while Scenario 3 has the HIGHER conflict
+  (K = 0.525) and a margin of 0.084 — a near-tie. More conflict, less decided. Quote
+  them as a pair, always.
 - **The best scenarios for reinforcement** are 13 (agalactiae 0.91, K = 0) and
   12-variation (pneumoniae 0.903) — independent evidence reaching the same answer.
 - **The best scenarios for honest indecision** are 5 (nothing named at all, 0.70 on the

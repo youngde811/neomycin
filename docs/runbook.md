@@ -381,14 +381,15 @@ gram-positive reading (0.70 on nine), and the anaerobe rule (0.90 on bacteroides
 first two share **no member**, so intersecting them puts mass on the empty set:
 
 ```json
-"conflict": 0.679, "margin": 0.776, "ignorance": 0.028,
+"conflict": 0.368, "margin": 0.579, "theta_mass": 0.113,
 "leading_answer": ["bacteroides"],
 "margin_against": ["enterococcus-faecalis", "enterococcus-faecium",
                    "staphylococcus-aureus", ... the nine gram-positives ...],
 "hypotheses": [
-  {"value": "bacteroides", "bel": 0.841, "pl": 0.935},
-  {"value": "e-coli",      "bel": 0.0,   "pl": 0.094},
-  ... every other organism at bel 0.0, pl 0.094 ...
+  {"value": "bacteroides", "bel": 0.661, "pl": 0.918},
+  {"value": "e-coli",      "bel": 0.0,   "pl": 0.257},
+  ... the other gram-negatives at bel 0.0, pl 0.257 ...
+  ... the nine gram-positives at bel 0.0, pl 0.195 ...
 ]
 ```
 
@@ -396,31 +397,39 @@ first two share **no member**, so intersecting them puts mass on the empty set:
 organisms, none of which is Bacteroides, and the arithmetic does the rest. There are no
 disconfirming rules in this corpus and no negative beliefs.
 
-**Read K and the margin as a pair — neither is interpretable alone.** `conflict: 0.679`
-says two thirds of the belief went to combinations that cannot hold. That sounds
-alarming, and on its own it is unreadable: **K rises as a winner strengthens against a
-rival**, so a high K can mean *decisive* just as easily as *unstable*. The companion is
-`margin`, the gap between the leading answer and the nearest answer that genuinely
-contradicts it. Here it is **0.776** — Bacteroides is a long way clear, and this case is
+**The hedge is in the numbers.** The gram-negatives sit at `pl 0.257` and the
+gram-positives at `pl 0.195`, because the clinician called the stain *probably* negative
+and only *possibly* positive. Assert different confidences and these move — that is what
+`confidence` on `/assert-fact` is for.
+
+**Read K and the margin as a pair — neither is interpretable alone.** `conflict: 0.368`
+says better than a third of the belief went to combinations that cannot hold. That
+sounds alarming, and on its own it is unreadable: **K rises as a winner strengthens
+against a rival**, so a high K can mean *decisive* just as easily as *unstable*. The
+companion is `margin`, the gap between the leading answer and the nearest answer that
+genuinely contradicts it. Here it is **0.579** — Bacteroides is clear, and this case is
 conflicted but not close. Compare Scenario 3 in the scenario catalogue, where K is
-comparable at 0.525 but the margin is **0.084**: a near-tie. Same K, opposite clinical
-situation.
+*higher* at 0.525 but the margin is **0.084**: a near-tie. Higher conflict, and yet the
+far less settled picture.
 
 `margin_against` names what the leader is being measured against — the nine
 gram-positives — which matters because that rival is a **set** whose members each have
 `bel 0.0`. Reading the `hypotheses` list alone, you would never find it.
 
 **What to narrate**: *"Bacteroides is the only answer consistent with an anaerobic
-gram-negative rod and it is well clear — but your stain is contradicting itself, and
-two thirds of the belief in this run went to combinations that cannot both hold. Repeat
-the Gram before relying on any of these numbers."*
+gram-negative rod and it leads clearly — but your stain is contradicting itself, and
+better than a third of the belief in this run went to combinations that cannot both
+hold. Repeat the Gram before relying on any of these numbers."*
 
-> **A note on where this number came from.** Before v0.13 this case read `K = 0.900`
-> with pseudomonas at `bel 0.228` — on an organism the corpus knows is an **anaerobe**.
-> Two Pseudomonas context rules had never gated on aerobicity, so they fired here and
-> asserted an obligate aerobe against the bacteroides answer. Part of the conflict this
-> demonstration attributed to the hedged stain was the corpus contradicting itself. The
-> gates were added and an invariant now enforces them; `K = 0.679` is the stain alone.
+> **A note on where these numbers came from.** They moved twice. Before v0.13 this case
+> read `K = 0.900` with pseudomonas at `bel 0.228` — on an organism the corpus knows is
+> an **anaerobe**; two Pseudomonas context rules had never gated on aerobicity, so part
+> of the conflict was the corpus contradicting itself. The gates were added and an
+> invariant now enforces them. Then at v0.16 it moved from `K = 0.679` to `K = 0.368`,
+> because until then the confidences you assert here **did nothing**: evidence belief
+> stopped at the `candidates` facts, and every rule's answer entered combination at its
+> own declared `:belief` regardless. Answers are now discounted by the strength of the
+> premises that fired them, so `K = 0.368` is this stain, at this hedge.
 
 ### 5. The abdominal anaerobe — narrowing ignorance
 

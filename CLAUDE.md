@@ -85,6 +85,19 @@ Nothing accumulates during inference; `neomycin:consensus` combines those answer
 intersection when a client reads working memory. Θ is never enumerated, so nothing
 declares a frame and nothing has to be kept in step with the rulebase.
 
+**Evidence strength discounts the answer.** A rule's `:belief` says how strongly its
+answer follows FROM its premises; it does not say how strongly those premises were
+believed. So each firing's answer is DISCOUNTED (Shafer) by the conjoined belief of the
+premises that fired it — read from the snapshots the engine already captures in the
+derivation table, per firing, because the conclusion fact's own belief is the combined
+result of every contributor and cannot be decomposed per rule. A hedged Gram stain
+therefore narrows less far than one read outright, and `confidence` on `/assert-fact`
+reaches the differential. **It did not until v0.16**: evidence belief stopped at the
+`candidates` fact, and culture-2 returned a bit-identical differential whether the stain
+was called 80% negative, 50/50, or 80% POSITIVE. culture-2 is the only scenario that
+hedges a fact and the only one whose goldens moved. Guarded by
+`candidates-evidence-discount`, which pins the RELATION rather than a number.
+
 **Nothing is excluded by being named.** There are no ruling-out rules and no negative
 beliefs anywhere in the corpus. `{pyogenes, agalactiae}` intersected with
 `{pneumoniae}` is empty, and that emptiness *is* the exclusion.
@@ -209,7 +222,17 @@ neomycin/
                         every fact value advertised must be one some rule premises on —
                         or be marked inert (†), which is checked in BOTH directions)
   clinician-samples/  — saved driver transcripts
-docs/                 — design docs, runbook, clinician scenarios, therapy demo
+docs/                 — LIVE documentation only: anything cited as authority for how the
+                        system behaves today (runbook, clinician scenarios, getting-started,
+                        the therapy/solver/antibiogram designs, the surveys CLAUDE.md and the
+                        rule notes cite, the demos). The paper lives here too
+  attic/              — the record of what neomycin USED TO BE: the declared shared frame
+                        (deleted v0.11), chaining and the organism-class, disconfirming rules
+                        and negative belief, the narrows-to conversion working files, and
+                        superseded plans and captures. NOTHING here is authority for current
+                        behaviour; each file carries a banner naming the mechanism that is
+                        gone, and files are left as written rather than corrected. The
+                        boundary is CITED-AS-AUTHORITY, not age — see docs/attic/README.md
 
 # --- Lisa substrate (used as-is; engine intentionally not renamed) ---
 lisa.asd              — Lisa core (depends on log4cl)
@@ -257,8 +280,10 @@ bin/
   test-therapy.sh     — end-to-end therapy bridge test (curl)
   test-why.sh         — end-to-end WHY/HOW explanation bridge test (curl): /why for an admitted
                         organism, a reinforced one, and one no rule named. ASSERTS (exits non-zero)
-  test-rules.sh       — end-to-end rule-catalogue bridge test (curl): /rules corpus summary, one
-                        cluster, one rule in full, and every ruling-out rule's targets
+  test-rules.sh       — end-to-end rule-catalogue bridge test (curl): /rules corpus summary,
+                        then each filter — ?names= (every rule whose answer admits an
+                        organism), ?name= (one rule in full), ?premises= (rules resting on
+                        a finding). ASSERTS (exits non-zero)
 ```
 
 ## Bridge Endpoints (port 8090)
@@ -379,7 +404,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1589 assertions / 197 tests):
+Coverage (~1633 assertions / 210 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,
@@ -395,12 +420,18 @@ Coverage (~1589 assertions / 197 tests):
   (IDM counts→interval, Bayesian combination, JSON provenance).
 - **The payload builders** — `/why`, `/rules` and `/conclusions` are called by tests, not
   merely by the bridge, after `/why` once 404'd for every organism through a green suite.
-- **Eighteen corpus-wide invariants** (`property-tests.lisp`), which introspect the
-  compiled rulebase so a new rule is covered the moment it is authored. Recent ones:
-  14 (a graded rule asserts exactly what its `:belief` declares), 15 (a context rule
-  gates on what its answer presupposes), 16 (a rule must not commit less than a
-  same-support rule it subsumes), 17 (reciprocal readings are symmetric unless declared
-  otherwise), 18 (every parameter the corpus can hear is explicitly scoped by the bridge).
+- **Corpus-wide invariants** (`property-tests.lisp`), which introspect the compiled
+  rulebase so a new rule is covered the moment it is authored. They are numbered 1 and
+  11–20; **2–10 were retired with the disconfirming rules they governed**, and the gap
+  is left in the numbering deliberately so a reader does not go looking for them. Some
+  invariants carry a companion "is-live" test that fails if the invariant has stopped
+  having anything to check — a vacuous pass is a silent one. Recent: 14 (a graded rule
+  asserts exactly what its `:belief` declares), 15 (a context rule gates on what its
+  answer presupposes), 16 (a rule must not commit less than a same-support rule it
+  subsumes), 17 (reciprocal readings are symmetric unless declared otherwise), 18 (every
+  parameter the corpus can hear is explicitly scoped by the bridge), 19a/19b (an evidence
+  group is exactly the set of rules sharing a shape, checked from both directions), 20
+  (every rule's `:provenance` is a well-formed plist).
 - **The prompt and tool schemas** against the corpus (`prompt-tests.lisp`).
 
 Certainty factors and the Barnett per-hypothesis DS system are exercised by **Lisa's own
@@ -412,14 +443,21 @@ If a belief computation changes intentionally, re-capture and update the goldens
 
 **Corpus-wide property tests** (`neomycin/test/property-tests.lisp`, sketch §8) complement
 — never replace — the hand goldens. They introspect the compiled rulebase, so they cover a
-new rule automatically: belief in range; disconfirming rules follow the ruling-out template;
-**no disconfirming rule names an identity no confirming rule concludes** (the staleness
-guard — `member` lists go stale silently when a species is retired or promoted to a class);
-no dead-end organism-classes in either direction; **every concluded identity is treatable**
-(directly or by KB family roll-up, so a new species cannot land without its therapy wiring);
-and disconfirming rules stay above 20% of the corpus (a drift alarm for §6's "shape is the
-spec"). The "confirming rule contributes exactly its `:belief`, CF = DS-bel, pl = 1.0" law
-is deliberately *not* restated there — `check-rule` already enforces it per rule.
+new rule automatically: belief in range; **every organism an answer names is treatable**
+(directly or by KB family roll-up, so a new species cannot land without its therapy
+wiring); no two rules share identical premises; subsumption is detected where it exists
+and NOT claimed where premises merely overlap; a marker that is VARIABLE for an organism
+may not exclude it; every inert value is a recorded decision; graded masses are
+well-formed and total exactly the declared `:belief`; context rules gate on what their
+answer presupposes; and evidence groups are exactly the rules that share a shape.
+
+**This paragraph used to describe four invariants that do not exist** — that disconfirming
+rules follow a ruling-out template, that no disconfirming rule names an unconcluded
+identity, that there are no dead-end organism-classes, and that disconfirming rules stay
+above 20% of the corpus as a drift alarm. Those were invariants 2–10, retired along with
+the disconfirming rules and the organism-classes themselves. **The corpus has neither.**
+Read the `deftest` names in the file rather than this list if the two ever disagree
+again.
 
 ## Key Packages
 

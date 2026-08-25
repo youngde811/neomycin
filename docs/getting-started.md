@@ -271,13 +271,26 @@ A recommendation is an auditable object — nothing here is inferred by a model:
 - **`excluded`** — drugs ruled out, with a `reason` (e.g. `contraindication`).
 - **`uncovered`** — items no candidate drug could cover, surfaced honestly rather
   than dropped.
+- **`below_threshold`** — organisms the coverage gate DROPPED, each with `covered_by`:
+  the drugs in the chosen regimen that cover it anyway. Without this, a covered
+  runner-up reads as untreated, because a `regimen` entry lists only what the solver
+  was targeting.
 
-A worked example (culture-1 under Dempster-Shafer, no contraindications): three
-gram-negative identities — pseudomonas `{bel 0.43, pl 0.71}`, enterobacteriaceae `{bel
-0.80}`, klebsiella `{bel 0.50}` — are all items to treat, and a single broad agent
-(`meropenem`) covers all three, so the regimen is one drug and `uncovered` is
-empty. Add `"allergy-cephalosporin"` to the patient state and `ceftazidime` and
-`ceftriaxone` move to `excluded`, while meropenem still covers everything.
+A worked example (culture-1, no contraindications). Three identities clear the 0.1
+gate — e-coli `{bel 0.232, pl 0.564}`, pseudomonas `{bel 0.176, pl 0.468}`, klebsiella
+`{bel 0.165, pl 0.458}` — and so does something that is not an identity at all: 0.234
+of mass sits on the SET of all seven aerobic gram-negative rods, naming no member. That
+set is a coverage obligation in its own right, discharged member by member.
+
+A single broad agent (`meropenem`) covers all seven, so the regimen is one drug,
+`uncovered` is empty, and the set obligation reports no uncovered members.
+`alternative_agents` lists the five drugs that also covered but were not chosen —
+ceftazidime, ceftriaxone, ciprofloxacin, gentamicin, piperacillin-tazobactam — which is
+where "is there a narrower option?" gets answered. Enterobacter, at 0.029, falls below
+the gate and appears under `below_threshold`, covered by the chosen regimen anyway.
+
+Add `"allergy-cephalosporin"` to the patient state and `ceftazidime` and `ceftriaxone`
+move to `excluded`; meropenem still covers everything.
 
 The thresholds (`*coverage-threshold*`, `*susceptibility-threshold*`) are
 per-session **stewardship policy dials**, not clinical constants — conservative
@@ -287,14 +300,18 @@ per-session **stewardship policy dials**, not clinical constants — conservativ
 
 ## Where we're headed
 
-- **LLM `recommend_therapy` tool** — ✅ **done.** Claude can now request a regimen
-  and **narrate** it; the bright line holds — the deterministic solver chooses, the
-  LLM never picks a drug. See [`therapy-demo.md`](therapy-demo.md) for a guided,
+- **LLM `recommend_therapy` tool** — ✅ **done.** Claude can request a regimen and
+  narrate it, but never chooses a drug: the deterministic solver decides, and the model
+  reports what it decided. See [`therapy-demo.md`](therapy-demo.md) for a guided,
   end-to-end interactive walkthrough.
-- **Antibiogram overlay** — fold site-local resistance into susceptibilities.
-- **Drug–drug interactions** — a pairwise constraint in the set cover.
-- **Exact solver** — an optional second solver behind the same protocol, as a
-  correctness oracle for the greedy one.
+- **Antibiogram overlay** — ✅ **done.** Site-local resistance counts fold into
+  susceptibilities as an interval, opt-in per session. See
+  [`antibiogram-overlay-design.md`](antibiogram-overlay-design.md).
+- **Exact solver** — ✅ **done, and now the default.** Ascending-k enumeration over
+  coverage bitmasks; `greedy` is kept because the equivalence property is asserted
+  against it. It also brought the `objective` dial (`:lexicographic` vs
+  `:spectrum-sparing`). See [`exact-solver-design.md`](exact-solver-design.md).
+- **Drug–drug interactions** — still open: a pairwise constraint in the set cover.
 
 See [`therapy-phase-design.md`](therapy-phase-design.md) §10 for the locked design
 decisions behind all of the above.

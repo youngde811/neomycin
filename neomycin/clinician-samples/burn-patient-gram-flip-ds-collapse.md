@@ -4,7 +4,7 @@
 > per-hypothesis Dempster-Shafer system, which was the default until the shared
 > frame of discernment replaced it. They are left as captured rather than rewritten
 > — a transcript is a record of what the system did at the time. Current numbers
-> differ; see `docs/shared-frame-design.md`.
+> differ; see `docs/attic/shared-frame-design.md`.
 
 - Started: 2026-07-28T18:38:29
 - Model: `claude-sonnet-5`

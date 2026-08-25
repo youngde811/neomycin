@@ -14,6 +14,8 @@
   (:export #:candidates-facts
            #:organisms-with-answers
            #:contributing-rules
+           #:contributing-firings
+           #:firing-discount
            #:surviving-rules
            #:surviving-rules-for
            #:rule-evidence-group

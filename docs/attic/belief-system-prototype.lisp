@@ -1,4 +1,7 @@
 ;;;; Simplified Dempster-Shafer Belief System Prototype
+;;; ATTIC -- historical record.
+;;; Prototype of the simplified per-hypothesis Dempster-Shafer algebra. Superseded twice: by the Barnett implementation in src/belief-systems/dempster-shafer/, and then by src/belief-systems/candidates/, which is the default.
+;;;
 ;;;;
 ;;;; This file contains a prototype implementation for Lisa's pluggable
 ;;;; belief system architecture with a simplified Dempster-Shafer algebra.

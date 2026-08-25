@@ -1,8 +1,17 @@
 # WHY/HOW explanation & provenance facility — design & slice plan
 
+> **⚠️ SCOPE — This design SHIPPED at v0.4.0 and the /why facility it specifies is live.** Its
+> worked examples predate v0.11 and describe a corpus that CHAINED: expressions like
+> "e-coli 0.64 = enterobacteriaceae-class 0.8 × rule 0.8", and payloads with an
+> `organism-class` premise. **Nothing chains now** and there is no organism-class, so
+> there is no arithmetic for /why to quote — it returns the ARGUMENT instead: the
+> answers given, who gave them, and what they intersect to. Read this for the
+> provenance design and the citation requirement, which are unchanged; read `CLAUDE.md`
+> and `neomycin/bridge.lisp` for what /why actually returns.
+
 > Status: **approach locked, implementation not started.** This doc opens the
 > feature (branch `feature/why-how-provenance`), the way
-> `chaining-belief-spike.md` opened the chained cluster. Logged as
+> `docs/attic/chaining-belief-spike.md` opened the chained cluster. Logged as
 > `corpus-expansion-sketch.md` §5 candidate 7.
 
 ## 1. Why (the credibility problem)

@@ -1,7 +1,9 @@
 # Gram-positive cocci — two more chained clusters, plus host-factor modifiers
 
+> **📦 ATTIC — historical record.** Design for the gram-positive expansion, written in terms of CHAINED CLUSTERS, ORGANISM-CLASSES and lettered slices. **None of those mechanisms survives** — the rules it produced were converted to narrows-to answers at v0.11 and live in `neomycin/rules/candidates-gram-pos.lisp`.
+
 *Design & slice plan. Branch: `feature/gram-positive-cluster`. Implements
-`corpus-expansion-sketch.md` §5.5 (host factors) and two more instances of the
+`docs/corpus-expansion-sketch.md` §5.5 (host factors) and two more instances of the
 §3(B) chained-cluster pattern, taking the corpus from 27 → 50 rules.*
 
 > **⚠️ NOT FOR CLINICAL USE.** Everything below is a research illustration of

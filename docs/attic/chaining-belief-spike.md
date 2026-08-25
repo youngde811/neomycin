@@ -1,5 +1,7 @@
 # Belief propagation through the `organism-class` intermediate — spike findings
 
+> **📦 ATTIC — historical record.** Measures belief propagation through an `organism-class` intermediate. **There is no organism-class and nothing chains.** A genus IS a candidates set, and answers combine by intersection.
+
 *Spike for the chained enterobacteriaceae cluster (corpus sketch §3B/§5.1),
 tier 2. Read this before we author species-refinement rules.* Captures **the
 question**, **what the engine actually does**, **the empirical proof**, and **what
