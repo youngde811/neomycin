@@ -1,5 +1,13 @@
 # Growing the MYCIN corpus — a sketch
 
+> **⚠️ SCOPE — partly NORMATIVE, partly a historical plan.** Still binding, and enforced by
+> the suite: **§4** defines the artifact-lineage tags that
+> `neomycin/test/provenance-tests.lisp` checks, and **§8** is the property-test
+> rationale `neomycin/test/property-tests.lisp` cites. The rest is the v0.6-era
+> expansion plan, written in terms of CHAINED CLUSTERS, `organism-class` intermediates
+> and DISCONFIRMING rules — none of which survived v0.11. Its ✅ DELIVERED markers
+> record what was built at the time, not what the corpus looks like now.
+
 *Exploratory. Parked behind the antibiogram overlay — not scheduled work.* This
 captures **why** a larger rulebase would carry weight, **what** to reconstruct
 next, and **how** it lands on the existing class/`defrule` structure, so the

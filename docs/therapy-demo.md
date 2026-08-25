@@ -57,9 +57,11 @@ the LLM-facing glue.
 
 With this in place, the therapy phase's LLM tool is **complete** — the last
 `⏳ next increment` item in
-[`getting-started.md`](getting-started.md#whats-built-so-far). What remains
-(antibiogram overlay, drug–drug interactions, an exact-solver oracle) is design-doc
-future work and is not required for the interactive demo.
+[`getting-started.md`](getting-started.md#whats-built-so-far). Of what
+remained at the time, the **antibiogram overlay** and the **exact solver** have both
+since shipped — the exact solver is now the default, and brought the `objective` dial
+with it. Only **drug–drug interactions** are still design-doc future work. None of it
+is required for the interactive demo.
 
 ---
 

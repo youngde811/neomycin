@@ -1,5 +1,12 @@
 # Lisa + LLM Expert System Architecture
 
+> **⚠️ SCOPE — architecture doc, and parts of it predate v0.11.** The bridge, driver and
+> tool-use loop it describes are current. The RULE examples are not: names like
+> `aerobic-gram-neg-rod-suggests-enterobacteriaceae-class` refer to an organism-class
+> the corpus no longer has, and beliefs are no longer certainty factors — the default
+> is Dempster-Shafer over an open frame. For the live corpus, query `/rules` or read
+> `neomycin/rules/`.
+
 ## Status (2026-06-25)
 
 - **Phase 1 (Lisa Server/Bridge)**: COMPLETE — Hunchentoot HTTP server on port 8090, JSON via jzon, endpoints for assert-fact, run-inference, conclusions, rule-trace, partial-matches, reset.
