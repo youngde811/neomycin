@@ -143,8 +143,12 @@
 
 (defun rule-member-test-values (rule)
   "Values named in RULE's (test (member ?value '(...))) patterns, flattened.
-   This is how a rule enumerates the set of hypotheses it applies to -- the
-   ruling-out rules use it to name every identity they argue against."
+   This is how a rule enumerates the set of hypotheses it applies to.
+
+   Domain-neutral, and currently unused by neomycin: it was how the retired
+   ruling-out rules named the identities they argued against, and that corpus has
+   no such rules left. Kept because the pattern is a general one and Lisa's own
+   example rulebases still use it."
   (let ((acc '()))
     (dolist (p (rule-patterns rule) acc)
       (when (eq (parsed-pattern-type p) :test)

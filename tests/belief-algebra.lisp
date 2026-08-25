@@ -129,7 +129,7 @@
 ;;; nothing here enumerates a universe -- which is the property that lets a knowledge
 ;;; base scale without a frame declaration to keep in step with it.
 ;;;
-;;; Values below are either hand-workable or measured in docs/narrows-to-spike.lisp
+;;; Values below are either hand-workable or measured in docs/attic/narrows-to-spike.lisp
 ;;; against the real Rete, and cited where so.
 ;;; ------------------------------------------------------------------
 
@@ -159,7 +159,7 @@
   ;; A smaller set inside a larger one AGREES. This is what replaces chaining: urease+
   ;; narrows to four organisms, urease+ with swarming narrows within that to one, and
   ;; the two compose with no conflict and no composition law.
-  ;; Measured on the real corpus (docs/narrows-to-spike.lisp): proteus [0.80, 1.00], K=0.
+  ;; Measured on the real corpus (docs/attic/narrows-to-spike.lisp): proteus [0.80, 1.00], K=0.
   (multiple-value-bind (m k)
       (candidates:combine-answers '(((:klebsiella :enterobacter :serratia :proteus) . 0.7)
                                     ((:proteus) . 0.8)))

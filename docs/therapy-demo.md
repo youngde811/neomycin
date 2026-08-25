@@ -4,7 +4,7 @@
 > per-hypothesis Dempster-Shafer system, which was the default until the shared
 > frame of discernment replaced it. They are left as captured rather than rewritten
 > — a transcript is a record of what the system did at the time. Current numbers
-> differ; see `docs/shared-frame-design.md`.
+> differ; see `docs/attic/shared-frame-design.md`.
 
 Carrying a case all the way through: from a clinician's plain-English description,
 to organism identification under a belief algebra, to a **deterministic
@@ -57,9 +57,11 @@ the LLM-facing glue.
 
 With this in place, the therapy phase's LLM tool is **complete** — the last
 `⏳ next increment` item in
-[`getting-started.md`](getting-started.md#whats-built-so-far). What remains
-(antibiogram overlay, drug–drug interactions, an exact-solver oracle) is design-doc
-future work and is not required for the interactive demo.
+[`getting-started.md`](getting-started.md#whats-built-so-far). Of what
+remained at the time, the **antibiogram overlay** and the **exact solver** have both
+since shipped — the exact solver is now the default, and brought the `objective` dial
+with it. Only **drug–drug interactions** are still design-doc future work. None of it
+is required for the interactive demo.
 
 ---
 

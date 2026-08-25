@@ -1,13 +1,15 @@
 # Shared frame, phase 0 — measured results
 
+> **📦 ATTIC — historical record.** Phase-0 measurements for the declared shared frame. **That system was deleted at v0.11.** The measurements are still the reason the corpus went where it did — focal-set WIDTH, not the combination operator.
+
 > **Status: measurement complete (2026-08-17). No engine code changed, no belief
 > changed, no golden moved, suite untouched.** This is the phase 0 called for by
-> `docs/shared-frame-design.md` §10, run under the decisions David settled on
+> `docs/attic/shared-frame-design.md` §10, run under the decisions David settled on
 > 2026-08-17: D1 unconditional, D2 keep Barnett, D3 measure both, D4 add
 > `:other-organism`, D5 phase 0 sufficient to decide.
 >
-> Code: `docs/frame-algebra-spike.lisp` (throwaway, not in any ASDF system).
-> Reproduce with `(load "docs/frame-algebra-spike.lisp")` then `(frame-spike:report)`
+> Code: `docs/attic/frame-algebra-spike.lisp` (throwaway, not in any ASDF system).
+> Reproduce with `(load "docs/attic/frame-algebra-spike.lisp")` then `(frame-spike:report)`
 > from an SBCL REPL with `:neomycin` loaded.
 
 > **Phase 0.5 followed on the same day and is appended below from §10.** Its result

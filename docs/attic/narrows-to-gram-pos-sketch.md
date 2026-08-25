@@ -1,6 +1,8 @@
 # Sketch — the gram-positive cluster as narrows-to rules
 
-> **Design sketch for review. No code.** Follows `docs/narrows-to-spike.lisp`, which
+> **📦 ATTIC — historical record.** Design sketch for converting the gram-positive cluster to narrows-to rules. **The conversion happened**; the corpus is the authority now. Kept as the record of the argument.
+
+> **Design sketch for review. No code.** Follows `docs/attic/narrows-to-spike.lisp`, which
 > showed the shape reproduces culture-4's shipped numbers exactly with no disconfirming
 > rules, no frame declaration and no hidden pool.
 >

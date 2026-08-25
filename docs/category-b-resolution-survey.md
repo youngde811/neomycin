@@ -41,7 +41,7 @@ there is no plateau to measure against. Leave the numbers, fix the sets. Where a
 belief and its evidence are plainly out of step, that is recorded as an observation
 (§5C), not as a proposal.
 
-**Wrong conditionals noted in passing.** `docs/belief-conditional-audit.md` predicted
+**Wrong conditionals noted in passing.** `docs/attic/belief-conditional-audit.md` predicted
 that sensitivities stand in for posteriors, and predicted that context rules are where
 that hides. One case is confirmed below and one is worse than a wrong conditional.
 
@@ -276,7 +276,7 @@ elevated count is more common and does not exclude the diagnosis.
 must therefore answer P(Salmonella | low WBC, aerobic GNR in blood). The 15–25% figure
 its note cites is P(low WBC | typhoid) — a **sensitivity**, and a poor one. The rule's
 own `:note` already flags this, carried across from
-`docs/belief-conditional-audit.md` §3.3 without adjustment.
+`docs/attic/belief-conditional-audit.md` §3.3 without adjustment.
 
 **And the posterior is near-vacuous.** Leukopenia in gram-negative bacteraemia is a
 marker of *severity*, not of species — it occurs across *E. coli*, *Klebsiella* and
@@ -520,7 +520,7 @@ set instead of fighting.
 This is the same effect slice D measured for culture-3, where widening the chain-
 former answer dropped K from 0.647 to 0.525 because the enterococcus and streptococcus
 rules stopped contradicting each other
-(`docs/slice-d-focal-width.md` §4).
+(`docs/attic/slice-d-focal-width.md` §4).
 
 Expect: K to fall sharply on culture-1, culture-1a and culture-1b; the burn-ICU
 figures (`K=0.557, margin=0.740`) to move most of all, since culture-1b fires the

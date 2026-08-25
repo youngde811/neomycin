@@ -80,7 +80,7 @@
    ;; subset names, or a list of either -- resolved against the frame by
    ;; RULE-FOCAL-SET. Both default NIL, and a rule declaring neither falls back to
    ;; what it asserts, so every existing rule is unaffected.
-   ;; See docs/shared-frame-design.md 4.2.
+   ;; See docs/attic/shared-frame-design.md 4.2.
    (active-dependencies :initform (make-hash-table :test #'equal)
                         :reader rule-active-dependencies)
    (engine :initarg :engine

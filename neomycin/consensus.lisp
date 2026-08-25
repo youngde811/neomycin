@@ -37,13 +37,34 @@
   (remove-duplicates
    (mapcar (lambda (f) (lisa:get-slot-value f 'lisa-user::of)) (candidates-facts))))
 
-(defun contributing-rules (fact)
-  "The rules whose firing produced FACT, from the engine's own derivation record."
+(defun firing-discount (record)
+  "How strongly the PREMISES of one firing were believed, conjoined by the active
+   belief system -- 1.0 when the record carries no premise beliefs.
+
+   The engine snapshots each premise's belief at fire time (DERIVATION-RECORD-PREMISES
+   is a list of (FACT . BELIEF)), which is the only place this survives per RULE. The
+   conclusion fact carries a belief too, but it is the COMBINED result of every
+   contributor and cannot be decomposed back into what each rule brought."
+  (let ((beliefs (remove nil (mapcar #'cdr (lisa:derivation-record-premises record)))))
+    (if (and beliefs belief:*belief-system*)
+        (belief:conjoin-beliefs belief:*belief-system* beliefs)
+        1.0)))
+
+(defun contributing-firings (fact)
+  "((RULE . DISCOUNT) ...) -- one entry per firing that produced FACT.
+
+   A rule that fired twice appears twice, as it must: each firing is its own assertion
+   of the answer and carries its own evidence strength."
   (remove nil
           (mapcar (lambda (record)
-                    (lisa:find-rule (lisa:inference-engine)
-                                    (lisa:derivation-record-rule record)))
+                    (let ((rule (lisa:find-rule (lisa:inference-engine)
+                                                (lisa:derivation-record-rule record))))
+                      (when rule (cons rule (firing-discount record)))))
                   (lisa:fact-derivation (lisa:inference-engine) fact))))
+
+(defun contributing-rules (fact)
+  "The rules whose firing produced FACT, from the engine's own derivation record."
+  (mapcar #'car (contributing-firings fact)))
 
 (defun surviving-rules (rules)
   "RULES minus any that another in the set SUBSUMES.
@@ -167,36 +188,54 @@
 (defun answer-mass-of (fact &optional survivors-in-scope)
   "The mass function one CANDIDATES fact contributes.
 
-   Each SURVIVING rule behind the fact is one independent assertion of the answer, and
-   they are combined by Dempster's rule. Recomputing from the surviving rules rather
-   than reading the fact's own belief is what implements SPECIFICITY: the engine
+   Each SURVIVING firing behind the fact is one independent assertion of the answer,
+   and they are combined by Dempster's rule. Recomputing from the surviving rules
+   rather than reading the fact's own belief is what implements SPECIFICITY: the engine
    combined every contributor when it collapsed the duplicate assertions, and had no
    way to know one of them was subsumed.
 
-   For a FLAT answer this is exactly the old arithmetic. Combining two simple support
-   functions on the same set with beliefs a and b puts a + b - ab on it, which is the
-   probabilistic sum this function used to compute directly. Nothing moves.
+   Each firing's answer is then DISCOUNTED by how strongly that firing's premises were
+   believed. Two quantities are in play and they are not the same: a rule's :belief is
+   how strongly the answer follows FROM its premises, and the discount is how strongly
+   those premises were believed in the first place. The rule belief alone is right only
+   when the evidence was asserted outright, which is every scenario but a hedged one --
+   and reading the fact's own belief instead is not an option, because it is the
+   COMBINED result of every contributor and cannot be decomposed per rule.
+
+   Before this, evidence strength reached the fact and stopped there: culture-2's
+   0.8/0.2 Gram hedge produced facts at 0.56/0.14/0.72 and a differential computed from
+   0.7/0.7/0.9, identical whether the clinician called the stain 80% negative, 50/50, or
+   80% POSITIVE. /assert-fact accepted a `confidence', echoed it back, and it changed
+   nothing.
+
+   For a FLAT answer at full evidence strength this is exactly the old arithmetic.
+   Combining two simple support functions on the same set with beliefs a and b puts
+   a + b - ab on it, which is the probabilistic sum this function used to compute
+   directly. Nothing moves unless a premise was hedged.
 
    For a GRADED answer the distribution is stated on the FACT rather than carried as a
-   rule's single :belief, so each surviving rule asserts the same mass function and
-   they combine the same way."
+   rule's single :belief, so each surviving firing asserts the same mass function,
+   discounted by its own evidence, and they combine the same way."
   (let* ((value (answer-value fact))
-         (contributors (contributing-rules fact))
+         (firings (contributing-firings fact))
          (survivors (if survivors-in-scope
-                        (remove-if-not (lambda (r) (member r survivors-in-scope))
-                                       contributors)
-                        (surviving-rules contributors))))
+                        (remove-if-not (lambda (f) (member (car f) survivors-in-scope))
+                                       firings)
+                        (let ((keep (surviving-rules (mapcar #'car firings))))
+                          (remove-if-not (lambda (f) (member (car f) keep)) firings)))))
     (cond
       ((candidates:graded-answer-p value)
        (let ((m (candidates:graded-answer value)))
-         (if (rest survivors)
+         (if survivors
              (reduce #'candidates:combine-two
-                     (make-list (length survivors) :initial-element m))
+                     (mapcar (lambda (f) (candidates:discount m (cdr f))) survivors))
              m)))
       (survivors
        (reduce #'candidates:combine-two
-               (mapcar (lambda (r)
-                         (candidates:answer value (abs (lisa:rule-belief r))))
+               (mapcar (lambda (f)
+                         (candidates:discount
+                          (candidates:answer value (abs (lisa:rule-belief (car f))))
+                          (cdr f)))
                        survivors)))
       (t
        ;; No derivation (a fact asserted as evidence rather than concluded):

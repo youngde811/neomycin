@@ -2,10 +2,10 @@
 
 > **Design sketch for review. No code.** The spike now covers all 50 shipped rules
 > (→ 44), settles the combination policy, and fixes three findings from
-> `belief-conditional-audit.md` on the way. This is what it would take to make it the
+> `docs/attic/belief-conditional-audit.md` on the way. This is what it would take to make it the
 > real thing.
 >
-> Read alongside `docs/narrows-to-gram-pos-sketch.md` (the rule shape) and the spike
+> Read alongside `docs/attic/narrows-to-gram-pos-sketch.md` (the rule shape) and the spike
 > files themselves.
 
 ## 1. The headline: this is a net DELETION

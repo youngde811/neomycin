@@ -1,5 +1,7 @@
 # Next Steps: Lisa/LLM Integration Research
 
+> **📦 ATTIC — historical record.** Planning document. Everything it proposes has either shipped or been superseded; several items name mechanisms the corpus no longer has. Read `docs/lisa-llm-architecture.md` for the current picture.
+
 ## Context
 
 > **Note:** This section describes the state *before* the 2026-07-02 work

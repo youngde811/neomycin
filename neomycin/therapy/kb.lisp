@@ -51,7 +51,7 @@
   ;; species id -> family id (taxonomy). A species with no sensitivity of its own
   ;; inherits its family's figure in KB-SUSCEPTIBILITY -- empiric therapy is pitched
   ;; at the family level, so the KB's structure mirrors the corpus's class->species
-  ;; refinement (docs/chaining-belief-spike.md §7, decision 4).
+  ;; refinement (docs/attic/chaining-belief-spike.md §7, decision 4).
   (families (make-hash-table :test #'eq)))
 
 (defun make-therapy-kb ()

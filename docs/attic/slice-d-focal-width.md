@@ -1,5 +1,7 @@
 # Slice D — focal-set width audit, and what to change
 
+> **📦 ATTIC — historical record.** Shared-frame slice D. **The frame system was deleted at v0.11**, but the finding — that focal-set WIDTH governs the differential — is why graded answers exist. See `docs/category-b-resolution-survey.md`.
+
 > **Status: APPLIED (2026-08-17). Category A landed; B and C deliberately not.
 > Suite green at 1477/209 — no golden moved, because the engine does not yet
 > accumulate through focal sets (slice E).**
@@ -9,11 +11,11 @@
 > evidence to improve it; **category B** — leave narrow, and note the residual risk in
 > the design. §9 records what was applied and the one refinement D6 needed.
 >
-> Phase 1 slice D of `docs/shared-frame-design.md`, promoted out of phase 2 by
-> `docs/shared-frame-phase0-results.md` §13.
+> Phase 1 slice D of `docs/attic/shared-frame-design.md`, promoted out of phase 2 by
+> `docs/attic/shared-frame-phase0-results.md` §13.
 >
-> Audit tool: `docs/focal-width-audit.lisp` (throwaway, not in any ASDF system).
-> Reproduce with `(load "docs/focal-width-audit.lisp")` then `(focal-audit:report)`.
+> Audit tool: `docs/attic/focal-width-audit.lisp` (throwaway, not in any ASDF system).
+> Reproduce with `(load "docs/attic/focal-width-audit.lisp")` then `(focal-audit:report)`.
 
 ## 1. The question, and how it was answered
 

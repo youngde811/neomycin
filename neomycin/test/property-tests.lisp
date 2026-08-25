@@ -334,7 +334,7 @@
     (lisa-user::white-blood-count lisa-user::low
      "INERT SINCE CATEGORY B. Its only rule --
       blood-low-wbc-aerobic-gram-neg-rod-narrows-to-salmonella -- was RETIRED as the
-      wrong conditional docs/belief-conditional-audit.md 3.3 predicted: it fired ON a
+      wrong conditional docs/attic/belief-conditional-audit.md 3.3 predicted: it fired ON a
       low white count, so it owed P(Salmonella | low WBC), while the 15-25% figure it
       cited is P(low WBC | typhoid), a sensitivity. Correcting the conditional does not
       rescue it, because leukopenia in gram-negative bacteraemia marks SEVERITY rather

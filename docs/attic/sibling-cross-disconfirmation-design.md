@@ -1,11 +1,13 @@
 # Biochemical cross-disconfirmation among the enterobacteriaceae siblings — design & slice plan
 
+> **📦 ATTIC — historical record.** Design for biochemical CROSS-DISCONFIRMING rules with negative beliefs. **The corpus has no disconfirming rules and no negative beliefs.** Exclusion is what remains after answers intersect, and is never authored.
+
 > Status: **DELIVERED** (branch `feature/sibling-cross-disconfirmation`). Review
 > decisions: include rule 4 (yes), magnitudes −0.6/−0.7 with red pigment at −0.8
 > (prodigiosin is the most exclusive marker), one targeted Salmonella/Klebsiella
 > golden. Slice A = the four rules + isolation tests (+ the forced urease-scenario
 > re-capture); Slice B = the conflict goldens; Slice C = docs sync. Logged as
-> `corpus-expansion-sketch.md` §5 candidate 4.
+> `docs/corpus-expansion-sketch.md` §5 candidate 4.
 
 ## 1. Why (the gap, observed live)
 
@@ -142,7 +144,7 @@ Adding rules re-captures goldens; the affected ones are known and small:
 - **Slice C — docs sync.** Rule count (23 → 26/27) in CLAUDE.md/runbook/system-prompt/
   corpus-sketch; the disconfirming-rules section of `system-prompt.md` (the LLM should
   narrate a dropped plausibility as "the red pigment argues against E. coli"); extend
-  Scenario 9's sibling variation in `clinician-scenarios.md`; mark corpus-sketch §5
+  Scenario 9's sibling variation in `docs/clinician-scenarios.md`; mark corpus-sketch §5
   candidate 4 delivered.
 
 ## 8. Open questions (for review)
