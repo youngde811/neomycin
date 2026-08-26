@@ -119,7 +119,7 @@
                  (not (resolves-p token)))
         (push token missing)))
     (is (null missing)
-        (format nil "CLAUDE.md names ~R symbol~:P that do not exist: ~{~A~^, ~}~@
+        (format nil "CLAUDE.md names ~R nonexistent symbol~:P: ~{~A~^, ~}~@
                      Either the name is stale, or it belongs in *CLAUDE-MD-NOT-SYMBOLS* ~
                      with a reason."
                 (length missing) (sort missing #'string<)))))

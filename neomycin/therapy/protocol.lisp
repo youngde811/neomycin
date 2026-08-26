@@ -248,7 +248,12 @@
                           broadest agent available (1, 1.1).
      :spectrum-sparing -- Minimise summed declared spectrum breadth, then fall back
                           to the above. Implements the narrow-spectrum preference
-                          the project had claimed but never built.
+                          the project had claimed but never built. NARROW IS NOT
+                          CHEAP: see the reserve-status warning below.
+     :stewardship      -- Minimise summed WHO AWaRe rank (Access < Watch < Reserve),
+                          then fall back to the above. The axis :spectrum-sparing
+                          cannot see, added after a live consultation showed the gap
+                          (3.7).
 
    Turning this dial CHANGES THE RECOMMENDATION, and sometimes toward a drug a
    clinician would reject: with the canonical tiers it prefers gentamicin
@@ -260,7 +265,17 @@
 
    Spectrum breadth is also blind to RESERVE status: vancomycin and linezolid are
    narrow-spectrum and are exactly the agents a steward holds back. Do not read a
-   low summed breadth as low stewardship cost.")
+   low summed breadth as low stewardship cost -- that is what :stewardship is for,
+   and the two dials disagree in exactly the cases that matter. On a group A strep
+   with no contraindications, :spectrum-sparing returns VANCOMYCIN (Watch) because
+   vancomycin, nafcillin and linezolid tie in the :narrow tier; :stewardship returns
+   ampicillin (Access), which is the clinically standard choice.
+
+   WHAT NONE OF THESE DIALS CAN DO: cardinality is primary under all three, so no
+   objective can prefer TWO Access agents over ONE Reserve agent. Real stewardship
+   sometimes wants exactly that. Expressing it would mean changing what the solver
+   SEARCHES rather than how it breaks ties, and that is deliberately not done here --
+   a dial with a stated limit is worth more than one that quietly approximates.")
 
 ;;; ============================================================
 ;;; Solver base class + protocol generic function

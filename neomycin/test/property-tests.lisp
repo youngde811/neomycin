@@ -852,3 +852,47 @@
             (format nil "~(~a~): looking up an absent :provenance key errors -- the ~
                          plist is malformed in a way present-key lookups hide"
                     (lisa:rule-short-name rule)))))))
+
+;;; ------------------------------------------------------------------
+;;; Invariant 21 -- a system's declared version and its pushed feature agree.
+;;;
+;;; Both .asd files push a version keyword onto *FEATURES* so that source can read
+;;; `#+neomycin0.17.0'. Nothing checked it against `:version', and neomycin's drifted:
+;;; it announced :NEOMYCIN0.10.0 for SIX releases while :version said 0.16.1. A
+;;; conditional keyed to the current version would simply not have compiled in, and one
+;;; keyed to the stale version would have -- silently, in either direction, because a
+;;; missing feature is not an error.
+;;;
+;;; This is the same shape as the drift the corpus keeps producing -- a claim nothing
+;;; verifies -- except machine-readable, which makes it worse rather than better: prose
+;;; drift misleads a reader, this one misleads the READER MACRO. Lisa's own pair was
+;;; being maintained by hand and was correct; the guard covers both so neither depends
+;;; on somebody remembering.
+;;; ------------------------------------------------------------------
+
+(defun version-features (prefix)
+  "Every keyword in *FEATURES* shaped like PREFIX immediately followed by a digit.
+   The digit matters: :NEOMYCIN.ASDF shares the prefix and is not a version."
+  (remove-if-not
+   (lambda (f)
+     (let ((name (symbol-name f)))
+       (and (> (length name) (length prefix))
+            (string= prefix name :end2 (length prefix))
+            (digit-char-p (char name (length prefix))))))
+   (remove-if-not #'keywordp *features*)))
+
+(defun check-version-feature (system prefix)
+  (let* ((declared (asdf:component-version (asdf:find-system system)))
+         (expected (format nil "~A~A" prefix declared))
+         (found (version-features prefix)))
+    (is (= 1 (length found))
+        (format nil "~A should push exactly ONE version feature; found ~S. More than ~
+                     one means a stale version was left behind next to the current."
+                system found))
+    (is (member expected found :key #'symbol-name :test #'string=)
+        (format nil "~A declares :version ~S, so it must push :~A -- *FEATURES* has ~S"
+                system declared expected found))))
+
+(deftest property-declared-version-matches-pushed-feature ()
+  (check-version-feature "neomycin" "NEOMYCIN")
+  (check-version-feature "lisa" "LISA"))
