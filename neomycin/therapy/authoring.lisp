@@ -46,15 +46,24 @@
 ;; their id arguments through unquoted; only DOSE and SUSCEPTIBILITY are ordinary
 ;; evaluated forms.
 
-(defmacro defdrug (id &key class route dose spectrum)
+(defmacro defdrug (id &key class route dose spectrum stewardship)
   "Author drug ID (a keyword, e.g. :ceftazidime) into *THERAPY-KB*. CLASS and
    ROUTE are keywords (e.g. :cephalosporin-3, :iv); DOSE is an evaluated form,
-   typically a simulated non-clinical dose string. SPECTRUM is an ordinal breadth
-   tier from *SPECTRUM-TIERS* (:very-narrow ... :very-broad) -- a declared clinical
-   judgement, illustrative like every other value here, and validated at authoring
-   time so a typo fails loudly."
+   typically a simulated non-clinical dose string.
+
+   SPECTRUM is an ordinal breadth tier from *SPECTRUM-TIERS* (:very-narrow ...
+   :very-broad) -- a declared clinical judgement, illustrative like almost every
+   other value here.
+
+   STEWARDSHIP is the drug's WHO AWaRe tier from *STEWARDSHIP-TIERS* (:access,
+   :watch, :reserve). It answers a DIFFERENT question from SPECTRUM -- what the agent
+   costs to spend rather than how much it covers -- and unlike SPECTRUM it is not
+   illustrative: AWaRe is published.
+
+   Both are validated at authoring time so a typo fails loudly rather than reading
+   back as NIL and quietly dropping the drug out of that ordering."
   `(add-drug *therapy-kb* ,id :class ,class :route ,route :dose ,dose
-                              :spectrum ,spectrum))
+                              :spectrum ,spectrum :stewardship ,stewardship))
 
 (defmacro defsensitivity (organism drug susceptibility)
   "Author ORGANISM's SUSCEPTIBILITY to DRUG into *THERAPY-KB*. ORGANISM and DRUG

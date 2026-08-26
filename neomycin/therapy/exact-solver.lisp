@@ -170,6 +170,18 @@
     (loop for d in subset
           sum (or (spectrum-rank (kb-drug-spectrum kb d)) unknown))))
 
+(defun regimen-stewardship (kb subset)
+  "Summed declared WHO AWaRe rank over SUBSET -- lower is cheaper to spend.
+
+   A drug with NO authored tier counts as one step COSTLIER than :reserve, mirroring
+   REGIMEN-BREADTH exactly and for the same reason: ranking an unauthored drug
+   cheapest would let a gap in the KB win the objective outright, which is the
+   failure mode where missing data reads as a clinical virtue. Under-known is
+   unfavoured, never preferred."
+  (let ((unknown (length *stewardship-tiers*)))
+    (loop for d in subset
+          sum (or (stewardship-rank (kb-drug-stewardship kb d)) unknown))))
+
 (defun objective-better-p (kb a b)
   "Compare two scored subsets under the active *OBJECTIVE*. Each argument is
    (SUBSET . WEIGHT), WEIGHT being summed susceptibility x identification belief.
@@ -190,6 +202,18 @@
                ((> ba bb) nil)
                ;; Equal breadth -- fall back to the lexicographic key, so the two
                ;; objectives agree wherever spectrum has nothing to say.
+               ((> wa wb) t)
+               ((< wa wb) nil)
+               (t (string< (subset-name-key (car a)) (subset-name-key (car b)))))))
+      (:stewardship
+       ;; Structurally identical to :spectrum-sparing over a DIFFERENT axis, which is
+       ;; the point: breadth asks how much a regimen covers, this asks what it costs
+       ;; to spend. Equal cost falls through to the same lexicographic key, so all
+       ;; three objectives agree wherever their axis has nothing to say.
+       (let ((sa (regimen-stewardship kb (car a)))
+             (sb (regimen-stewardship kb (car b))))
+         (cond ((< sa sb) t)
+               ((> sa sb) nil)
                ((> wa wb) t)
                ((< wa wb) nil)
                (t (string< (subset-name-key (car a)) (subset-name-key (car b))))))))))

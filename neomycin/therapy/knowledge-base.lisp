@@ -104,13 +104,22 @@
 ;;
 ;; BREADTH IS NOT RESERVE STATUS, and the two must not be conflated. Vancomycin and
 ;; linezolid are :narrow by spectrum while being exactly the agents a steward
-;; reserves -- linezolid is WHO AWaRe *Reserve*. The AWaRe axis is annotated per
-;; section below but is NOT encoded in this tier, so a "narrowest-first" objective
-;; reading only :spectrum would happily reach for a Reserve agent. That is a real
-;; limitation of the axis, recorded here rather than discovered later.
+;; reserves -- linezolid is WHO AWaRe *Reserve*. A "narrowest-first" objective reading
+;; only :spectrum will happily reach for a Reserve agent, and does.
 ;;
-;; CONSUMED BY *OBJECTIVE* :SPECTRUM-SPARING, and by nothing else. That objective is
-;; OPT-IN: the default (:lexicographic) ignores these tiers entirely.
+;; THE AWaRe AXIS IS NOW ENCODED, as :stewardship on each defdrug, and read by
+;; *OBJECTIVE* :stewardship (kb.lisp, design doc 3.7). Every tier below was already
+;; annotated in this file's per-drug sections before it was encoded, so the axis reads
+;; existing review rather than inventing judgement -- and unlike :spectrum, AWaRe is
+;; published rather than illustrative. The limitation recorded here for four releases
+;; was made concrete by a live consultation on 2026-08-26, where `spectrum-sparing' on
+;; a group A strep returned VANCOMYCIN and the model had to talk the clinician out of
+;; the system's own recommendation. The two axes remain SEPARATE: neither subsumes the
+;; other, and no objective reads both.
+;;
+;; CONSUMED BY *OBJECTIVE* :SPECTRUM-SPARING, and by nothing else -- :stewardship
+;; reads the :stewardship tier, not this one. Both objectives are OPT-IN: the default
+;; (:lexicographic) ignores both axes entirely.
 ;;
 ;; What they do when turned on is tabled in exact-solver-design.md 3.6, and two rows
 ;; are worth knowing before authoring against them. The tiers prefer GENTAMICIN
@@ -119,7 +128,9 @@
 ;; ampicillin (WHO AWaRe Access) to linezolid (AWaRe RESERVE): narrowing spectrum
 ;; can escalate reserve status, and this axis cannot see it happening. Both were
 ;; shipped as measured rather than patched, so the dial's failure modes stay
-;; visible; the narration is required to state the trade.
+;; visible; the narration is required to state the trade. :stewardship answers the
+;; second case and NOT the first -- gentamicin monotherapy is still what breadth
+;; prefers, because that is a breadth question.
 ;;
 ;; Vocabulary is KEYWORDS end to end. Organism keywords match the engine's
 ;; keyword organism-identity values exactly (same global objects, no conversion),
@@ -198,7 +209,7 @@
 ;;; Beta-lactams: anti-pseudomonal cephalosporin (WHO AWaRe: Watch)
 ;;; --------------------------------------------------------------------------
 
-(defdrug :ceftazidime :class :cephalosporin-3 :route :iv :dose "2 g IV q8h" :spectrum :broad)
+(defdrug :ceftazidime :class :cephalosporin-3 :route :iv :dose "2 g IV q8h" :spectrum :broad :stewardship :watch)
 (defsensitivity :pseudomonas        :ceftazidime (belief:make-ds-belief 0.70 0.90))
 (defsensitivity :enterobacteriaceae :ceftazidime (belief:make-ds-belief 0.66 0.88))
 (defsensitivity :klebsiella         :ceftazidime (belief:make-ds-belief 0.64 0.88)) ; ESBL variability -> wider
@@ -206,7 +217,7 @@
 (defcontraindication :ceftazidime :when (:allergy-cephalosporin))
 
 ;;; Non-pseudomonal 3rd-gen cephalosporin (WHO AWaRe: Watch)
-(defdrug :ceftriaxone :class :cephalosporin-3 :route :iv :dose "2 g IV q24h" :spectrum :broad)
+(defdrug :ceftriaxone :class :cephalosporin-3 :route :iv :dose "2 g IV q24h" :spectrum :broad :stewardship :watch)
 (defsensitivity :enterobacteriaceae       :ceftriaxone (belief:make-ds-belief 0.72 0.92))
 (defsensitivity :klebsiella               :ceftriaxone (belief:make-ds-belief 0.68 0.92)) ; ESBL variability
 (defsensitivity :salmonella               :ceftriaxone (belief:make-ds-belief 0.80 0.97)) ; drug of choice -> solid
@@ -218,7 +229,7 @@
 ;;; Carbapenem -- very broad, incl. anaerobes; spares MRSA and enterococcus
 ;;; (WHO AWaRe: Watch). Kept SOLID across its gram-negative spectrum: the
 ;;; canonical demo's coverage guarantees lean on it.
-(defdrug :meropenem :class :carbapenem :route :iv :dose "1 g IV q8h" :spectrum :very-broad)
+(defdrug :meropenem :class :carbapenem :route :iv :dose "1 g IV q8h" :spectrum :very-broad :stewardship :watch)
 (defsensitivity :pseudomonas              :meropenem (belief:make-ds-belief 0.72 0.92))
 (defsensitivity :enterobacteriaceae       :meropenem (belief:make-ds-belief 0.90 0.99)) ; solid, narrow
 (defsensitivity :klebsiella               :meropenem (belief:make-ds-belief 0.88 0.99)) ; carbapenem-R still low
@@ -230,7 +241,7 @@
 (defcontraindication :meropenem :when (:allergy-carbapenem))
 
 ;;; Anti-pseudomonal penicillin + beta-lactamase inhibitor (WHO AWaRe: Watch)
-(defdrug :piperacillin-tazobactam :class :penicillin-bli :route :iv :dose "4.5 g IV q6h" :spectrum :very-broad)
+(defdrug :piperacillin-tazobactam :class :penicillin-bli :route :iv :dose "4.5 g IV q6h" :spectrum :very-broad :stewardship :watch)
 (defsensitivity :pseudomonas        :piperacillin-tazobactam (belief:make-ds-belief 0.64 0.90))
 (defsensitivity :enterobacteriaceae :piperacillin-tazobactam (belief:make-ds-belief 0.70 0.92))
 (defsensitivity :klebsiella         :piperacillin-tazobactam (belief:make-ds-belief 0.68 0.92))
@@ -241,14 +252,14 @@
 (defcontraindication :piperacillin-tazobactam :when (:allergy-penicillin))
 
 ;;; Anti-staphylococcal penicillin -- MSSA (WHO AWaRe: Access)
-(defdrug :nafcillin :class :antistaph-penicillin :route :iv :dose "2 g IV q4h" :spectrum :narrow)
+(defdrug :nafcillin :class :antistaph-penicillin :route :iv :dose "2 g IV q4h" :spectrum :narrow :stewardship :access)
 (defsensitivity :staphylococcus        :nafcillin (belief:make-ds-belief 0.74 0.92)) ; MSSA, not MRSA
 (defsensitivity :staphylococcus-aureus :nafcillin (belief:make-ds-belief 0.72 0.92))
 (defsensitivity :streptococcus         :nafcillin (belief:make-ds-belief 0.56 0.82))
 (defcontraindication :nafcillin :when (:allergy-penicillin))
 
 ;;; Aminopenicillin (WHO AWaRe: Access)
-(defdrug :ampicillin :class :aminopenicillin :route :iv :dose "2 g IV q6h" :spectrum :moderate)
+(defdrug :ampicillin :class :aminopenicillin :route :iv :dose "2 g IV q6h" :spectrum :moderate :stewardship :access)
 (defsensitivity :enterococcus             :ampicillin (belief:make-ds-belief 0.72 0.93)) ; solid for susceptible enterococcus
 (defsensitivity :streptococcus            :ampicillin (belief:make-ds-belief 0.66 0.90))
 (defsensitivity :streptococcus-pneumoniae :ampicillin (belief:make-ds-belief 0.45 0.74)) ; [PROVISIONAL] penicillin-R pneumo variable
@@ -261,7 +272,7 @@
 ;;; Fluoroquinolone (WHO AWaRe: Watch)
 ;;; --------------------------------------------------------------------------
 
-(defdrug :ciprofloxacin :class :fluoroquinolone :route :iv :dose "400 mg IV q12h" :spectrum :moderate)
+(defdrug :ciprofloxacin :class :fluoroquinolone :route :iv :dose "400 mg IV q12h" :spectrum :moderate :stewardship :watch)
 (defsensitivity :pseudomonas        :ciprofloxacin (belief:make-ds-belief 0.46 0.85)) ; [PROVISIONAL] anti-pseudomonal FQ coverage is antibiogram-dependent
 (defsensitivity :enterobacteriaceae :ciprofloxacin (belief:make-ds-belief 0.62 0.90))
 (defsensitivity :klebsiella         :ciprofloxacin (belief:make-ds-belief 0.62 0.90))
@@ -272,7 +283,7 @@
 ;;; Aminoglycoside (WHO AWaRe: Access)
 ;;; --------------------------------------------------------------------------
 
-(defdrug :gentamicin :class :aminoglycoside :route :iv :dose "5-7 mg/kg IV q24h" :spectrum :moderate)
+(defdrug :gentamicin :class :aminoglycoside :route :iv :dose "5-7 mg/kg IV q24h" :spectrum :moderate :stewardship :access)
 (defsensitivity :pseudomonas        :gentamicin (belief:make-ds-belief 0.48 0.88)) ; [PROVISIONAL] highly antibiogram-dependent
 (defsensitivity :enterobacteriaceae :gentamicin (belief:make-ds-belief 0.64 0.90))
 (defsensitivity :klebsiella         :gentamicin (belief:make-ds-belief 0.64 0.90))
@@ -289,7 +300,7 @@
 
 ;;; Glycopeptide -- gram-positives incl. MRSA (WHO AWaRe: Watch). Kept SOLID:
 ;;; the demo's gram-positive coverage guarantees lean on it.
-(defdrug :vancomycin :class :glycopeptide :route :iv :dose "15-20 mg/kg IV q8-12h" :spectrum :narrow)
+(defdrug :vancomycin :class :glycopeptide :route :iv :dose "15-20 mg/kg IV q8-12h" :spectrum :narrow :stewardship :watch)
 (defsensitivity :staphylococcus           :vancomycin (belief:make-ds-belief 0.88 0.99))
 (defsensitivity :staphylococcus-aureus    :vancomycin (belief:make-ds-belief 0.88 0.99)) ; incl. MRSA
 (defsensitivity :streptococcus            :vancomycin (belief:make-ds-belief 0.82 0.97))
@@ -297,7 +308,7 @@
 (defsensitivity :enterococcus             :vancomycin (belief:make-ds-belief 0.48 0.88)) ; [PROVISIONAL] VRE lowers the floor
 
 ;;; Oxazolidinone -- resistant gram-positives incl. VRE/MRSA (WHO AWaRe: Reserve)
-(defdrug :linezolid :class :oxazolidinone :route :iv :dose "600 mg IV/PO q12h" :spectrum :narrow)
+(defdrug :linezolid :class :oxazolidinone :route :iv :dose "600 mg IV/PO q12h" :spectrum :narrow :stewardship :reserve)
 (defsensitivity :staphylococcus        :linezolid (belief:make-ds-belief 0.80 0.96))
 (defsensitivity :staphylococcus-aureus :linezolid (belief:make-ds-belief 0.80 0.96))
 (defsensitivity :enterococcus          :linezolid (belief:make-ds-belief 0.72 0.93)) ; holds up incl. VRE
@@ -308,6 +319,6 @@
 ;;; Anaerobe coverage (WHO AWaRe: Access)
 ;;; --------------------------------------------------------------------------
 
-(defdrug :metronidazole :class :nitroimidazole :route :iv :dose "500 mg IV q8h" :spectrum :very-narrow)
+(defdrug :metronidazole :class :nitroimidazole :route :iv :dose "500 mg IV q8h" :spectrum :very-narrow :stewardship :access)
 (defsensitivity :bacteroides :metronidazole (belief:make-ds-belief 0.88 0.99)) ; solid, narrow
 (defcontraindication :metronidazole :when (:pregnancy-first-trimester :alcohol-use))

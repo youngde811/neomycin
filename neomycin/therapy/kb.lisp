@@ -93,16 +93,57 @@
    gap between :narrow and :moderate is not a measured quantity."
   (position spectrum *spectrum-tiers*))
 
-(defun add-drug (kb id &key class route dose spectrum)
-  "Add drug ID to KB with an optional class, route, (simulated) dose, and
-   SPECTRUM breadth tier. SPECTRUM must be NIL or a member of *SPECTRUM-TIERS*;
-   a typo fails at authoring time rather than silently reading back as NIL and
-   quietly removing the drug from any breadth ordering."
+;;; ------------------------------------------------------------------
+;;; Stewardship cost -- the WHO AWaRe axis (exact-solver-design.md 3.7)
+;;;
+;;; The SECOND ordinal axis on a drug, and it answers a different question from
+;;; :spectrum. Breadth asks HOW MANY TAXA DOES THIS COVER -- a microbiological fact.
+;;; Stewardship asks WHAT DOES USING THIS COST THE FUTURE -- a policy fact about the
+;;; agent's place in a formulary. They correlate loosely enough to be tempting and
+;;; not nearly enough to be one axis, and vancomycin is where they come apart: narrow
+;;; spectrum (gram-positives only) and simultaneously an agent a steward protects.
+;;;
+;;; This axis was FORESEEN and deliberately not built -- see the breadth commentary
+;;; above, which says the AWaRe distinction "is a different one ... a future objective
+;;; could carry it; this tier must not be read as though it already did." A live
+;;; consultation on 2026-08-26 made the gap concrete: asked for `spectrum-sparing' on
+;;; a group A strep, the solver returned VANCOMYCIN, because vancomycin, nafcillin and
+;;; linezolid all sit in the :narrow tier and the tiebreak fell through to
+;;; susceptibility. The model had to talk the clinician out of its own recommendation.
+;;;
+;;; UNLIKE EVERY OTHER VALUE IN THIS KB, THESE TIERS ARE NOT ILLUSTRATIVE. The WHO
+;;; AWaRe classification is published, and the tier for each drug here was already
+;;; annotated in knowledge-base.lisp before it was encoded -- this axis reads existing
+;;; review rather than inventing judgement. Which drug a clinician should reach for is
+;;; still a clinical decision this system does not make.
+;;; ------------------------------------------------------------------
+
+(defparameter *stewardship-tiers*
+  '(:access :watch :reserve)
+  "The ordinal WHO AWaRe tiers, CHEAPEST FIRST. Position IS the ordering -- see
+   STEWARDSHIP-RANK. Three tiers because AWaRe has three; this axis takes its
+   resolution from the published classification rather than choosing one.")
+
+(defun stewardship-rank (stewardship)
+  "STEWARDSHIP's position in *STEWARDSHIP-TIERS*, or NIL when unauthored. Lower is
+   cheaper to spend. Ordinal only, exactly as SPECTRUM-RANK: the gap between :watch
+   and :reserve is an ordering, not a measured quantity, and must not be subtracted."
+  (position stewardship *stewardship-tiers*))
+
+(defun add-drug (kb id &key class route dose spectrum stewardship)
+  "Add drug ID to KB with an optional class, route, (simulated) dose, SPECTRUM
+   breadth tier and STEWARDSHIP (WHO AWaRe) tier. Each tier must be NIL or a member
+   of its tier list; a typo fails at authoring time rather than silently reading back
+   as NIL and quietly removing the drug from that ordering."
   (unless (or (null spectrum) (member spectrum *spectrum-tiers*))
     (error "Unknown spectrum tier ~S for drug ~S: expected NIL or one of ~S."
            spectrum id *spectrum-tiers*))
+  (unless (or (null stewardship) (member stewardship *stewardship-tiers*))
+    (error "Unknown stewardship tier ~S for drug ~S: expected NIL or one of ~S."
+           stewardship id *stewardship-tiers*))
   (setf (gethash id (therapy-kb-drugs kb))
-        (list :class class :route route :dose dose :spectrum spectrum))
+        (list :class class :route route :dose dose
+              :spectrum spectrum :stewardship stewardship))
   id)
 
 (defun add-sensitivity (kb organism drug susceptibility)
@@ -198,6 +239,13 @@
 (defun kb-drug-route (kb drug)
   "The route of DRUG (e.g. iv)."
   (getf (gethash drug (therapy-kb-drugs kb)) :route))
+
+(defun kb-drug-stewardship (kb drug)
+  "DRUG's declared WHO AWaRe tier, or NIL if unauthored. Read ONLY by the opt-in
+   *OBJECTIVE* :stewardship; the other two objectives ignore it entirely. An
+   unauthored tier is treated as costlier than :reserve by that objective, so a gap
+   in the KB is never rewarded -- see REGIMEN-STEWARDSHIP."
+  (getf (gethash drug (therapy-kb-drugs kb)) :stewardship))
 
 (defun kb-drug-spectrum (kb drug)
   "DRUG's declared spectrum-breadth tier, or NIL if unauthored. Read ONLY by the
