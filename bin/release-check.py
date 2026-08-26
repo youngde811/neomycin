@@ -103,6 +103,19 @@ SCENARIOS = {
         "How much of that conflict comes from the stain itself, and how confident "
         "should I be? Quote the actual figures.",
     ],
+    # The objective dial has three settings over TWO axes, and the pair that matters
+    # is the pair that disagrees: for a group A strep, spectrum-sparing returns
+    # vancomycin (Watch) and stewardship returns ampicillin (Access). Neither is "the
+    # right one", and narrating either as simply better is the failure this exercises.
+    # Added with the axis itself -- a dial with no scenario is a dial the gate cannot
+    # see, which is how spectrum-sparing shipped a backwards ranking unnoticed.
+    "stewardship": [
+        "85-year-old man, sputum culture from a chest infection: gram-positive cocci "
+        "in chains, beta-hemolytic, bacitracin sensitive. No drug allergies. What is "
+        "this, and what should I treat with?",
+        "Is there a narrower option, or a more stewardship-conscious one? Compare the "
+        "objectives for me and quote the figures.",
+    ],
     "bench-discrimination": [
         "Aerobic gram-negative rods in the blood. Biochemicals are back - lactose "
         "fermenter, indole positive. What is it?",
@@ -184,6 +197,16 @@ def numbers_in(text):
     return out
 
 
+# harvest() stores payload numbers rounded to this many decimals, and IS-SUPPORTED
+# compares at this precision too. The two must not drift apart: when harvesting rounded
+# to 6 and comparison honoured the quoted literal's own precision, a model that quoted a
+# payload float VERBATIM -- `margin = 0.5791206564684429' -- was flagged as inventing
+# it, because 0.579121 does not equal 0.5791206564684429 at sixteen places. The check
+# punished the most faithful possible quotation. Same family as the negation false
+# positive below: a guard that fails on correct behaviour teaches people to ignore it.
+HARVEST_PRECISION = 6
+
+
 def harvest(payload, sink):
     """Every number reachable in PAYLOAD -- values, numbers inside strings, and the
     LENGTH of every array, since a narrator legitimately says '17 organisms' from a
@@ -191,10 +214,10 @@ def harvest(payload, sink):
     if isinstance(payload, bool) or payload is None:
         return
     if isinstance(payload, (int, float)):
-        sink.add(round(float(payload), 6))
+        sink.add(round(float(payload), HARVEST_PRECISION))
     elif isinstance(payload, str):
         for _, v in numbers_in(payload):
-            sink.add(round(v, 6))
+            sink.add(round(v, HARVEST_PRECISION))
     elif isinstance(payload, list):
         sink.add(float(len(payload)))
         for item in payload:
@@ -212,6 +235,8 @@ def is_supported(literal, value, allowed):
     rounds to it at d places.
     """
     decimals = len(literal.split(".")[1].rstrip("%")) if "." in literal else 0
+    # Never compare finer than the sink was harvested at -- see HARVEST_PRECISION.
+    decimals = min(decimals, HARVEST_PRECISION)
     for a in allowed:
         if round(a, decimals) == round(value, decimals):
             return True
@@ -371,6 +396,21 @@ def no_rival(margin_against):
 NEGATION_WINDOW = re.compile(
     r"\b(no|nothing|none|never|not|cannot|\w+n't)\b[^.]{0,60}$", re.I)
 
+# The disclaimer may follow rather than precede. "Bacteroides -- bel 0, pl 0.08
+# (essentially ruled out by the aerobic finding, NOT ZEROED BY ANY RULE ARGUING AGAINST
+# IT)" is the correct account -- exclusion falling out of an answer that does not admit
+# it, with the mechanism the corpus lacks explicitly denied in the same breath -- and it
+# was flagged, because NEGATION_WINDOW only looks backwards.
+#
+# Deliberately NARROWER than simply mirroring that window. A bare trailing negation
+# would exempt "pseudomonas was ruled out, not klebsiella", which is a real violation.
+# This requires the negation to attach to the MECHANISM: a rule, an argument, a
+# disconfirmation, a negative belief. Denying the mechanism is what makes the sentence
+# true; a negation about something else is not a disclaimer at all.
+MECHANISM_DISCLAIMER = re.compile(
+    r"^[^.]{0,140}?\b(no|nothing|none|never|not)\b[^.]{0,60}?"
+    r"\b(rules?|argu\w+|disconfirm\w+|ruling[-\s]out|negative belief)\b", re.I)
+
 
 def transcript_verbosity(path):
     """The verbosity the driver captured PATH at, or None if the header omits it.
@@ -442,6 +482,8 @@ def check_transcript(path, facts):
                 before = prose[max(0, m.start() - 80):m.start()]
                 if NEGATION_WINDOW.search(before):
                     continue  # "nothing argued against it" is the CORRECT phrasing
+                if MECHANISM_DISCLAIMER.search(prose[m.end():m.end() + 200]):
+                    continue  # "..., not by any rule arguing against it" -- also correct
                 snippet = prose[max(0, m.start() - 40):m.end() + 40].replace("\n", " ")
                 failures.append(("phrasing", f"{why}: ...{snippet.strip()}..."))
 

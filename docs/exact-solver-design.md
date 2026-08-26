@@ -434,6 +434,24 @@ not done, and pinned by `stewardship-keeps-cardinality-primary`.
 one-drug cover; the Access agent (gentamicin) does not cover the full obligation. The
 axis is not a general de-escalator and must not be narrated as one.
 
+#### A measured side effect: incidental coverage narrows too
+
+Surfaced by the gated consultation, not predicted. Choosing the Access agent also
+changes what the regimen covers *by accident*. On the group A strep case, the
+below-threshold runners-up report:
+
+| objective | regimen | pneumoniae `covered_by` | viridans `covered_by` |
+|---|---|---|---|
+| lexicographic | vancomycin | vancomycin @ 0.82 | vancomycin @ 0.82 |
+| spectrum-sparing | vancomycin | vancomycin @ 0.82 | vancomycin @ 0.82 |
+| **stewardship** | ampicillin | **(none)** | ampicillin @ 0.66 |
+
+Neither organism was targeted — both sit under the 0.1 gate — so this is not an
+uncovered obligation and `uncovered` is correctly empty. But the broader agent was
+incidentally covering a runner-up and the narrower one is not, which is a real property
+of the trade and belongs in the narration. `below_threshold.covered_by` is what makes it
+visible; without it the change is invisible in the regimen alone.
+
 #### What it does not fix
 
 `:spectrum-sparing` still prefers gentamicin monotherapy for gram-negative bacteraemia
