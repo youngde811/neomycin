@@ -200,10 +200,11 @@
         },
         "objective": {
           "type": "string",
-          "description": "Which objective breaks ties among equally minimal regimens. Drug COUNT is primary either way; this only chooses the tiebreak. 'lexicographic' (default) maximizes susceptibility × identification belief — today's behavior, which tends to pick the broadest agent because breadth and susceptibility correlate. 'spectrum-sparing' minimizes declared spectrum breadth first, implementing narrow-spectrum preference. Pass 'spectrum-sparing' only when the clinician asks about narrowing or de-escalation, and NEVER present its result as simply better: it buys narrowness with a lower coverage floor, and because breadth is blind to WHO AWaRe reserve status it can escalate a reserved agent (e.g. enterococcus moves from ampicillin, an Access drug, to linezolid, a Reserve drug). Narrate the trade in both directions. The response echoes the objective used.",
+          "description": "Which objective breaks ties among equally minimal regimens. Drug COUNT is primary either way; this only chooses the tiebreak. 'lexicographic' (default) maximizes susceptibility × identification belief — today's behavior, which tends to pick the broadest agent because breadth and susceptibility correlate. 'spectrum-sparing' minimizes declared spectrum breadth first, implementing narrow-spectrum preference. Pass 'spectrum-sparing' only when the clinician asks about narrowing or de-escalation, and NEVER present its result as simply better: it buys narrowness with a lower coverage floor, and because breadth is blind to WHO AWaRe reserve status it can escalate a reserved agent (e.g. enterococcus moves from ampicillin, an Access drug, to linezolid, a Reserve drug). Narrate the trade in both directions. 'stewardship' minimizes WHO AWaRe rank instead (Access < Watch < Reserve), which is the axis spectrum-sparing cannot see: for a group A strep it returns ampicillin (Access) where the other two return vancomycin (Watch). It is NOT simply the best setting either \u2014 cardinality stays primary under all three, so no objective can prefer two Access drugs over one Reserve drug, and when a Reserve agent is the only single-drug cover it is still what you get. The response echoes the objective used.",
           "enum": [
             "lexicographic",
-            "spectrum-sparing"
+            "spectrum-sparing",
+            "stewardship"
           ]
         }
       },

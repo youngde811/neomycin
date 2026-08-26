@@ -319,16 +319,17 @@
 
 (defun parse-objective (raw)
   "The requested objective keyword, defaulting to :lexicographic when unset.
-   Accepts lexicographic | spectrum-sparing; anything else signals an error the
-   handler surfaces, rather than silently falling back to the default and returning
-   a regimen the caller did not ask for.
+   Accepts lexicographic | spectrum-sparing | stewardship; anything else signals an
+   error the handler surfaces, rather than silently falling back to the default and
+   returning a regimen the caller did not ask for.
 
    Defaults to :lexicographic deliberately: turning the objective dial CHANGES the
    recommendation, so it stays opt-in (exact-solver-design.md 3.5)."
   (if (and raw (stringp raw) (plusp (length raw)))
       (ecase (intern (string-upcase raw) :keyword)
         (:lexicographic :lexicographic)
-        (:spectrum-sparing :spectrum-sparing))
+        (:spectrum-sparing :spectrum-sparing)
+        (:stewardship :stewardship))
       :lexicographic))
 
 ;;; ------------------------------------------------------------------

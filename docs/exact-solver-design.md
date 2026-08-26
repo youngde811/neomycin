@@ -261,6 +261,7 @@ Some rows are not reachable end to end — see the note after finding 3.
 | enterobacteriaceae 0.80 | meropenem | **gentamicin** | diverges |
 | pseudomonas 0.76 alone | meropenem | **ceftazidime** | diverges |
 | culture-1 pair *(two organisms only — see note)* | meropenem | **ceftazidime** | diverges |
+| culture-1 *as a real consultation* | meropenem | meropenem | **no divergence** — the seven-member set obligation blocks ceftazidime (§3.7) |
 | salmonella 0.65 | meropenem | **ciprofloxacin** | diverges |
 | S. pneumoniae 0.70 | meropenem | **vancomycin** | diverges |
 | enterococcus 0.60 | ampicillin | **linezolid** | diverges |
@@ -362,6 +363,101 @@ answer "the objective gave a clinically odd answer" by teaching the KB more medi
 which is the direction where a schematic research artifact starts implying an
 authority it does not have. A dial that visibly does the wrong thing for a stateable
 reason is a better teaching object than one quietly patched until it looks sensible.
+
+### 3.7 The stewardship axis — added 2026-08-26, after the gap became concrete
+
+§3.4 recorded a limitation and §3.6 measured it: **breadth is not reserve status.**
+`:spectrum` asks how many taxa a drug covers — a microbiological fact. Stewardship asks
+what spending it costs — a policy fact. They correlate loosely enough to be tempting and
+not nearly enough to be one axis. Vancomycin is where they come apart: narrow spectrum
+(gram-positives only) and simultaneously an agent to protect.
+
+The limitation was documented for four releases and then fired in a live consultation
+(`neomycin/clinician-samples/`, session 2026-08-26). Asked for `spectrum-sparing` on a
+beta-hemolytic, bacitracin-sensitive group A strep with no contraindications, the solver
+returned **vancomycin** — the same drug as the default. Not a bug: vancomycin, nafcillin
+and linezolid all sit in `:narrow`, so the objective had nothing to separate them and
+fell through to susceptibility, which vancomycin wins at 0.82. The model spent two
+paragraphs talking the clinician out of the system's own recommendation.
+
+**The fix is a second ordinal axis, not a re-tiering of the first.** Reclassifying
+vancomycin as broad would be fitting the data to the answer, and would corrupt the
+breadth axis for the gram-negative cases where it works correctly.
+
+- `:stewardship` on each `defdrug`, from `*STEWARDSHIP-TIERS*` — `(:access :watch
+  :reserve)`, cheapest first.
+- `*OBJECTIVE* :stewardship` minimises summed AWaRe rank, then falls through to the
+  lexicographic key — structurally identical to `:spectrum-sparing` over a different
+  axis, so all three objectives agree wherever their axis is silent.
+- An unauthored tier ranks one step **costlier** than `:reserve`, exactly as
+  `REGIMEN-BREADTH` treats an unauthored spectrum. A gap in the KB must never read as a
+  clinical virtue.
+
+**This axis is not illustrative.** WHO AWaRe is published, and every tier was already
+annotated in `knowledge-base.lisp`'s per-drug sections before it was encoded — the
+encoding reads existing review rather than inventing judgement. It is the only value in
+the therapy KB with external authority behind it.
+
+#### Measured — 8 scenarios × 3 patient states × 3 objectives
+
+Six of twenty-four cells diverge, all gram-positive. `spectrum` never differs from
+`lexicographic` on this matrix; the whole divergence is the new axis.
+
+| scenario | patient | lexicographic | spectrum-sparing | **stewardship** |
+|---|---|---|---|---|
+| culture-4 (pyogenes) | none | vancomycin | vancomycin | **ampicillin** |
+| culture-4 | ceph-allergy | vancomycin | vancomycin | **ampicillin** |
+| culture-4 | pen-allergy | vancomycin | vancomycin | vancomycin |
+| culture-5 (agalactiae) | none | vancomycin | vancomycin | **ampicillin** |
+| culture-5 | ceph-allergy | vancomycin | vancomycin | **ampicillin** |
+| culture-5 | pen-allergy | vancomycin | vancomycin | vancomycin |
+| culture-multi | none | meropenem+vancomycin | meropenem+vancomycin | **meropenem+nafcillin** |
+| culture-multi | ceph-allergy | meropenem+vancomycin | meropenem+vancomycin | **meropenem+nafcillin** |
+| culture-1/1a/1b/2 | all | meropenem | meropenem | meropenem |
+| culture-3 | all | linezolid | linezolid | linezolid |
+
+Three rows are worth reading closely.
+
+**The penicillin-allergy rows do not diverge, and that is correct.** With ampicillin and
+nafcillin contraindicated there is no Access agent left, so falling back to vancomycin
+(Watch) is the axis working, not failing.
+
+**culture-3 returns linezolid — a Reserve agent — under all three objectives.** This is
+§7's open question answered by measurement rather than argument: `alternative_regimens`
+is **empty**, so linezolid is genuinely the only single-drug cover for that differential.
+Cardinality is primary under every objective, so no dial can trade one Reserve drug for
+two Access drugs. Real stewardship sometimes wants exactly that trade. Expressing it
+would mean changing what the solver **searches**, not how it breaks ties — deliberately
+not done, and pinned by `stewardship-keeps-cardinality-primary`.
+
+**The gram-negative rows do not move at all.** Meropenem is Watch and remains the only
+one-drug cover; the Access agent (gentamicin) does not cover the full obligation. The
+axis is not a general de-escalator and must not be narrated as one.
+
+#### A measured side effect: incidental coverage narrows too
+
+Surfaced by the gated consultation, not predicted. Choosing the Access agent also
+changes what the regimen covers *by accident*. On the group A strep case, the
+below-threshold runners-up report:
+
+| objective | regimen | pneumoniae `covered_by` | viridans `covered_by` |
+|---|---|---|---|
+| lexicographic | vancomycin | vancomycin @ 0.82 | vancomycin @ 0.82 |
+| spectrum-sparing | vancomycin | vancomycin @ 0.82 | vancomycin @ 0.82 |
+| **stewardship** | ampicillin | **(none)** | ampicillin @ 0.66 |
+
+Neither organism was targeted — both sit under the 0.1 gate — so this is not an
+uncovered obligation and `uncovered` is correctly empty. But the broader agent was
+incidentally covering a runner-up and the narrower one is not, which is a real property
+of the trade and belongs in the narration. `below_threshold.covered_by` is what makes it
+visible; without it the change is invisible in the regimen alone.
+
+#### What it does not fix
+
+`:spectrum-sparing` still prefers gentamicin monotherapy for gram-negative bacteraemia
+(§3.6, finding 1). That is a **breadth** result, and correct on its own axis — the
+stewardship axis has nothing to say about it. Neither objective is "the right one"; they
+optimise different things and the divergence is the object of interest.
 
 ### 3.5 Recommendation: make the objective the third dial — ACCEPTED
 

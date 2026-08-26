@@ -421,7 +421,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1649 assertions / 214 tests):
+Coverage (~1690 assertions / 223 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,
@@ -439,7 +439,7 @@ Coverage (~1649 assertions / 214 tests):
   merely by the bridge, after `/why` once 404'd for every organism through a green suite.
 - **Corpus-wide invariants** (`property-tests.lisp`), which introspect the compiled
   rulebase so a new rule is covered the moment it is authored. They are numbered 1 and
-  11–20; **2–10 were retired with the disconfirming rules they governed**, and the gap
+  11–21; **2–10 were retired with the disconfirming rules they governed**, and the gap
   is left in the numbering deliberately so a reader does not go looking for them. Some
   invariants carry a companion "is-live" test that fails if the invariant has stopped
   having anything to check — a vacuous pass is a silent one. Recent: 14 (a graded rule
@@ -448,7 +448,10 @@ Coverage (~1649 assertions / 214 tests):
   subsumes), 17 (reciprocal readings are symmetric unless declared otherwise), 18 (every
   parameter the corpus can hear is explicitly scoped by the bridge), 19a/19b (an evidence
   group is exactly the set of rules sharing a shape, checked from both directions), 20
-  (every rule's `:provenance` is a well-formed plist).
+  (every rule's `:provenance` is a well-formed plist), 21 (a system's declared
+  `:version` and the version keyword it pushes onto `*features*` agree, and no stale
+  one lingers beside it — neomycin's announced `0.10.0` for six releases while
+  `:version` said `0.16.1`, which a `#+` conditional would have read silently wrong).
 - **The prompt and tool schemas** against the corpus (`prompt-tests.lisp`).
 
 Certainty factors and the Barnett per-hypothesis DS system are exercised by **Lisa's own
@@ -505,7 +508,7 @@ Identification and therapy both run end to end:
 - **Phase 2 — Claude Tool-Use**: Python driver (`src/llm/claude/driver.py`) running a tool-call dispatch loop between Claude and the bridge. Tool schemas for all endpoints (assert_fact, run_inference, get_conclusions, explain_conclusion, …, recommend_therapy), a system prompt carrying the MYCIN clinical ontology and the corpus's *shape* (the rulebase itself is queried via `describe_rules`, not transcribed — see "Rule catalogue" below), uncertainty-mapping, **WHY/HOW explanation** (the LLM queries `explain_conclusion` for authoritative belief derivations + verified citations rather than reconstructing them) **and** therapy/antibiogram narration guidelines, goal-directed dialogue via `/partial-matches`, and session transcript capture.
 - **Rule catalogue**: the system prompt no longer transcribes the rulebase. `/rules` reads the compiled corpus — each rule's answer, resolution, premises and provenance, plus a summary of which organisms the corpus can name at all — and the LLM queries it via `describe_rules` instead of recalling. The prompt keeps only the corpus's *shape* (a rule states the SET its evidence narrows to; exclusion is what remains after intersection, never authored; a genus IS a set; the per-cluster discriminator panels), which is what governs how it narrates rather than what it looks up. This removes the second source of truth that used to drift on every rulebase change, and `prompt-tests.lisp` guards the little the prompt still asserts. Design: `docs/rule-catalogue-design.md`.
 - **WHY/HOW explanation & provenance**: rules carry a machine-readable `:provenance` (two-axis: `:origin` lineage + adversarially-verified clinical `:evidence` + `:belief-basis :illustrative`; Lisa-core engine change), and the engine records at fire time which rules produced each answer. `/why` composes both into the ARGUMENT — the answers given, who gave them, which still admit the organism and which do not, and what they intersect to — so the LLM narrates from queried fact, not memory. There is no arithmetic to quote because nothing composes one belief through another. Design: `docs/why-how-provenance-design.md`.
-- **Therapy phase**: a deterministic **exact** set-cover solver (`neomycin/therapy/`) picks a minimum covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug. **The objective is the third policy dial** (`*objective*`, alongside the belief system and the coverage gate): `:lexicographic` (default — drug count, then susceptibility × belief; this is *not* stewardship and has no notion of spectrum) or `:spectrum-sparing` (narrowest-first over declared `:spectrum` tiers). Turning it changes the recommendation and the narration must state the trade — narrower agents have lower coverage floors, and breadth is blind to WHO AWaRe reserve status. Design + the measured divergence table: `docs/exact-solver-design.md` §§1, 1.1, 3.6.
+- **Therapy phase**: a deterministic **exact** set-cover solver (`neomycin/therapy/`) picks a minimum covering regimen over the schematic KB, honoring contraindications and the coverage gate; susceptibilities are belief-valued and optionally refined by an opt-in site-local **antibiogram overlay**. The LLM requests and narrates a regimen via `recommend_therapy` but never chooses a drug. **The objective is the third policy dial** (`*objective*`, alongside the belief system and the coverage gate), and it has THREE settings over TWO axes: `:lexicographic` (default — drug count, then susceptibility × belief; *not* stewardship, and no notion of spectrum), `:spectrum-sparing` (narrowest-first over declared `:spectrum` tiers), and `:stewardship` (cheapest-first over declared `:stewardship` WHO AWaRe tiers). **Breadth and stewardship cost are different questions and neither subsumes the other**: vancomycin is narrow-spectrum *and* an agent to protect, which is why `:spectrum-sparing` returns it for a group A strep where `:stewardship` returns ampicillin. Turning any of them changes the recommendation and the narration must state the trade — narrower agents have lower coverage floors, and breadth is blind to AWaRe. **Cardinality is primary under all three**, so none can trade one Reserve drug for two Access drugs, and when a Reserve agent is the only single-drug cover it is still what you get (culture-3, measured). The AWaRe tiers are the only values in the therapy KB that are *not* illustrative — the classification is published. Design + the measured divergence tables: `docs/exact-solver-design.md` §§1, 1.1, 3.6, 3.7.
 
 ### Running the Clinician Driver
 

@@ -68,6 +68,7 @@
    #:kb-drug-ids #:kb-susceptibility #:kb-contraindication-triggers #:kb-antibiogram
    #:kb-dose #:kb-drug-class #:kb-drug-route #:kb-drug-spectrum #:kb-family-of
    #:*spectrum-tiers* #:spectrum-rank
+   #:*stewardship-tiers* #:stewardship-rank #:kb-drug-stewardship
    ;; --- def* authoring surface (design doc 3.2) + the canonical KB it fills ---
    #:*therapy-kb*
    #:defdrug #:defsensitivity #:defcontraindication #:defantibiogram #:deffamily

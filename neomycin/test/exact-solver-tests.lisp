@@ -474,6 +474,161 @@
           "and ampicillin, the Access agent, is reported as an equally minimal option"))))
 
 ;;; ------------------------------------------------------------------
+;;; 2c. The :stewardship objective -- the WHO AWaRe axis (design doc 3.7)
+;;;
+;;; Added after a live consultation (2026-08-26) asked for `spectrum-sparing' on a
+;;; group A strep and got VANCOMYCIN. That was not a bug: vancomycin, nafcillin and
+;;; linezolid all sit in the :narrow tier, so the tiebreak fell through to
+;;; susceptibility and vancomycin won it. Breadth and reserve status are different
+;;; axes, and SPECTRUM-SPARING-CANNOT-SEE-RESERVE-STATUS below has pinned that gap as
+;;; a known limitation since slice 4. These tests pin the axis that closes it.
+;;; ------------------------------------------------------------------
+
+(deftest stewardship-tiers-are-authored-for-every-drug ()
+  ;; Same completeness argument as the spectrum tiers, and the same silent failure
+  ;; mode: an unauthored drug is invisible to the ordering.
+  (let ((kb (therapy:therapy-kb)))
+    (dolist (d (therapy:kb-drug-ids kb))
+      (let ((tier (therapy:kb-drug-stewardship kb d)))
+        (is (member tier therapy:*stewardship-tiers*)
+            (format nil "~A carries a valid AWaRe tier (got ~S)" d tier))))))
+
+(deftest stewardship-tiers-are-ordinal-cheapest-first ()
+  (is (= 0 (therapy:stewardship-rank :access)) "access ranks lowest -- cheapest to spend")
+  (is (< (therapy:stewardship-rank :access) (therapy:stewardship-rank :watch))
+      "access < watch")
+  (is (< (therapy:stewardship-rank :watch) (therapy:stewardship-rank :reserve))
+      "watch < reserve")
+  (is (null (therapy:stewardship-rank :not-a-tier)) "an unknown tier has no rank"))
+
+(deftest stewardship-assignments-match-the-published-classification ()
+  ;; UNLIKE the spectrum tiers, these are NOT this project's judgement -- WHO AWaRe is
+  ;; published, and every tier here was already annotated in knowledge-base.lisp's
+  ;; per-drug sections before it was encoded. Pinned so a future edit has to be
+  ;; deliberate, and so the two axes can be seen coming apart.
+  (let ((kb (therapy:therapy-kb)))
+    (flet ((tier (d) (therapy:kb-drug-stewardship kb d)))
+      (is (eq :reserve (tier :linezolid)) "linezolid is AWaRe Reserve")
+      (is (eq :access (tier :ampicillin)) "ampicillin is AWaRe Access")
+      (is (eq :access (tier :nafcillin)) "nafcillin is AWaRe Access")
+      (is (eq :watch (tier :vancomycin)) "vancomycin is AWaRe Watch")
+      (is (eq :watch (tier :meropenem)) "meropenem is AWaRe Watch")
+      ;; THE POINT OF THE WHOLE AXIS, stated as a relation: on breadth vancomycin is
+      ;; narrower than ampicillin; on stewardship it is dearer. Neither is wrong --
+      ;; they answer different questions, and no single ordering can carry both.
+      (is (< (therapy:spectrum-rank (therapy:kb-drug-spectrum kb :vancomycin))
+             (therapy:spectrum-rank (therapy:kb-drug-spectrum kb :ampicillin)))
+          "vancomycin is the NARROWER agent")
+      (is (> (therapy:stewardship-rank (tier :vancomycin))
+             (therapy:stewardship-rank (tier :ampicillin)))
+          "...and simultaneously the DEARER one -- the axes disagree by construction"))))
+
+(deftest stewardship-closes-the-reserve-gap ()
+  ;; The counterpart to SPECTRUM-SPARING-CANNOT-SEE-RESERVE-STATUS, which pins the
+  ;; same case going the wrong way. Enterococcus: spectrum-sparing escalates to
+  ;; linezolid (Reserve) because it is genuinely narrower; stewardship keeps
+  ;; ampicillin (Access). Both objectives are behaving correctly on their own axis.
+  (belief:use-system :dempster-shafer)
+  (let ((solo '((:enterococcus . 0.60))))
+    (with-objective (:spectrum-sparing)
+      (is (equal '(:linezolid) (regimen-drugs (solve-with :exact solo (therapy:therapy-kb))))
+          "spectrum-sparing still escalates to the Reserve agent -- unchanged"))
+    (with-objective (:stewardship)
+      (is (equal '(:ampicillin) (regimen-drugs (solve-with :exact solo (therapy:therapy-kb))))
+          "stewardship holds the Access agent")))
+  ;; And on the pair the engine actually produces, where BOTH existing objectives
+  ;; reach for linezolid, stewardship is the only one that does not.
+  (let ((pair '((:streptococcus . 0.7) (:enterococcus . 0.8))))
+    (dolist (obj '(:lexicographic :spectrum-sparing))
+      (with-objective (obj)
+        (is (equal '(:linezolid) (regimen-drugs (solve-with :exact pair (therapy:therapy-kb))))
+            (format nil "~A reaches for linezolid on the pair" obj))))
+    (with-objective (:stewardship)
+      (is (equal '(:ampicillin) (regimen-drugs (solve-with :exact pair (therapy:therapy-kb))))
+          "stewardship picks ampicillin on the pair -- the Access agent"))))
+
+(deftest stewardship-diverges-on-the-live-group-a-strep-case ()
+  ;; THE CASE THAT MOTIVATED THE AXIS, pinned from the 2026-08-26 transcript: an
+  ;; 85-year-old with a beta-hemolytic, bacitracin-sensitive group A strep and no
+  ;; contraindications. Both existing objectives return vancomycin (Watch); the model
+  ;; had to talk the clinician out of the recommendation in prose.
+  (belief:use-system :dempster-shafer)
+  (let ((pyogenes '((:streptococcus-pyogenes . 0.8347))))
+    (dolist (obj '(:lexicographic :spectrum-sparing))
+      (with-objective (obj)
+        (is (equal '(:vancomycin)
+                   (regimen-drugs (solve-with :exact pyogenes (therapy:therapy-kb))))
+            (format nil "~A returns vancomycin for group A strep" obj))))
+    (with-objective (:stewardship)
+      (is (equal '(:ampicillin)
+                 (regimen-drugs (solve-with :exact pyogenes (therapy:therapy-kb))))
+          "stewardship returns ampicillin -- the clinically standard choice"))
+    ;; With ampicillin and nafcillin contraindicated, falling back to the Watch agent
+    ;; is correct rather than a failure: there is no Access agent left to hold.
+    (with-objective (:stewardship)
+      (is (equal '(:vancomycin)
+                 (regimen-drugs (solve-with :exact pyogenes (therapy:therapy-kb)
+                                            '(:allergy-penicillin))))
+          "under a penicillin allergy it falls back to Watch, as it must"))))
+
+(deftest stewardship-keeps-cardinality-primary ()
+  ;; THE LIMITATION, pinned so it cannot be mistaken for an oversight: no objective
+  ;; can buy a cheaper tier with an extra drug. Real stewardship sometimes wants
+  ;; exactly that trade, and expressing it would mean changing what the solver
+  ;; SEARCHES rather than how it breaks ties.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :one-reserve :dose "1g" :stewardship :reserve)
+    (therapy:add-drug kb :access-a :dose "1g" :stewardship :access)
+    (therapy:add-drug kb :access-b :dose "1g" :stewardship :access)
+    (therapy:add-sensitivity kb :bug-1 :one-reserve 0.8)
+    (therapy:add-sensitivity kb :bug-2 :one-reserve 0.8)
+    (therapy:add-sensitivity kb :bug-1 :access-a 0.9)
+    (therapy:add-sensitivity kb :bug-2 :access-b 0.9)
+    (with-objective (:stewardship)
+      (is (equal '(:one-reserve)
+                 (regimen-drugs (solve-with :exact '((:bug-1 . 0.7) (:bug-2 . 0.7)) kb)))
+          "one Reserve drug still beats two Access ones -- count stays primary")))
+  ;; And it FIRES on the real corpus, not only on a fixture: culture-3's differential
+  ;; has exactly one single-drug cover, and it is linezolid.
+  (belief:use-system :dempster-shafer)
+  (with-objective (:stewardship)
+    (let ((rec (solve-with :exact '((:streptococcus-pneumoniae . 0.2842)
+                                    (:streptococcus-viridans . 0.1263)
+                                    (:enterococcus-faecalis . 0.11))
+                           (therapy:therapy-kb))))
+      (is (equal '(:linezolid) (regimen-drugs rec))
+          "stewardship still returns the Reserve agent when it is the only 1-drug cover")
+      (is (null (alt-regimen-drugsets rec))
+          "...and there is genuinely no other minimum-size regimen to prefer"))))
+
+(deftest stewardship-unauthored-tier-is-not-preferred ()
+  ;; Mirrors SPECTRUM-SPARING-UNAUTHORED-TIER-IS-NOT-PREFERRED, and matters more here:
+  ;; a KB gap must never read as "cheap to spend".
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :untiered :dose "1g")                        ; no :stewardship
+    (therapy:add-drug kb :known-reserve :dose "1g" :stewardship :reserve)
+    (therapy:add-sensitivity kb :bug :untiered 0.9)
+    (therapy:add-sensitivity kb :bug :known-reserve 0.8)
+    (with-objective (:stewardship)
+      (is (equal '(:known-reserve) (regimen-drugs (solve-with :exact '((:bug . 0.7)) kb)))
+          "an authored :reserve beats an unauthored tier, despite lower susceptibility"))))
+
+(deftest stewardship-agrees-where-the-axis-is-silent ()
+  ;; Equal tiers -> fall through to the lexicographic key, so the three objectives
+  ;; differ only where their axis has something to say.
+  (therapy:with-therapy-kb (kb (therapy:make-therapy-kb))
+    (therapy:add-drug kb :a-drug :dose "1g" :stewardship :watch)
+    (therapy:add-drug kb :b-drug :dose "1g" :stewardship :watch)
+    (therapy:add-sensitivity kb :bug :a-drug 0.7)
+    (therapy:add-sensitivity kb :bug :b-drug 0.9)
+    (let ((lex (with-objective (:lexicographic)
+                 (regimen-drugs (solve-with :exact '((:bug . 0.7)) kb))))
+          (stew (with-objective (:stewardship)
+                  (regimen-drugs (solve-with :exact '((:bug . 0.7)) kb)))))
+      (is (equal '(:b-drug) lex) "lexicographic takes the stronger agent")
+      (is (equal lex stew) "equal AWaRe tier -> the objectives agree"))))
+
+;;; ------------------------------------------------------------------
 ;;; 3. The equivalence property (design doc 5)
 ;;; ------------------------------------------------------------------
 
