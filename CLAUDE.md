@@ -421,7 +421,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1649 assertions / 214 tests):
+Coverage (~1690 assertions / 223 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,
@@ -439,7 +439,7 @@ Coverage (~1649 assertions / 214 tests):
   merely by the bridge, after `/why` once 404'd for every organism through a green suite.
 - **Corpus-wide invariants** (`property-tests.lisp`), which introspect the compiled
   rulebase so a new rule is covered the moment it is authored. They are numbered 1 and
-  11–20; **2–10 were retired with the disconfirming rules they governed**, and the gap
+  11–21; **2–10 were retired with the disconfirming rules they governed**, and the gap
   is left in the numbering deliberately so a reader does not go looking for them. Some
   invariants carry a companion "is-live" test that fails if the invariant has stopped
   having anything to check — a vacuous pass is a silent one. Recent: 14 (a graded rule
@@ -448,7 +448,10 @@ Coverage (~1649 assertions / 214 tests):
   subsumes), 17 (reciprocal readings are symmetric unless declared otherwise), 18 (every
   parameter the corpus can hear is explicitly scoped by the bridge), 19a/19b (an evidence
   group is exactly the set of rules sharing a shape, checked from both directions), 20
-  (every rule's `:provenance` is a well-formed plist).
+  (every rule's `:provenance` is a well-formed plist), 21 (a system's declared
+  `:version` and the version keyword it pushes onto `*features*` agree, and no stale
+  one lingers beside it — neomycin's announced `0.10.0` for six releases while
+  `:version` said `0.16.1`, which a `#+` conditional would have read silently wrong).
 - **The prompt and tool schemas** against the corpus (`prompt-tests.lisp`).
 
 Certainty factors and the Barnett per-hypothesis DS system are exercised by **Lisa's own
