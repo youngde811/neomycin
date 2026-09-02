@@ -19,10 +19,10 @@ substantially — see [What Neomycin is now](#what-neomycin-is-now).
 
 ## Table of contents
 
-1. [The short version](#the-short-version)
-2. [The historical problem Neomycin re-opens](#the-historical-problem-Neomycin-re-opens)
-3. [What the project is actually for](#what-the-project-is-actually-for)
-4. [What Neomycin is now](#what-neomycin-is-now)
+1. [Introduction](#Introduction)
+2. [The Historical Problem Neomycin Re-Opens](#The-Historical-Problem-Neomycin-Re-Opens)
+3. [Project Purpose](#Project-Purpose)
+4. [What Neomycin Is](#What-Neomycin-Is)
 5. [The architecture in one pass](#the-architecture-in-one-pass)
 6. [The rules engine, for software engineers](#the-rules-engine-for-software-engineers)
 7. [Reasoning when you are not sure](#reasoning-when-you-are-not-sure)
@@ -35,7 +35,7 @@ substantially — see [What Neomycin is now](#what-neomycin-is-now).
 
 ---
 
-## The short version
+## Introduction
 
 Neomycin began as a reconstruction of **MYCIN**, the Stanford medical expert system of
 the 1970s, rebuilt on a modern Common Lisp rules engine and fitted with a conversational
@@ -55,7 +55,7 @@ inspected like a ledger.
 
 ---
 
-## The historical problem Neomycin re-opens
+## The Historical Problem Neomycin Re-Opens
 
 **MYCIN** (Shortliffe, 1976) diagnosed bacterial infections of the blood and
 recommended antibiotics. It was one of the first programs to perform at the
@@ -93,7 +93,7 @@ play that role.
 
 ---
 
-## What the project is actually for
+## Project Purpose
 
 Neomycin is not an attempt to build a better diagnostic tool. It is an
 instrument for studying three questions.
@@ -129,7 +129,7 @@ the system is unchanged.
 
 ---
 
-## What Neomycin is now
+## What Neomycin Is
 
 Neomycin began as a MYCIN reconstruction and is no longer one. The divergence was not a
 goal; it accumulated, one representational problem at a time, and it is now large enough
