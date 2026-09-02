@@ -22,7 +22,7 @@ form *if these findings hold, the organism is one of this set, and here is how s
 I believe it.* A user describes a case in ordinary English. The language model turns
 that description into structured facts, hands them to the inference engine, and then
 explains what the engine concluded. The engine does all the reasoning and all the
-algegra. The language model does none of it.
+algebra. The language model does none of it.
 
 That division of labor is the point of the project. The model is good at
 language and bad at being auditable. The engine is the reverse. Keeping them
