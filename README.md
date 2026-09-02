@@ -23,15 +23,15 @@ substantially — see [What Neomycin is now](#what-neomycin-is-now).
 2. [The Historical Problem Neomycin Re-Opens](#The-Historical-Problem-Neomycin-Re-Opens)
 3. [Project Purpose](#Project-Purpose)
 4. [What Neomycin Is](#What-Neomycin-Is)
-5. [The architecture in one pass](#the-architecture-in-one-pass)
-6. [The rules engine, for software engineers](#the-rules-engine-for-software-engineers)
-7. [Reasoning when you are not sure](#reasoning-when-you-are-not-sure)
-8. [The conversation, end to end](#the-conversation-end-to-end)
-9. [Answering "why?"](#answering-why)
-10. [From identification to treatment](#from-identification-to-treatment)
-11. [Why this is interesting as computer science](#why-this-is-interesting-as-computer-science)
-12. [What is real and what is schematic](#what-is-real-and-what-is-schematic)
-13. [Where to read next](#where-to-read-next)
+5. [The Architecture](#The-Architecture)
+6. [The Symbolic Inference Engine](#The-Symbolic-Inference-Engine)
+7. [Reasoning When You Are Not Sure](#Reasoning-When-You-Are-Not-Sure)
+8. [The Conversation](#The-Conversation)
+9. [Answering "Why?"](#Answering-Why)
+10. [From Identification to Treatment](#From-Identification-to-Treatment)
+11. [Why Neomycin is Interesting](#Why-Neomycin-is-Interesting)
+12. [Real Versus Schematic](#Real-Versus-Schematic)
+13. [What to Read Next](#What-to-Read-Next)
 
 ---
 
@@ -164,7 +164,7 @@ the historical treatment of that rule authoritative.
 
 ---
 
-## The architecture in one pass
+## The Architecture
 
 Four components, each with a job it does not share.
 
@@ -203,7 +203,7 @@ read what came back.
 
 ---
 
-## The rules engine, for software engineers
+## The Symbolic Inference Engine
 
 A **rule** pairs a set of conditions with a conclusion. Here is one, lightly
 trimmed, from the Neomycin rulebase:
@@ -282,13 +282,13 @@ matters when the trace is going to be narrated back to a person.
 
 ---
 
-## Reasoning when you are not sure
+## Reasoning When You Are Not Sure
 
 This section assumes no probability background. The two systems below are both
 ways of answering: *given several pieces of imperfect evidence, how confident
 should I be?*
 
-### Certainty factors: one number
+### Certainty factors: A Single Number
 
 MYCIN's original scheme attaches a single number between −1 and +1 to each
 hypothesis. Positive means the evidence supports it; negative means the evidence
@@ -307,7 +307,7 @@ hypothesis about which nothing is known and a hypothesis with strong evidence on
 both sides both land near zero, and the system cannot distinguish them. In
 medicine that distinction is exactly the one you want.
 
-### Dempster-Shafer: two numbers and the gap between them
+### Dempster-Shafer: Two Numbers and the Gap Between Them
 
 Dempster-Shafer theory replaces the single number with a pair, written
 `[bel, pl]`.
@@ -357,7 +357,7 @@ the sets its rules actually name. So the question *"could this be something you 
 model?"* has a real answer rather than an embarrassed silence: it is the belief that
 has not been committed anywhere, and the system will quote it.
 
-### Why the difference is worth building for
+### Why the Difference is Worth Building
 
 Here is a case with three lab findings: the organism ferments lactose, tests
 indole-positive, and produces a red pigment on the plate. Lactose and indole together
@@ -403,7 +403,7 @@ machinery, opposite reading.
 
 ---
 
-## The conversation, end to end
+## The Conversation
 
 Here is a full consultation, from the user's first sentence to the system's
 answer. The user types into a prompt; nothing else is involved.
@@ -477,7 +477,7 @@ chains, nothing is scaffolding, and no belief is the product of two others.
 
 ---
 
-## Answering "why?"
+## Answering "Why?"
 
 Explanation was MYCIN's signature capability, and reproducing it faithfully is a
 substantial part of this project.
@@ -521,7 +521,7 @@ disposition.
 
 ---
 
-## From identification to treatment
+## From Identification to Treatment
 
 Identifying the organism is half a consultation. The other half is deciding what
 to treat with, and Neomycin handles it with the same separation of
@@ -595,7 +595,7 @@ The model never picks a drug.
 
 ---
 
-## Why this is interesting as computer science
+## Why Neomycin is Interesting
 
 Set the medicine aside. What remains is a pattern with three properties that are
 hard to get at the same time.
@@ -633,7 +633,7 @@ model honest, and the model makes the engine usable.
 
 ---
 
-## What is real and what is schematic
+## Real Versus Schematic
 
 Being clear about this is part of the project's purpose.
 
@@ -684,7 +684,7 @@ declaration from both directions.
 
 ---
 
-## Where to read next
+## What to Read Next
 
 | Document | What it covers |
 |---|---|
