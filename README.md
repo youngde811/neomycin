@@ -29,4 +29,4 @@ language and bad at being auditable. The engine is the reverse. Keeping them
 strictly separate produces a system that can be talked to like a person and
 inspected like a ledger.
 
-For a detailed look at Neomycin, see the project document [here](./docs/Neomycin.md).
+For a detailed look at Neomycin, see the project document [here](docs/Neomycin.md).
