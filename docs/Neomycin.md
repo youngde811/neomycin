@@ -26,11 +26,9 @@ written in Common Lisp.
 8. [The Conversation](#The-Conversation)
 9. [Answering "Why?"](#Answering-Why)
 10. [From Identification to Treatment](#From-Identification-to-Treatment)
-11. [Why Neomycin is Interesting](#Why-Neomycin-is-Interesting)
+11. [Neomycin is Actually Interesting](#Neomycin-is-Actually-Interesting)
 12. [Real Versus Schematic](#Real-Versus-Schematic)
 13. [What to Read Next](#What-to-Read-Next)
-
----
 
 ## Introduction
 
@@ -49,8 +47,6 @@ That division of labor is the point of the project. The model is good at
 language and bad at being auditable. The engine is the reverse. Keeping them
 strictly separate produces a system that can be talked to like a person and
 inspected like a ledger.
-
----
 
 ## The Historical Problem Neomycin Re-Opens
 
@@ -88,8 +84,6 @@ whole architecture — with one substitution. Where Clancey wrote the diagnostic
 strategy as an explicit second body of rules, Neomycin lets a language model
 play that role.
 
----
-
 ## Project Purpose
 
 Neomycin is not an attempt to build a better diagnostic tool. It is an
@@ -124,11 +118,9 @@ The medical domain is a vehicle. The architecture is domain-agnostic: substitute
 claims adjudication, underwriting, or equipment fault diagnosis and the shape of
 the system is unchanged.
 
----
-
 ## What Neomycin Is
 
-Neomycin began as a MYCIN reconstruction and is no longer one. The divergence was not a
+Neomycin began as a MYCIN/EMYCIN reconstruction and is no longer one. The divergence was not a
 goal; it accumulated, one representational problem at a time, and it is now large enough
 that comparing results against MYCIN's would be a category error. **This is not a claim
 that Neomycin is better.** It answers different questions, and it answers them about a
@@ -159,8 +151,6 @@ schematic teaching figure. `:origin :paip-subset` on a rule still means what it 
 this association was inherited from the PAIP/EMYCIN illustration — but it does not make
 the historical treatment of that rule authoritative.
 
----
-
 ## The Architecture
 
 Four components, each with a job it does not share.
@@ -175,7 +165,7 @@ genuinely calls for them.
 controlled vocabulary, grouped by cluster across a handful of files. Every one of them
 is *confirming*: it states the set of organisms its evidence narrows the answer to.
 Underneath sits a pluggable belief system — Dempster-Shafer over an open frame is
-neomycin's, and certainty factors and a per-hypothesis Dempster-Shafer remain in the
+Neomycin's, and certainty factors and a per-hypothesis Dempster-Shafer remain in the
 Lisa substrate for its own examples.
 
 **The bridge.** A small HTTP service that runs inside the same Lisp image as the
@@ -202,24 +192,31 @@ read what came back.
 
 ## The Symbolic Inference Engine
 
-A **rule** pairs a set of conditions with a conclusion. Here is one from the Neomycin rulebase:
+A **rule** pairs a set of conditions with a conclusion. Here is one (slightly elided) from the Neomycin rulebase:
 
 ```lisp
-(defrule anaerobic-gram-neg-rod-in-blood-narrows-to-bacteroides
-    (:belief 0.9
+(defrule burn-blood-aerobic-gram-neg-rod-narrows-to-opportunist-rods
+    (:belief 0.4
      :provenance (:origin :paip-subset
-                  :evidence ("NCBI Bookshelf / StatPearls, Bacteroides Fragilis, NBK553032"
-                             "NCBI Bookshelf, Medical Microbiology 4th ed. ch.20 (Anaerobic Gram-Negative Bacilli, Finegold), NBK8438")
+                  :evidence ("NCBI Bookshelf, Medical Microbiology 4th ed. ch.27 (Pseudomonas), NBK8326"
+                             "NCBI Bookshelf / StatPearls, Pseudomonas aeruginosa Infections, NBK557831"
+                             "Highly Drug-Resistant Pathogens Implicated in Burn-Associated Bacteremia, PMC4128596"
+                             "Gram-Negative Bacilli Blood Stream Infection in Patients with Severe Burns: a 9-Year Cohort, PMC11476612")
                   :belief-basis :illustrative
-                  :note "Bacteroides fragilis is the commonest anaerobic gram-negative rod isolated from blood. SURVIVES CATEGORY B, but the narrowness is an artifact of CORPUS COVERAGE rather than of evidence: real anaerobic gram-negative bacteraemia also includes Fusobacterium and Prevotella, which this corpus cannot name. The open frame keeps them plausible as residual ignorance, which is what makes the narrow answer safe -- the same disclosure NOVOBIOCIN-SENSITIVE-NARROWS-TO-EPIDERMIDIS makes for the unmodelled coagulase-negative staphylococci."))
+                  :note "Pseudomonas aeruginosa is a classic cause of bacteraemia in seriously burned patients, but it is not the only one..."))
   (organism (id ?o) (culture ?c))
   (culture (id ?c) (patient ?p))
   (culture-site (value blood) (of ?c))
   (gram (value neg) (of ?o))
   (morphology (value rod) (of ?o))
-  (aerobicity (value anaerobic) (of ?o))
+  (aerobicity (value aerobic) (of ?o))
+  (burn (value serious) (of ?p))
   =>
-  (assert (candidates (value '(:bacteroides)) (of ?o))))
+  (assert (candidates (value '((0.20 :pseudomonas)
+                               (0.07 :klebsiella)
+                               (0.05 :enterobacter)
+                               (0.08 :e-coli :proteus :serratia)))
+                      (of ?o))))
 ```
 
 The conclusion is worth a second look, because it is not what most rule engines
@@ -235,7 +232,7 @@ throughout, which is how the rule insists that the blood culture, the organism
 growing in it, and the burned patient are all the same case rather than three
 unrelated facts. The final clause asserts a new fact.
 
-The `:belief 0.9` says how much this rule's firing should move confidence in its
+The `:belief 0.4` says how much this rule's firing should move confidence in its
 conclusion. The `:provenance` block records where the rule came from and which
 published sources support the clinical association, and marks the belief value
 itself as illustrative — a machine-readable field that the explanation facility
@@ -394,7 +391,7 @@ machinery, opposite reading.
 
 ## The Conversation
 
-Here is a full consultation, from the user's first sentence to the system's
+Here is a hypothetical consultation, from the user's first sentence to the system's
 answer. The user types into a prompt; nothing else is involved.
 
 **A person describes a case in ordinary English.** For example: a patient with
@@ -464,8 +461,6 @@ seven, the evidence does not say which" is frequently the most honest thing the 
 can report, and it is reported rather than discarded on the way to a species. Nothing
 chains, nothing is scaffolding, and no belief is the product of two others.
 
----
-
 ## Answering "Why?"
 
 Explanation was MYCIN's signature capability, and reproducing it faithfully is a
@@ -507,8 +502,6 @@ That last behavior is the one worth dwelling on. The model declines to present a
 schematic number as a measured one, because the engine's own record says which
 it is. The honesty is a property of the architecture, not of the model's
 disposition.
-
----
 
 ## From Identification to Treatment
 
@@ -582,9 +575,7 @@ The rule that governs the whole phase is the same one that governs
 identification: the solver chooses the drugs, and the model explains the choice.
 The model never picks a drug.
 
----
-
-## Why Neomycin is Interesting
+## Neomycin is Actually Interesting
 
 Set the medicine aside. What remains is a pattern with three properties that are
 hard to get at the same time.
@@ -619,8 +610,6 @@ those edges. Neomycin is a test of the resulting hypothesis: that the symbolic
 core was never the problem, and that pairing it with a model that handles the
 edges produces something neither approach reaches alone. The engine keeps the
 model honest, and the model makes the engine usable.
-
----
 
 ## Real Versus Schematic
 

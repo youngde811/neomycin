@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "0.17.0"
+  :version "1.0.0"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -127,12 +127,8 @@
                (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
-  ;; KEEP IN STEP WITH :version ABOVE. This read :neomycin0.10.0 for six releases while
-  ;; :version said 0.16.1 -- a machine-readable claim nothing verified, so a
-  ;; #+neomycin0.10.0 conditional would have silently taken the wrong branch. Guarded
-  ;; now by PROPERTY-DECLARED-VERSION-MATCHES-PUSHED-FEATURE, which also fails if a
-  ;; stale version feature is left behind alongside the current one.
-  (pushnew :neomycin0.17.0 *features*)
+  ;; KEEP IN STEP WITH :version ABOVE.
+  (pushnew :neomycin1.0.0 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*
