@@ -238,6 +238,15 @@ neomycin/
                         quoted must exist, the counts stated must be the real ones, and
                         every fact value advertised must be one some rule premises on —
                         or be marked inert (†), which is checked in BOTH directions)
+                        + paper-tests.lisp (guards docs/Neomycin.md, which nothing
+                        guarded until v1.0.1 and which had drifted six ways in three
+                        weeks. Recomputes every figure the paper quotes; its
+                        load-bearing guard asks where a number CAME FROM rather than
+                        whether it is still stated — release-check.py check 3 turned
+                        on the document. A declared rule belief is admissible only at
+                        1–2 decimal places and a computed reading only at 3–4, because
+                        pooling them let a reading drifted to `0.500` pass on the
+                        strength of some rule declaring 0.5)
   clinician-samples/  — saved driver transcripts
 docs/                 — LIVE documentation only: anything cited as authority for how the
                         system behaves today (runbook, clinician scenarios, getting-started,
@@ -421,7 +430,7 @@ From an SBCL REPL at project root:
 (lisa-test:run-all)                      ; => T iff all pass; prints pass/fail counts
 ```
 
-Coverage (~1690 assertions / 223 tests):
+Coverage (~1859 assertions / 239 tests):
 
 - **The candidates algebra** directly — sparse masses over arbitrary subsets, the
   unnormalized conjunctive rule, Dempster vs Yager readout, order-independence,

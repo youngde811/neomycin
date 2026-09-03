@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "1.0.0"
+  :version "1.0.1"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -137,7 +137,7 @@
 
 (eval-when (:load-toplevel :execute)
   ;; KEEP IN STEP WITH :version ABOVE.
-  (pushnew :neomycin1.0.0 *features*)
+  (pushnew :neomycin1.0.1 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*
