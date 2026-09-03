@@ -33,7 +33,7 @@
 
 (asdf:defsystem neomycin
   :name "neomycin"
-  :version "1.0.0"
+  :version "1.0.1"
   :author "David E. Young"
   :maintainer "David E. Young"
   :licence "MIT"
@@ -121,14 +121,23 @@
                      (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests")
-                     (:file "bridge-payload-tests"))))))
+                     (:file "bridge-payload-tests")
+                     ;; Guards docs/Neomycin.md -- the paper README.md points a
+                     ;; first-time reader at -- against the compiled image. Loads
+                     ;; LAST so its test-count guard sees every other test
+                     ;; registered. Reuses PAPER-SAYS-P's wrap-insensitive search
+                     ;; from prompt-tests, the scenario runners from
+                     ;; candidates-tests, and SOLVE-WITH from exact-solver-tests.
+                     (:file "paper-tests"
+                      :depends-on ("prompt-tests" "candidates-tests"
+                                   "exact-solver-tests")))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
                (error "neomycin test suite reported failures"))))
 
 (eval-when (:load-toplevel :execute)
   ;; KEEP IN STEP WITH :version ABOVE.
-  (pushnew :neomycin1.0.0 *features*)
+  (pushnew :neomycin1.0.1 *features*)
   (pushnew :neomycin.asdf *features*))
 
 (defvar *neomycin-root-pathname*

@@ -16,19 +16,19 @@ written in Common Lisp.
 
 ## Table of contents
 
-1. [Introduction](#Introduction)
-2. [The Historical Problem Neomycin Re-Opens](#The-Historical-Problem-Neomycin-Re-Opens)
-3. [Project Purpose](#Project-Purpose)
-4. [What Neomycin Is](#What-Neomycin-Is)
-5. [The Architecture](#The-Architecture)
-6. [The Symbolic Inference Engine](#The-Symbolic-Inference-Engine)
-7. [Reasoning When You Are Not Sure](#Reasoning-When-You-Are-Not-Sure)
-8. [The Conversation](#The-Conversation)
-9. [Answering "Why?"](#Answering-Why)
-10. [From Identification to Treatment](#From-Identification-to-Treatment)
-11. [Neomycin is Actually Interesting](#Neomycin-is-Actually-Interesting)
-12. [Real Versus Schematic](#Real-Versus-Schematic)
-13. [What to Read Next](#What-to-Read-Next)
+1. [Introduction](#introduction)
+2. [The Historical Problem Neomycin Re-Opens](#the-historical-problem-neomycin-re-opens)
+3. [Project Purpose](#project-purpose)
+4. [What Neomycin Is](#what-neomycin-is)
+5. [The Architecture](#the-architecture)
+6. [The Symbolic Inference Engine](#the-symbolic-inference-engine)
+7. [Reasoning When You Are Not Sure](#reasoning-when-you-are-not-sure)
+8. [The Conversation](#the-conversation)
+9. [Answering "Why?"](#answering-why)
+10. [From Identification to Treatment](#from-identification-to-treatment)
+11. [Neomycin is Actually Interesting](#neomycin-is-actually-interesting)
+12. [Real Versus Schematic](#real-versus-schematic)
+13. [What to Read Next](#what-to-read-next)
 
 ## Introduction
 
@@ -161,7 +161,7 @@ fork of Lisa that keeps the engine's packages un-renamed: Neomycin *uses* Lisa
 rather than absorbing it, though engine-level changes are made when the research
 genuinely calls for them.
 
-**The rulebase and belief system.** `neomycin/rules/` holds 44 medical rules in a
+**The rulebase and belief system.** `neomycin/rules/` holds 46 medical rules in a
 controlled vocabulary, grouped by cluster across a handful of files. Every one of them
 is *confirming*: it states the set of organisms its evidence narrows the answer to.
 Underneath sits a pluggable belief system — Dempster-Shafer over an open frame is
@@ -220,10 +220,12 @@ A **rule** pairs a set of conditions with a conclusion. Here is one (slightly el
 ```
 
 The conclusion is worth a second look, because it is not what most rule engines
-assert. The rule does **not** say "this is Pseudomonas". It says *"one of these four
+assert. The rule does **not** say "this is Pseudomonas". It says *"one of these six
 organisms, and here is how my confidence is spread across them"* — 0.20 on
-Pseudomonas, 0.07 on Klebsiella, 0.05 on Enterobacter, 0.08 on E-Coli, Proteus and Serratia.
-A burn makes Pseudomonas likelier. It does not make Klebsiella impossible.
+Pseudomonas, 0.07 on Klebsiella, 0.05 on Enterobacter, and 0.08 shared across E. coli,
+Proteus and Serratia, which the evidence does not separate. The four masses total 0.40,
+exactly what `:belief` declares. A burn makes Pseudomonas likelier. It does not make
+Klebsiella impossible.
 
 The clauses in the middle are patterns matched against **working memory**, the
 set of facts asserted so far. The `?o`, `?c`, and `?p` are variables: they bind
@@ -314,9 +316,9 @@ certainty factors cannot make.
 The mechanics are easier than the notation suggests, and in Neomycin they rest on a
 single idea: **a rule states the set of organisms its evidence narrows the answer to.**
 The Gram stain says "one of these eight". The aerobic result says "one of these seven".
-The burn and the compromised host say "Pseudomonas". Each of those is an answer, with a
-weight, and answers combine by **intersection** — the organisms that survive are the
-ones in every answer.
+The burn says "one of these six, leaning Pseudomonas"; the compromised host says "one of
+these six, leaning E. coli". Each of those is an answer, with a weight, and answers
+combine by **intersection** — the organisms that survive are the ones in every answer.
 
 That single mechanism does all the work, including the work that looks like it needs
 something else:
@@ -370,11 +372,17 @@ tell a clinician is not "E. coli, 67%"; it is that the bench results contradict 
 other and should be repeated.
 
 The margin is what licenses reading it that way, and it is worth seeing the contrast.
-A burn-ICU case elsewhere in this project runs `K = 0.557` — comparably high — with a
-margin of **0.740**, and there the answer is simply Pseudomonas: one specific answer at
-0.93 against a rival at 0.60, decisively overruled. Same shape of number, opposite
-meaning. Here the margin is 0.427 and the two specific answers are tied, so the high
-`K` is what it appears to be. **Neither figure is interpretable alone**; the pair is.
+Take two answers constructed to isolate the effect — `{pseudomonas}` at 0.928 against
+`{klebsiella}` at 0.60. That pair runs `K = 0.557`, comparably high, with a margin of
+**0.740**: the rival is decisively overruled and the answer is simply Pseudomonas. Same
+shape of number, opposite meaning. Here the margin is 0.427 and the two specific answers
+are tied, so the high `K` is what it appears to be. **Neither figure is interpretable
+alone**; the pair is.
+
+> Those two are answer *masses*, not a consultation. No scenario in this project
+> produces them, and they are quoted here only because a constructed pair isolates what
+> `K` and the margin each measure. The contradiction figures above, by contrast, are
+> what the engine actually returns for that case.
 
 That is the property worth building for. A system that reports its own inputs disagree
 is more useful than one that smooths the disagreement into a confident-looking average
@@ -382,10 +390,12 @@ is more useful than one that smooths the disagreement into a confident-looking a
 representing an answer as a set.
 
 Contrast the case where the evidence *agrees*: a chain-forming gram-positive coccus,
-alpha-hemolytic, optochin-sensitive. Three answers, each nested inside the last, all
-naming *S. pneumoniae*. It reaches `bel 0.963` with `pl 1.000` and **`K` = 0** — higher
-than any single rule's own weight, purely because independent evidence converged. Same
-machinery, opposite reading.
+alpha-hemolytic, optochin-sensitive. Four answers, each nested inside the last, and
+every one of them admits *S. pneumoniae*. It reaches `bel 0.850` with `pl 1.000` and
+**`K` = 0** — nothing lost to conflict, and no ceiling below one. Because the answers
+nest, belief settles at the sharpest one's own weight rather than climbing past it;
+evidence that overlaps *without* nesting does climb past it, and the E. coli case later
+in this document reaches 0.884 that way. Same machinery, opposite reading.
 
 ---
 
@@ -488,11 +498,20 @@ only the supporting answers would leave a reader to assume an objection that doe
 exist.
 
 So when a user asks *why Klebsiella, and how sure are you?*, the model does not answer
-from memory. It requests the argument and reads it aloud: three answers admit Klebsiella
-— the Gram stain narrowing to eight organisms at 0.70, the aerobic rod finding to seven
-at 0.80, the compromised-host rule to Klebsiella alone at 0.50 — and together they leave
-Klebsiella. What holds it down is the burn and blood-culture evidence answering
-"Pseudomonas" at 0.76, which does not include Klebsiella. Nothing argued against it.
+from memory. It requests the argument and reads it aloud. For the burn case above, four
+answers were given and **every one of them admits Klebsiella** — the Gram stain narrowing
+to eight organisms at 0.70, the aerobic rod finding to seven at 0.80, the burn answer at
+0.40 which puts 0.07 of its mass on Klebsiella, and the compromised-host answer at 0.60
+which puts 0.16 there. It nonetheless sits at `bel 0.165, pl 0.458`, because those two
+graded answers commit most of their mass elsewhere — 0.20 to Pseudomonas, 0.28 to
+E. coli — and belief spent on a rival is belief Klebsiella cannot have. Nothing argued
+against it, and nothing could.
+
+Ask the same question about *Salmonella* and the answers that do **not** admit it are
+the whole story: the stain and the aerobic result still admit it, neither graded answer
+names it at all, and it lands at `bel 0.000, pl 0.293` — untouched rather than rejected.
+Reading only the supporting half of either argument would misdescribe both.
+
 There is no arithmetic composing one belief through another to quote, because nothing
 chains. And it reports the boundary the record itself encodes — that the
 sources verify the *clinical association*, not the *number*, and that the rule
@@ -531,18 +550,32 @@ objective reached for a last-line carbapenem almost every time — and, in a rec
 session, told a clinician who asked for something narrower that no narrower option
 existed. Five did.
 
-So the choice is now a **dial you can turn**, alongside the ones for the belief
-system and for how much certainty to demand. One setting reproduces the original
-behaviour, honestly labelled. The other prefers narrow-spectrum agents. The same case
-under both settings gives two defensible answers, and the system reports what each
+So the choice is now a **dial you can turn**, alongside the ones for the belief system
+and for how much certainty to demand, and it has three settings across two axes. One
+reproduces the original behaviour, honestly labelled: fewest drugs, then best coverage.
+The second prefers **narrow-spectrum** agents. The third prefers **cheap** ones in the
+stewardship sense — the WHO's Access, Watch and Reserve tiers. The same case under
+different settings gives different defensible answers, and the system reports what each
 one gave up: the narrower agent usually has a lower, and less certain, chance of
 working.
 
-The dial is also allowed to be visibly wrong. On one case the narrow-spectrum setting
-picks a *reserve* antibiotic — the kind held back precisely so it keeps working —
-because it can see how broad a drug is but not how precious. That could have been
-quietly patched. It wasn't, because a research instrument that shows you where its
-reasoning runs out is worth more than one tidied until it looks authoritative.
+There are three settings rather than two because breadth and stewardship cost turned out
+to be genuinely different questions, and neither subsumes the other. Vancomycin is
+narrow-spectrum *and* exactly the sort of agent a steward holds back, so on a group A
+strep the narrow-spectrum setting returns vancomycin where the stewardship setting
+returns ampicillin.
+
+The narrow-spectrum dial is also allowed to be visibly wrong on its own terms: it can
+see how broad a drug is but not how precious, so it will reach for a *reserve*
+antibiotic — the kind held back precisely so it keeps working — on the grounds that it
+is narrow. That could have been quietly patched. It wasn't. A second dial was added
+beside it and the first was left saying exactly what it means, because a research
+instrument that shows you where its reasoning runs out is worth more than one tidied
+until it looks authoritative.
+
+What none of the three can do is trade one Reserve drug for two Access drugs. Fewest
+drugs is primary under all of them, and real stewardship sometimes wants exactly that
+trade. The limit is stated rather than approximated around.
 
 Every regimen also lists **what it did not choose**: the other drugs that would have
 covered the case, and the other equally small regimens that lost on the tiebreak. A
@@ -621,7 +654,7 @@ therapy solver and its guarantees, the antibiogram mathematics, the release gate
 checks the model's narration against the payloads it was actually given
 (`bin/release-check.py` — every quoted number must appear in something the engine
 returned), and the test suite —
-roughly 1589 assertions across 197 tests, including every rule fired in isolation,
+roughly 1859 assertions across 239 tests, including every rule fired in isolation,
 hand-verified golden values for each scenario, and corpus-wide invariants checked by
 introspecting the compiled rulebase so that a new rule is covered the moment it is
 written.

@@ -236,8 +236,8 @@
 (defvar *objective* :lexicographic
   "Which objective the exact solver optimises among minimum-size regimens -- the
    THIRD policy dial, alongside BELIEF:*BELIEF-SYSTEM* and *SUSCEPTIBILITY-GATE*
-   (exact-solver-design.md 3.5). Cardinality is primary under both settings; this
-   chooses only how ties on drug count are broken.
+   (exact-solver-design.md 3.5). Cardinality is primary under all three settings;
+   this chooses only how ties on drug count are broken.
 
      :lexicographic    -- DEFAULT. Maximise summed susceptibility x identification
                           belief, then drug name. This is the greedy solver's
