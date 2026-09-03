@@ -311,7 +311,7 @@ a ceiling of one, and complete ignorance in between. That is a genuinely
 different statement from "the evidence balances out," and it is the distinction
 certainty factors cannot make.
 
-The mechanics are easier than the notation suggests, and in neomycin they rest on a
+The mechanics are easier than the notation suggests, and in Neomycin they rest on a
 single idea: **a rule states the set of organisms its evidence narrows the answer to.**
 The Gram stain says "one of these eight". The aerobic result says "one of these seven".
 The burn and the compromised host say "Pseudomonas". Each of those is an answer, with a
@@ -676,7 +676,9 @@ declaration from both directions.
 | [`demo-runsheet.md`](./demo-runsheet.md) | A 15-minute live demonstration script |
 | [`CLAUDE.md`](../CLAUDE.md) | Build notes and the layout of the codebase |
 
-**References.**
+---
+
+## References
 
 - Shortliffe, E. H. (1976), *Computer-Based Medical Consultations: MYCIN*
 - Buchanan, B. G. and Shortliffe, E. H. (1984), *Rule-Based Expert Systems*
