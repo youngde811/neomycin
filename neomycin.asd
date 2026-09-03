@@ -121,7 +121,16 @@
                      (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests")
-                     (:file "bridge-payload-tests"))))))
+                     (:file "bridge-payload-tests")
+                     ;; Guards docs/Neomycin.md -- the paper README.md points a
+                     ;; first-time reader at -- against the compiled image. Loads
+                     ;; LAST so its test-count guard sees every other test
+                     ;; registered. Reuses PAPER-SAYS-P's wrap-insensitive search
+                     ;; from prompt-tests, the scenario runners from
+                     ;; candidates-tests, and SOLVE-WITH from exact-solver-tests.
+                     (:file "paper-tests"
+                      :depends-on ("prompt-tests" "candidates-tests"
+                                   "exact-solver-tests")))))))
   :perform (asdf:test-op (o c)
              (unless (uiop:symbol-call "LISA-TEST" "RUN-ALL")
                (error "neomycin test suite reported failures"))))
