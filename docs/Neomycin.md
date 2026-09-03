@@ -155,7 +155,7 @@ the historical treatment of that rule authoritative.
 
 Four components, each with a job it does not share.
 
-**Lisa.** A forward-chaining production rule engine written in Common Lisp,
+**Lisa.** A forward-chaining expert system shell written in Common Lisp,
 using the Rete algorithm. It holds working memory and fires rules. Neomycin is a
 fork of Lisa that keeps the engine's packages un-renamed: Neomycin *uses* Lisa
 rather than absorbing it, though engine-level changes are made when the research
@@ -274,7 +274,7 @@ This section assumes no probability background. The two systems below are both
 ways of answering: *given several pieces of imperfect evidence, how confident
 should I be?*
 
-### Certainty factors: A Single Number
+### Certainty Factors: A Single Number
 
 MYCIN's original scheme attaches a single number between −1 and +1 to each
 hypothesis. Positive means the evidence supports it; negative means the evidence
