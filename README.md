@@ -15,7 +15,7 @@ written in Common Lisp. It is strictly a research vehicle.
 Neomycin began as a reconstruction of **MYCIN**, the Stanford medical expert system of
 the 1970s, rebuilt on a modern Common Lisp production-rule inference engine and fitted
 with a conversational front end powered by a large language model. Due to numerous improvements
-during the development period, Neomycin is related only distantly to its ancestors.
+during the development period, Neomycin is related only distantly now to its ancestors.
 
 The system holds a body of medical knowledge as explicit **rules** — statements of the
 form *if these findings hold, the organism is one of this set, and here is how strongly
