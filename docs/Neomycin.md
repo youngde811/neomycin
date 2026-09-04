@@ -17,12 +17,12 @@ high performance, production-quality expert system shell written in modern Commo
 ## Table of contents
 
 1. [Introduction](#introduction)
-2. [The Historical Problem Neomycin Re-Opens](#the-historical-problem-behind-neomycin)
+2. [The Historical Problem Behind Neomycin](#the-historical-problem-behind-neomycin)
 3. [Project Purpose](#project-purpose)
 4. [What Neomycin Is](#what-neomycin-is)
 5. [The Architecture](#the-architecture)
 6. [The Symbolic Inference Engine](#the-symbolic-inference-engine)
-7. [Reasoning When You Are Not Sure](#reasoning-under-uncertainty)
+7. [Reasoning Under Uncertainty](#reasoning-under-uncertainty)
 8. [The Conversation](#the-conversation)
 9. [Answering "Why?"](#answering-why)
 10. [From Identification to Treatment](#from-identification-to-treatment)
