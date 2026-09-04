@@ -8,21 +8,21 @@
 > measured from clinical data.
 
 Neomycin is a hybrid symbolic/LLM engine for bacterial identification and therapy
-selection: Claude as a natural-language clinical assistant in front of
-[Lisa](https://github.com/youngde811/Lisa), a production-quality expert system shell
-written in Common Lisp.
+selection. It serves as a research vehicle for exploring the integration of Claude, as a
+natural-language clinical assistant, with [Lisa](https://github.com/youngde811/Lisa), a
+high performance, production-quality expert system shell written in modern Common Lisp.
 
 ---
 
 ## Table of contents
 
 1. [Introduction](#introduction)
-2. [The Historical Problem Neomycin Re-Opens](#the-historical-problem-neomycin-re-opens)
+2. [The Historical Problem Neomycin Re-Opens](#the-historical-problem-behind-neomycin)
 3. [Project Purpose](#project-purpose)
 4. [What Neomycin Is](#what-neomycin-is)
 5. [The Architecture](#the-architecture)
 6. [The Symbolic Inference Engine](#the-symbolic-inference-engine)
-7. [Reasoning When You Are Not Sure](#reasoning-when-you-are-not-sure)
+7. [Reasoning When You Are Not Sure](#reasoning-under-uncertainty)
 8. [The Conversation](#the-conversation)
 9. [Answering "Why?"](#answering-why)
 10. [From Identification to Treatment](#from-identification-to-treatment)
@@ -34,7 +34,9 @@ written in Common Lisp.
 
 Neomycin began as a reconstruction of **MYCIN**, the Stanford medical expert system of
 the 1970s, rebuilt on a modern Common Lisp rules engine and fitted with a conversational
-front end powered by a large language model. It is no longer a reconstruction of it.
+front end powered by a large language model. It is now no longer a reconstruction of either
+**MYCIN** or its descendants. Rather, Neomycin has evolved into a novel implementation in
+its own right.
 
 The system holds a body of medical knowledge as explicit **rules** — statements of the
 form *if these findings hold, the organism is one of this set, and here is how strongly
@@ -48,7 +50,7 @@ language and bad at being auditable. The engine is the reverse. Keeping them
 strictly separate produces a system that can be talked to like a person and
 inspected like a ledger.
 
-## The Historical Problem Neomycin Re-Opens
+## The Historical Problem Behind Neomycin
 
 **MYCIN** (Shortliffe, 1976) diagnosed bacterial infections of the blood and
 recommended antibiotics. It was one of the first programs to perform at the
@@ -247,11 +249,11 @@ further rules. It runs until nothing more can fire. This is the opposite of
 MYCIN's original approach, which started from a hypothesis and worked backward
 looking for supporting facts.
 
-**Rete** is the algorithm that makes forward chaining efficient. The naive
-implementation re-tests every rule against every fact on every cycle, which is
-quadratic and unusable at scale. Rete instead compiles the rules into a network
-that stores partial matches — the intermediate state of every rule that is
-partway to firing. Asserting a fact updates only the affected parts of that
+**Lisa Rete** is a highly optimized version of Charles Forgy's original algorithm that makes
+forward chaining efficient. The naive implementation re-tests every rule against
+every fact on every cycle, which is quadratic and unusable at scale. Rete instead
+compiles the rules into a network that stores partial matches — the intermediate state
+of every rule that is partway to firing. Asserting a fact updates only the affected parts of that
 network. The engine trades memory for time, and the payoff is that the cost of
 adding a fact is proportional to what that fact actually affects.
 
@@ -270,7 +272,7 @@ matters when the trace is going to be narrated back to a person.
 
 ---
 
-## Reasoning When You Are Not Sure
+## Reasoning Under Uncertainty
 
 This section assumes no probability background. The two systems below are both
 ways of answering: *given several pieces of imperfect evidence, how confident
@@ -719,3 +721,5 @@ declaration from both directions.
 - Shafer, G. (1976), *A Mathematical Theory of Evidence*
 - Norvig, P. (1992), *Paradigms of Artificial Intelligence Programming*, chapter 16, whose forward-chaining translation
   of the MYCIN rules this rulebase follows
+- Forgy, Dr. Charles L. (1982), *Rete: A Fast Algorithm for the Many Pattern/Many Object Pattern Match Problem*,
+  *Artificial Intelligence. 19: 17–37*
