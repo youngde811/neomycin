@@ -8,7 +8,7 @@
 > measured from clinical data.
 
 Neomycin is a hybrid symbolic/LLM engine for bacterial identification and therapy
-selection, using Claude as a natural-language clinical assistant in front of
+selection, using Claude as a natural-language clinical assistant and
 [Lisa](https://github.com/youngde811/Lisa), a production-quality expert system shell
 written in Common Lisp. It is strictly a research vehicle.
 
