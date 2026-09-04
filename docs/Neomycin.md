@@ -28,7 +28,8 @@ high performance, production-quality expert system shell written in modern Commo
 10. [From Identification to Treatment](#from-identification-to-treatment)
 11. [Neomycin is Actually Interesting](#neomycin-is-actually-interesting)
 12. [Real Versus Schematic](#real-versus-schematic)
-13. [What to Read Next](#what-to-read-next)
+13. [Flies in the Ointment](#flies-in-the-ointment)
+14. [What to Read Next](#what-to-read-next)
 
 ## Introduction
 
@@ -696,6 +697,22 @@ the dependence rather than hoping it does not matter, and two invariants check t
 declaration from both directions.
 
 ---
+
+## Flies in the Ointment
+
+As a potential clinical tool, in addition to the medical community's rejection of expert systems
+decades ago, Neomycin is currently considered untrustworthy. LLMs, and in the case of this project
+Anthropic's Claude, seem to be notorious for circumventing guards in system prompts, behaving
+unpredicatably and, on occasion, dangerously. During late-stage development of Neomycin, it was found
+that, despite instructions (guards) to the contrary, Claude would sometimes inject its own vision of
+pathogen possibilities and their corresponding treatments. In such cases Claude was always wrong. Discovery
+of this behavior was possible because the clinical assistant driver, by default, records each session in
+a format that may be analyzed by Claude itself. Divergence from a narrative that was used to exercise the
+system seemed to be the trigger causing Claude to "lie" and work outside of its explicit parameters and
+restrictions.
+
+It is uncertain at this point whether Claude's "hallucinations" when acting as a clinical assistant can
+be overcome to the extent that Neomycin could be fully trusted.
 
 ## What to Read Next
 
