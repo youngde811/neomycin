@@ -42,18 +42,10 @@
   :components
   ((:module neomycin
     :components
-      (;; The rulebase was one 1300-line file through v0.5.0. The gram-positive
-       ;; increment took it past the ~40-rule threshold the corpus sketch (§7)
-       ;; predicted would make a single file unreviewable, so it is split by cluster.
-       ;; context.lisp defines every class the rule files are written against and so
-       ;; must load first; everything else depends on it and is otherwise independent.
-       (:file "package")
+      ((:file "package")
        (:module "rules"
         :components
           ((:file "context")
-           ;; Rules assert ANSWERS -- the SET of organisms their evidence narrows
-           ;; the question to. Confirming only; nothing is excluded by being named,
-           ;; and no rule has an empty RHS. See docs/narrows-to-promotion-sketch.md.
            (:file "candidates-gram-pos" :depends-on ("context"))
            (:file "candidates-gram-neg" :depends-on ("context"))
            (:file "conclusion" :depends-on ("context"))
@@ -66,36 +58,15 @@
           ((:file "package")
            (:file "protocol" :depends-on ("package"))
            (:file "antibiogram" :depends-on ("package"))
-           ;; kb-susceptibility overlays the antibiogram interval onto the curated
-           ;; figure, so kb depends on the antibiogram counts->interval/combine core.
            (:file "kb" :depends-on ("package" "antibiogram"))
            (:file "authoring" :depends-on ("kb"))
            (:file "knowledge-base" :depends-on ("authoring"))
-           ;; NOTE: antibiogram-data.lisp (the schematic site-local counts) is
-           ;; deliberately NOT loaded by default. The antibiogram is an OPT-IN,
-           ;; swappable layer (design doc 5): the canonical KB stays the pure
-           ;; reference, and a deployment/demo LOADs its own counts file to overlay
-           ;; local data onto the current *therapy-kb*.
            (:file "stub-solver" :depends-on ("protocol"))
-           ;; Shared phase A (belief gate, contraindication filter, the scalar
-           ;; reductions both gates read) -- solver-independent, so every solver
-           ;; gates identically and comparisons between them stay meaningful
-           ;; (exact-solver-design.md §4).
            (:file "solver-common" :depends-on ("protocol" "kb"))
            (:file "greedy-solver" :depends-on ("solver-common"))
            (:file "exact-solver" :depends-on ("solver-common"))
-           ;; HTTP surface for the therapy phase (design doc step (c)); depends on
-           ;; the solver protocol + the canonical KB it recommends over.
            (:file "bridge" :depends-on ("greedy-solver" "exact-solver" "knowledge-base"))))))))
 
-;;; Fixture-based tests for the therapy solver. Reuses the dependency-free
-;;; LISA-TEST harness. Run with (asdf:test-system "neomycin/test") or
-;;; (asdf:load-system "neomycin/test") followed by (lisa-test:run-all).
-;;; Depends on lisa/test-base (the rulebase-independent harness + belief-algebra),
-;;; NOT lisa/test -- neomycin ships its OWN forked golden files (scenarios, rules)
-;;; validating neomycin/rules/, which diverges from Lisa's examples/mycin.lisp
-;;; once rules are re-parented (docs/attic/chaining-belief-spike.md §7.1). setup.lisp loads
-;;; first and repoints the shared harness at neomycin's canonical rulebase.
 (asdf:defsystem "neomycin/test"
   :description "Fixture-based tests for neomycin's rulebase + therapy solver (no external deps)."
   :depends-on ("neomycin" "lisa/test-base")
@@ -105,29 +76,15 @@
       ((:module "test"
         :components ((:file "setup")
                      (:file "property-tests")
-                     ;; Guards the LLM system prompt against the compiled
-                     ;; rulebase; depends on property-tests for DOMAIN-RULES.
                      (:file "prompt-tests" :depends-on ("property-tests"))
-                     ;; Guards CLAUDE.md against the compiled image; reuses
-                     ;; BACKTICKED-TOKENS from prompt-tests.
                      (:file "claude-md-tests" :depends-on ("prompt-tests"))
                      (:file "provenance-tests")
-                     ;; The v0.11 shape end to end: scenario goldens, per-rule
-                     ;; isolation, and the properties the shape exists for.
                      (:file "candidates-tests" :depends-on ("property-tests"))
                      (:file "therapy-tests")
-                     ;; The exact solver + the ALTERNATIVES both solvers report;
-                     ;; depends on therapy-tests for REGIMEN-DRUGS / TREATED.
                      (:file "exact-solver-tests" :depends-on ("therapy-tests"))
                      (:file "antibiogram-tests")
                      (:file "therapy-bridge-tests")
                      (:file "bridge-payload-tests")
-                     ;; Guards docs/Neomycin.md -- the paper README.md points a
-                     ;; first-time reader at -- against the compiled image. Loads
-                     ;; LAST so its test-count guard sees every other test
-                     ;; registered. Reuses PAPER-SAYS-P's wrap-insensitive search
-                     ;; from prompt-tests, the scenario runners from
-                     ;; candidates-tests, and SOLVE-WITH from exact-solver-tests.
                      (:file "paper-tests"
                       :depends-on ("prompt-tests" "candidates-tests"
                                    "exact-solver-tests")))))))

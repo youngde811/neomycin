@@ -35,44 +35,51 @@
 (defun organisms-with-answers ()
   "Every organism some rule has answered about."
   (remove-duplicates
-   (mapcar (lambda (f) (lisa:get-slot-value f 'lisa-user::of)) (candidates-facts))))
+   (mapcar (lambda (f)
+             (lisa:get-slot-value f 'lisa-user::of))
+           (candidates-facts))))
+
+;; How strongly the PREMISES of one firing were believed, conjoined by the active
+;; belief system when the record carries no premise beliefs.
+
+;; The engine snapshots each premise's belief at fire time (DERIVATION-RECORD-PREMISES
+;; is a list of (FACT . BELIEF)), which is the only place this survives per RULE. The
+;; conclusion fact carries a belief too, but it is the COMBINED result of every
+;; contributor and cannot be decomposed back into what each rule brought.
 
 (defun firing-discount (record)
-  "How strongly the PREMISES of one firing were believed, conjoined by the active
-   belief system -- 1.0 when the record carries no premise beliefs.
-
-   The engine snapshots each premise's belief at fire time (DERIVATION-RECORD-PREMISES
-   is a list of (FACT . BELIEF)), which is the only place this survives per RULE. The
-   conclusion fact carries a belief too, but it is the COMBINED result of every
-   contributor and cannot be decomposed back into what each rule brought."
-  (let ((beliefs (remove nil (mapcar #'cdr (lisa:derivation-record-premises record)))))
+  (let ((beliefs
+          (remove nil (mapcar #'cdr (lisa:derivation-record-premises record)))))
     (if (and beliefs belief:*belief-system*)
         (belief:conjoin-beliefs belief:*belief-system* beliefs)
-        1.0)))
+      1.0)))
+
+;; ((RULE . DISCOUNT) ...): one entry per firing that produced FACT.
+;;
+;; A rule that fired twice appears twice, as it must: each firing is its own assertion
+;; of the answer and carries its own evidence strength.
 
 (defun contributing-firings (fact)
-  "((RULE . DISCOUNT) ...) -- one entry per firing that produced FACT.
-
-   A rule that fired twice appears twice, as it must: each firing is its own assertion
-   of the answer and carries its own evidence strength."
   (remove nil
           (mapcar (lambda (record)
                     (let ((rule (lisa:find-rule (lisa:inference-engine)
                                                 (lisa:derivation-record-rule record))))
-                      (when rule (cons rule (firing-discount record)))))
+                      (when rule
+                        (cons rule (firing-discount record)))))
                   (lisa:fact-derivation (lisa:inference-engine) fact))))
 
 (defun contributing-rules (fact)
   "The rules whose firing produced FACT, from the engine's own derivation record."
   (mapcar #'car (contributing-firings fact)))
 
-(defun surviving-rules (rules)
-  "RULES minus any that another in the set SUBSUMES.
+;; RULES minus any that another in the set SUBSUMES.
+;;
+;; A subsumed rule's premises are a strict subset of a survivor's, so it fires
+;; whenever that one does and tells us nothing the survivor has not already
+;; conditioned on. Rules that merely OVERLAP -- sharing a gram stain while differing
+;; on the patient -- are distinct evidence and all survive.
 
-   A subsumed rule's premises are a strict subset of a survivor's, so it fires
-   whenever that one does and tells us nothing the survivor has not already
-   conditioned on. Rules that merely OVERLAP -- sharing a gram stain while differing
-   on the patient -- are distinct evidence and all survive."
+(defun surviving-rules (rules)
   (remove-if (lambda (r)
                (some (lambda (other) (lisa:rule-subsumes-p other r)) rules))
              rules))
@@ -81,103 +88,111 @@
   "The raw VALUE slot of a CANDIDATES fact -- a flat set, or a graded answer."
   (lisa:get-slot-value fact 'lisa-user::value))
 
-(defun answer-set (fact)
-  "The set FACT admits: itself if flat, the union of its focal sets if graded.
+;; The set FACT admits: itself if flat, the union of its focal sets if graded.
+;;
+;; This is what `narrows to' means, and it is the only thing callers asking `does this
+;; answer admit klebsiella?' should consult. A graded answer's grading says how mass
+;; is distributed INSIDE this set; it never admits anything the set does not.
 
-   This is what `narrows to' means, and it is the only thing callers asking `does this
-   answer admit klebsiella?' should consult. A graded answer's grading says how mass
-   is distributed INSIDE this set; it never admits anything the set does not."
+(defun answer-set (fact)
   (candidates:answer-support (answer-value fact)))
 
-(defun rule-evidence-group (rule)
-  "The :evidence-group RULE declares in its provenance, or NIL.
+;; The :evidence-group RULE declares in its provenance, or NIL.
+;;
+;; A group name says: THESE RULES REST ON THE SAME UNDERLYING EVIDENCE. They are not
+;; independent observations, so combining them by Dempster's rule -- which assumes they
+;; are -- counts one fact more than once.
 
-   A group name says: THESE RULES REST ON THE SAME UNDERLYING EVIDENCE. They are not
-   independent observations, so combining them by Dempster's rule -- which assumes they
-   are -- counts one fact more than once."
+(defun rule-evidence-group (rule)
   (getf (lisa:rule-provenance rule) :evidence-group))
 
-(defun strongest-in-group (rules)
-  "The single rule that should speak for an evidence group.
+;; The single rule that should speak for an evidence group.
+;;
+;; Most committed first; ties broken by name so the choice is deterministic and a
+;; corpus edit cannot silently swap which rule is quoted. `Most committed' is the
+;; defensible reading of `most specific' when premises do not nest: it is the rule whose
+;; author was willing to claim the most from this evidence.
 
-   Most committed first; ties broken by name so the choice is deterministic and a
-   corpus edit cannot silently swap which rule is quoted. `Most committed' is the
-   defensible reading of `most specific' when premises do not nest: it is the rule whose
-   author was willing to claim the most from this evidence."
+(defun strongest-in-group (rules)
   (first (sort (copy-list rules)
                (lambda (a b)
-                 (let ((ba (abs (lisa:rule-belief a))) (bb (abs (lisa:rule-belief b))))
+                 (let ((ba (abs (lisa:rule-belief a)))
+                       (bb (abs (lisa:rule-belief b))))
                    (if (= ba bb)
                        (string< (symbol-name (lisa:rule-short-name a))
                                 (symbol-name (lisa:rule-short-name b)))
-                       (> ba bb)))))))
+                     (> ba bb)))))))
+
+;; RULES minus every member of an evidence group except the one that speaks for it.
+;;
+;; THE SECOND HALF OF SPECIFICITY. Subsumption handles rules whose premises NEST: the
+;; general one conditions on nothing extra, so it is dropped. This handles rules whose
+;; premises do not nest but whose EVIDENCE is the same -- which subsumption cannot see,
+;; because it reads premises rather than sources.
+;;
+;; The case that forced it: four gram-negative opportunist rules encode substantially
+;; the same distribution, because all four rest on the same epidemiology of
+;; gram-negative bacteraemia. `compromised-host' and `neutropenia' do not subsume each
+;; other, so a patient who was both fired both, and Dempster's rule read agreement as
+;; corroboration -- inflating the leading organism's belief ABOVE what either finding
+;; alone supports (e-coli 0.28/0.20 alone, 0.3492 together) while simultaneously
+;; inflating conflict to 0.2096 between two rules that AGREE about the shape of the
+;; answer. Measured in docs/base-rate-investigation.md.
+;;
+;; Dropping all but the strongest leaves exactly the answer that rule gives on its own,
+;; which is the correct reading when the two are one piece of evidence. Rules with no
+;; :evidence-group are untouched, so a genuinely distinct context -- a burn, a tropical
+;; journey -- still combines normally.
 
 (defun drop-redundant-evidence (rules)
-  "RULES minus every member of an evidence group except the one that speaks for it.
-
-   THE SECOND HALF OF SPECIFICITY. Subsumption handles rules whose premises NEST: the
-   general one conditions on nothing extra, so it is dropped. This handles rules whose
-   premises do not nest but whose EVIDENCE is the same -- which subsumption cannot see,
-   because it reads premises rather than sources.
-
-   The case that forced it: four gram-negative opportunist rules encode substantially
-   the same distribution, because all four rest on the same epidemiology of
-   gram-negative bacteraemia. `compromised-host' and `neutropenia' do not subsume each
-   other, so a patient who was both fired both, and Dempster's rule read agreement as
-   corroboration -- inflating the leading organism's belief ABOVE what either finding
-   alone supports (e-coli 0.28/0.20 alone, 0.3492 together) while simultaneously
-   inflating conflict to 0.2096 between two rules that AGREE about the shape of the
-   answer. Measured in docs/base-rate-investigation.md.
-
-   Dropping all but the strongest leaves exactly the answer that rule gives on its own,
-   which is the correct reading when the two are one piece of evidence. Rules with no
-   :evidence-group are untouched, so a genuinely distinct context -- a burn, a tropical
-   journey -- still combines normally."
   (let ((by-group (make-hash-table :test #'eq))
-        (ungrouped '()))
+        (ungrouped nil))
     (dolist (rule rules)
       (let ((group (rule-evidence-group rule)))
         (if group
             (push rule (gethash group by-group))
-            (push rule ungrouped))))
-    (let ((winners '()))
+          (push rule ungrouped))))
+    (let ((winners nil))
       (maphash (lambda (group members)
                  (declare (ignore group))
                  (push (strongest-in-group members) winners))
                by-group)
       (append winners ungrouped))))
 
+;; Every rule behind ORGANISM's answers, minus any that a SAME-ANSWER rule subsumes.
+;;
+;;  Subsumption is scoped to rules whose answers have the same SUPPORT, which is what
+;;  `same-conclusion rules reinforce, unless one subsumes the other' has always meant.
+;;  The scoping is not a detail -- dropping it is wrong, and measurably so. Applied
+;;  across ALL of an organism's answers instead, this drops
+;;  CHAINS-NARROWS-TO-CHAIN-FORMERS whenever BACITRACIN-SENSITIVE-NARROWS-TO-PYOGENES
+;;  fires, and GRAM-NEGATIVE-NARROWS-TO-GRAM-NEGATIVES whenever the bacteroides rule
+;;  does. A specific finding does not make the stain that framed it redundant: those
+;;  rules bring distinct evidence to nested answers, and they must reinforce.
+;;
+;;  What DID have to change is the granularity. This check used to be applied per FACT,
+;;  which was sound only by coincidence -- subsumption in the pre-graded corpus always
+;;  occurred between rules asserting the same FLAT set, and the engine collapsed those
+;;  into one fact. Graded answers broke the coincidence: two rules on nested premises
+;;  now assert different DISTRIBUTIONS over the same support, so they land on separate
+;;  facts and a per-fact check never sees the pair. Measured on culture-1a, where the
+;;  compromised-host evidence was counted twice -- once through the compromised-host
+;;  rule and again through the hospital-acquired rule that subsumes it -- driving K to
+;;  0.533. Grouping by support restores the intended semantics for both shapes.
+
 (defun surviving-rules-for (organism)
-  "Every rule behind ORGANISM's answers, minus any that a SAME-ANSWER rule subsumes.
-
-   Subsumption is scoped to rules whose answers have the same SUPPORT, which is what
-   `same-conclusion rules reinforce, unless one subsumes the other' has always meant.
-   The scoping is not a detail -- dropping it is wrong, and measurably so. Applied
-   across ALL of an organism's answers instead, this drops
-   CHAINS-NARROWS-TO-CHAIN-FORMERS whenever BACITRACIN-SENSITIVE-NARROWS-TO-PYOGENES
-   fires, and GRAM-NEGATIVE-NARROWS-TO-GRAM-NEGATIVES whenever the bacteroides rule
-   does. A specific finding does not make the stain that framed it redundant: those
-   rules bring distinct evidence to nested answers, and they must reinforce.
-
-   What DID have to change is the granularity. This check used to be applied per FACT,
-   which was sound only by coincidence -- subsumption in the pre-graded corpus always
-   occurred between rules asserting the same FLAT set, and the engine collapsed those
-   into one fact. Graded answers broke the coincidence: two rules on nested premises
-   now assert different DISTRIBUTIONS over the same support, so they land on separate
-   facts and a per-fact check never sees the pair. Measured on culture-1a, where the
-   compromised-host evidence was counted twice -- once through the compromised-host
-   rule and again through the hospital-acquired rule that subsumes it -- driving K to
-   0.533. Grouping by support restores the intended semantics for both shapes."
   (let ((by-support (make-hash-table :test #'equal))
-        (survivors '()))
+        (survivors nil))
     (dolist (fact (candidates-facts organism))
       (let ((support (answer-set fact)))
         (setf (gethash support by-support)
-              (append (contributing-rules fact) (gethash support by-support)))))
+              (append (contributing-rules fact)
+                      (gethash support by-support)))))
     (maphash (lambda (support rules)
                (declare (ignore support))
                (setf survivors
-                     (append (surviving-rules (remove-duplicates rules)) survivors)))
+                     (append (surviving-rules (remove-duplicates rules))
+                             survivors)))
              by-support)
     ;; Redundant-evidence filtering runs LAST and across the whole organism, not within
     ;; a support group: rules resting on one source may assert different distributions
@@ -185,51 +200,52 @@
     ;; by support -- cannot see them.
     (drop-redundant-evidence survivors)))
 
+;; The mass function one CANDIDATES fact contributes.
+;;
+;;  Each SURVIVING firing behind the fact is one independent assertion of the answer,
+;;  and they are combined by Dempster's rule. Recomputing from the surviving rules
+;;  rather than reading the fact's own belief is what implements SPECIFICITY: the engine
+;;  combined every contributor when it collapsed the duplicate assertions, and had no
+;;  way to know one of them was subsumed.
+
+;;  Each firing's answer is then DISCOUNTED by how strongly that firing's premises were
+;;  believed. Two quantities are in play and they are not the same: a rule's :belief is
+;;  how strongly the answer follows FROM its premises, and the discount is how strongly
+;;  those premises were believed in the first place. The rule belief alone is right only
+;;  when the evidence was asserted outright, which is every scenario but a hedged one --
+;;  and reading the fact's own belief instead is not an option, because it is the
+;;  COMBINED result of every contributor and cannot be decomposed per rule.
+;;
+;;  Before this, evidence strength reached the fact and stopped there: culture-2's
+;;  0.8/0.2 Gram hedge produced facts at 0.56/0.14/0.72 and a differential computed from
+;;  0.7/0.7/0.9, identical whether the clinician called the stain 80% negative, 50/50, or
+;;  80% POSITIVE. /assert-fact accepted a `confidence', echoed it back, and it changed
+;;  nothing.
+;;
+;;  For a FLAT answer at full evidence strength this is exactly the old arithmetic.
+;;  Combining two simple support functions on the same set with beliefs a and b puts
+;;  a + b - ab on it, which is the probabilistic sum this function used to compute
+;;  directly. Nothing moves unless a premise was hedged.
+;;
+;;  For a GRADED answer the distribution is stated on the FACT rather than carried as a
+;;  rule's single :belief, so each surviving firing asserts the same mass function,
+;;  discounted by its own evidence, and they combine the same way."
+
 (defun answer-mass-of (fact &optional survivors-in-scope)
-  "The mass function one CANDIDATES fact contributes.
-
-   Each SURVIVING firing behind the fact is one independent assertion of the answer,
-   and they are combined by Dempster's rule. Recomputing from the surviving rules
-   rather than reading the fact's own belief is what implements SPECIFICITY: the engine
-   combined every contributor when it collapsed the duplicate assertions, and had no
-   way to know one of them was subsumed.
-
-   Each firing's answer is then DISCOUNTED by how strongly that firing's premises were
-   believed. Two quantities are in play and they are not the same: a rule's :belief is
-   how strongly the answer follows FROM its premises, and the discount is how strongly
-   those premises were believed in the first place. The rule belief alone is right only
-   when the evidence was asserted outright, which is every scenario but a hedged one --
-   and reading the fact's own belief instead is not an option, because it is the
-   COMBINED result of every contributor and cannot be decomposed per rule.
-
-   Before this, evidence strength reached the fact and stopped there: culture-2's
-   0.8/0.2 Gram hedge produced facts at 0.56/0.14/0.72 and a differential computed from
-   0.7/0.7/0.9, identical whether the clinician called the stain 80% negative, 50/50, or
-   80% POSITIVE. /assert-fact accepted a `confidence', echoed it back, and it changed
-   nothing.
-
-   For a FLAT answer at full evidence strength this is exactly the old arithmetic.
-   Combining two simple support functions on the same set with beliefs a and b puts
-   a + b - ab on it, which is the probabilistic sum this function used to compute
-   directly. Nothing moves unless a premise was hedged.
-
-   For a GRADED answer the distribution is stated on the FACT rather than carried as a
-   rule's single :belief, so each surviving firing asserts the same mass function,
-   discounted by its own evidence, and they combine the same way."
   (let* ((value (answer-value fact))
          (firings (contributing-firings fact))
          (survivors (if survivors-in-scope
                         (remove-if-not (lambda (f) (member (car f) survivors-in-scope))
                                        firings)
-                        (let ((keep (surviving-rules (mapcar #'car firings))))
-                          (remove-if-not (lambda (f) (member (car f) keep)) firings)))))
+                      (let ((keep (surviving-rules (mapcar #'car firings))))
+                        (remove-if-not (lambda (f) (member (car f) keep)) firings)))))
     (cond
       ((candidates:graded-answer-p value)
        (let ((m (candidates:graded-answer value)))
          (if survivors
              (reduce #'candidates:combine-two
                      (mapcar (lambda (f) (candidates:discount m (cdr f))) survivors))
-             m)))
+           m)))
       (survivors
        (reduce #'candidates:combine-two
                (mapcar (lambda (f)
@@ -240,16 +256,18 @@
       (t
        ;; No derivation (a fact asserted as evidence rather than concluded):
        ;; take what it carries.
-       (let ((b (belief:belief-factor fact)))
-         (candidates:answer value (if (realp b) b 1.0)))))))
+       (let* ((b (belief:belief-factor fact))
+              (answer (if (realp b) b 1.0)))
+         (candidates:answer value answer))))))
+
+;; (SET . BELIEF) for one CANDIDATES fact.
+;;
+;;  BELIEF is the mass the answer COMMITS -- everything it does not leave on Theta. For
+;;  a flat answer that is the reinforced rule belief, unchanged. For a graded answer it
+;;  is the total of its focal masses, which is the closest single number to `how much
+;;  this evidence claims at all' and is what a summary line should quote.
 
 (defun answer-of (fact)
-  "(SET . BELIEF) for one CANDIDATES fact.
-
-   BELIEF is the mass the answer COMMITS -- everything it does not leave on Theta. For
-   a flat answer that is the reinforced rule belief, unchanged. For a graded answer it
-   is the total of its focal masses, which is the closest single number to `how much
-   this evidence claims at all' and is what a summary line should quote."
   (let* ((organism (lisa:get-slot-value fact 'lisa-user::of))
          (mass (answer-mass-of fact (surviving-rules-for organism))))
     (cons (answer-set fact)
